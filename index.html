@@ -49,7 +49,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .drawing-container{position:relative;overflow:auto;max-height:calc(100vh - 220px)}
 .drawing-container img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
 .drawing-container svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
-.drawing-container svg.interactive{pointer-events:all}
+.drawing-container svg.interactive{pointer-events:all;touch-action:none}
 .balloon-g{cursor:pointer;pointer-events:all}
 .balloon-g:hover circle{stroke-width:3}
 .balloon-g.selected circle{stroke:var(--cyan);stroke-width:4;filter:drop-shadow(0 0 6px rgba(34,211,238,.5))}
@@ -470,6 +470,7 @@ function toggleBalloonMode() {
 }
 
 function handleDrawingClick(e) {
+  if (isDragging) return;
   const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
   if (!img || !svg) return;
@@ -622,36 +623,36 @@ function renderBalloonsSVG() {
   }
 }
 
+let isDragging = false;
+
 function startBalloonDrag(e) {
   if (balloonMode === 'add') return;
+  e.preventDefault();
   e.stopPropagation();
+  isDragging = false;
   const g = e.currentTarget;
   const bid = g.dataset.id;
-  const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
-  if (!svg || !img) return;
+  if (!img) return;
 
-  let moved = false;
   const onMove = (ev) => {
-    moved = true;
+    ev.preventDefault();
+    isDragging = true;
     const rect = img.getBoundingClientRect();
-    const x_pct = ((ev.clientX - rect.left) / rect.width) * 100;
-    const y_pct = ((ev.clientY - rect.top) / rect.height) * 100;
+    const x_pct = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+    const y_pct = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+    const svg = document.getElementById('balloonSvg');
     const vbW = 1000;
     const vbH = parseFloat(svg.getAttribute('viewBox').split(' ')[3]);
     const cx = x_pct / 100 * vbW;
     const cy = y_pct / 100 * vbH;
-    g.querySelector('circle').setAttribute('cx', cx);
-    g.querySelector('circle:nth-child(2)').setAttribute('cx', cx);
-    g.querySelector('circle:nth-child(2)').setAttribute('cy', cy);
-    g.querySelector('circle').setAttribute('cy', cy);
-    g.querySelectorAll('text').forEach(t => {
+
+    // Update all circles and texts in the group
+    g.querySelectorAll('circle').forEach(c => { c.setAttribute('cx', cx); c.setAttribute('cy', cy); });
+    const texts = g.querySelectorAll('text');
+    texts.forEach((t, i) => {
       t.setAttribute('x', cx);
-      if (t === g.querySelector('text:last-child') && g.querySelectorAll('text').length > 1) {
-        t.setAttribute('y', cy + 28);
-      } else {
-        t.setAttribute('y', cy);
-      }
+      t.setAttribute('y', i === 0 ? cy : cy + 24);
     });
     g._dragPos = { x_pct, y_pct };
   };
@@ -659,11 +660,13 @@ function startBalloonDrag(e) {
   const onUp = async () => {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
-    if (moved && g._dragPos) {
+    if (isDragging && g._dragPos) {
       await sb.from('deployops_balloons').update({ x_pct: g._dragPos.x_pct, y_pct: g._dragPos.y_pct }).eq('id', bid);
       await loadBalloons();
       renderBalloonsSVG();
     }
+    // Reset after short delay so click handler doesn't fire
+    setTimeout(() => { isDragging = false; }, 100);
   };
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);
@@ -747,7 +750,7 @@ function renderChecklist() {
         <button class="sub-tab ${active==='check'?'active':''}" onclick="clSubTab='check';renderChecklist()">✅ Checks (${checks.length})</button>
         <button class="sub-tab ${active==='screw'?'active':''}" onclick="clSubTab='screw';renderChecklist()">🔩 Screws (${screws.length})</button>
       </div>
-      <button class="btn btn-sm" onclick="window.print()">🖨️ Print Checklist</button>
+      <button class="btn btn-sm" onclick="printChecklist()">🖨️ Print Checklist</button>
     </div>
     <div class="add-form admin-only" id="addItemForm">
         <select id="aiSection" style="min-width:120px">
@@ -934,6 +937,122 @@ function exportChecklistCSV() {
   toast('CSV exported','ok');
 }
 
+function buildPrintHTML(title, subtitle, bodyHTML) {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#111;padding:16px}
+    .print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:16px}
+    .print-header h1{font-size:18px;margin-bottom:2px}
+    .print-header p{font-size:11px;color:#555}
+    .section{margin-bottom:14px;break-inside:avoid}
+    .section-title{background:#e0e0e0;padding:6px 10px;font-weight:700;font-size:12px;border:1px solid #aaa;border-bottom:none}
+    table{width:100%;border-collapse:collapse}
+    th{background:#f0f0f0;text-align:left;padding:5px 8px;font-size:10px;text-transform:uppercase;border:1px solid #aaa;letter-spacing:.5px}
+    td{padding:5px 8px;border:1px solid #ccc;vertical-align:middle;font-size:11px}
+    .cb{width:16px;height:16px;border:2px solid #333;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:6px}
+    .cb.done{background:#333;position:relative}
+    .cb.done::after{content:'✓';color:#fff;position:absolute;top:-2px;left:2px;font-size:11px}
+    .qty{font-weight:700;text-align:center;font-family:monospace;font-size:12px}
+    .meta{color:#555;font-size:10px}
+    .footer{margin-top:20px;border-top:1px solid #aaa;padding-top:8px;font-size:10px;color:#555;display:flex;justify-content:space-between}
+    .sig-line{border-bottom:1px solid #333;width:180px;display:inline-block;margin-left:8px}
+  </style></head><body>
+  <div class="print-header">
+    <h1>⚙️ DeployOps — ${title}</h1>
+    <p>${subtitle}</p>
+  </div>
+  ${bodyHTML}
+  <div class="footer">
+    <span>Checked by: <span class="sig-line"></span></span>
+    <span>Date: <span class="sig-line"></span></span>
+    <span>Approved by: <span class="sig-line"></span></span>
+  </div>
+  </body></html>`;
+}
+
+function buildSectionsHTML(items, unitChecks_arr, showCheckboxState) {
+  const checkSections = {}, screwSections = {};
+  items.forEach(i => {
+    const target = i.section_type === 'screw' ? screwSections : checkSections;
+    if (!target[i.section_name]) target[i.section_name] = [];
+    target[i.section_name].push(i);
+  });
+
+  let html = '';
+
+  // Checks
+  if (Object.keys(checkSections).length > 0) {
+    html += '<h3 style="font-size:13px;margin:10px 0 6px">✅ Checks</h3>';
+    Object.entries(checkSections).forEach(([sec, sitems]) => {
+      html += `<div class="section"><div class="section-title">${sec}</div>
+        <table><tr><th style="width:30px">✓</th><th style="width:30px">#</th><th>Item</th><th>Description</th></tr>`;
+      sitems.forEach((item, i) => {
+        const ck = showCheckboxState && unitChecks_arr ? unitChecks_arr.some(c => c.item_id === item.id && c.checked) : false;
+        html += `<tr><td><span class="cb ${ck?'done':''}"></span></td>
+          <td>${item.sort_order || i+1}</td>
+          <td>${item.label}</td>
+          <td class="meta">${item.description || ''}</td></tr>`;
+      });
+      html += '</table></div>';
+    });
+  }
+
+  // Screws
+  if (Object.keys(screwSections).length > 0) {
+    html += '<h3 style="font-size:13px;margin:14px 0 6px">🔩 Required Screws / Parts</h3>';
+    Object.entries(screwSections).forEach(([sec, sitems]) => {
+      html += `<div class="section"><div class="section-title">${sec}</div>
+        <table><tr><th style="width:30px">✓</th><th>Part Number</th><th>Description</th><th style="width:60px">Qty</th><th>Tool</th></tr>`;
+      sitems.forEach(item => {
+        const ck = showCheckboxState && unitChecks_arr ? unitChecks_arr.some(c => c.item_id === item.id && c.checked) : false;
+        html += `<tr><td><span class="cb ${ck?'done':''}"></span></td>
+          <td><strong>${item.part_number || '—'}</strong></td>
+          <td>${item.label}</td>
+          <td class="qty">×${item.qty || '—'}</td>
+          <td class="meta">${item.tool || '—'}</td></tr>`;
+      });
+      html += '</table></div>';
+    });
+  }
+
+  return html;
+}
+
+function printChecklist() {
+  const items = checkItems.filter(i => i.visible !== false).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
+  if (items.length === 0) { toast('No items to print','err'); return; }
+  const body = buildSectionsHTML(items, null, false);
+  const html = buildPrintHTML(
+    currentDrawing.name + ' — Checklist Template',
+    currentDrawing.drawing_ref + '  |  ' + new Date().toLocaleDateString(),
+    body
+  );
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.print(); };
+}
+
+function printUnitChecklist() {
+  if (!deployUnit) return;
+  const items = checkItems.filter(i => i.visible !== false).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
+  const uc = unitChecks[deployUnit.id] || [];
+  const done = items.filter(i => uc.some(c => c.item_id === i.id && c.checked)).length;
+  const body = `<div style="margin-bottom:12px;font-size:12px"><strong>Progress:</strong> ${done}/${items.length} complete</div>` +
+    buildSectionsHTML(items, uc, true);
+  const html = buildPrintHTML(
+    deployUnit.unit_name + ' — Deploy Checklist',
+    currentDrawing.drawing_ref + ' — ' + currentDrawing.name + '  |  ' + new Date().toLocaleDateString(),
+    body
+  );
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.print(); };
+}
+
 // ============================================================
 // UNITS
 // ============================================================
@@ -1062,7 +1181,7 @@ function renderUnitChecklist(el) {
     <div class="deploy-header">
       <button class="btn btn-sm no-print" onclick="deployUnit=null;renderDeploy()">← Back</button>
       <h2>🤖 ${u.unit_name}</h2>
-      <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
+      <button class="btn btn-sm no-print" onclick="printUnitChecklist()">🖨️ Print</button>
     </div>
     <div class="deploy-progress">
       <div class="fill" style="width:${pct}%"></div>
