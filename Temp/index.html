@@ -32,8 +32,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn-green{background:var(--green);color:#000;border-color:var(--green);font-weight:600}
 .admin-only{display:none}
 .is-admin .admin-only{display:inline-flex}
-.is-admin .add-form.admin-only{display:flex}
-.is-admin div.mode-indicator.admin-only{display:inline-block}
 
 /* TABS */
 .tabbar{display:flex;gap:2px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
@@ -137,9 +135,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 @media print{
   *{color-adjust:exact!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   body{background:#fff;color:#111}
-  .topbar,.tabbar,.no-print,.btn,.admin-only,.add-form{display:none!important}
-  .tab-panel.active{display:block!important;padding:10px}
-  .tab-panel:not(.active){display:none!important}
+  .topbar,.tabbar,.no-print,.btn,.admin-only{display:none!important}
+  .tab-panel{display:block!important;padding:10px}
   .deploy-section,.unit-card,.cl-section{background:#fff;border-color:#ccc;break-inside:avoid}
   .deploy-section-header{background:#f0f0f0!important}
   .deploy-item input[type=checkbox]{appearance:none;width:16px;height:16px;border:2px solid #333;border-radius:3px}
@@ -431,12 +428,14 @@ function renderDrawing() {
           <span>Page ${currentPage} / ${currentDrawing.page_count}</span>
           <button class="btn btn-sm" onclick="changePage(1)" ${currentPage>=currentDrawing.page_count?'disabled':''}>▶</button>
         </div>
-        <button class="btn btn-sm admin-only ${balloonMode==='add'?'btn-danger':''}" onclick="toggleBalloonMode()" id="balloonModeBtn">
+        <div class="admin-only" style="display:contents">
+          <button class="btn btn-sm ${balloonMode==='add'?'btn-danger':''}" onclick="toggleBalloonMode()" id="balloonModeBtn">
             ${balloonMode==='add'?'🔴 Cancel Add':'➕ Add Balloon'}
           </button>
-          <div class="mode-indicator admin-only ${balloonMode==='add'?'add-mode':'select-mode'}">
+          <div class="mode-indicator ${balloonMode==='add'?'add-mode':'select-mode'}">
             ${balloonMode==='add'?'CLICK TO PLACE':'SELECT MODE'}
           </div>
+        </div>
         <button class="btn btn-sm no-print" onclick="exportAnnotatedPNG()">📷 Export PNG</button>
         <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
       </div>
@@ -450,9 +449,9 @@ function renderDrawing() {
 
 function onDrawingLoad() {
   renderBalloonsSVG();
-  const svg = document.getElementById('balloonSvg');
-  if (svg && isAdmin) {
-    svg.onclick = handleDrawingClick;
+  const container = document.getElementById('drawingContainer');
+  if (container && isAdmin) {
+    container.onclick = handleDrawingClick;
   }
 }
 
@@ -742,14 +741,12 @@ function renderChecklist() {
   items.forEach(i => { if (!sections[i.section_name]) sections[i.section_name] = []; sections[i.section_name].push(i); });
 
   let html = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <div class="sub-tabs" style="margin-bottom:0">
-        <button class="sub-tab ${active==='check'?'active':''}" onclick="clSubTab='check';renderChecklist()">✅ Checks (${checks.length})</button>
-        <button class="sub-tab ${active==='screw'?'active':''}" onclick="clSubTab='screw';renderChecklist()">🔩 Screws (${screws.length})</button>
-      </div>
-      <button class="btn btn-sm" onclick="window.print()">🖨️ Print Checklist</button>
+    <div class="sub-tabs">
+      <button class="sub-tab ${active==='check'?'active':''}" onclick="clSubTab='check';renderChecklist()">✅ Checks (${checks.length})</button>
+      <button class="sub-tab ${active==='screw'?'active':''}" onclick="clSubTab='screw';renderChecklist()">🔩 Screws (${screws.length})</button>
     </div>
-    <div class="add-form admin-only" id="addItemForm">
+    <div class="admin-only" style="display:contents">
+      <div class="add-form" id="addItemForm">
         <select id="aiSection" style="min-width:120px">
           <option value="">Section...</option>
           ${[...new Set(items.map(i=>i.section_name))].map(s=>`<option value="${s}">${s}</option>`).join('')}
@@ -763,6 +760,7 @@ function renderChecklist() {
         `:'<input id="aiDesc" placeholder="Description (optional)" style="min-width:150px">'}
         <button class="btn btn-primary btn-sm" onclick="addItem()">Add</button>
       </div>
+    </div>
   `;
 
   if (Object.keys(sections).length === 0) {
@@ -907,31 +905,6 @@ async function moveItem(id, direction) {
   await sb.from('deployops_checklist_items').update({ sort_order: aOrder }).eq('id', b.id);
   await loadCheckItems();
   renderChecklist();
-}
-
-function exportChecklistCSV() {
-  const items = checkItems.filter(i => i.section_type === clSubTab).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-  if (items.length === 0) { toast('No items to export','err'); return; }
-
-  let csv = '';
-  if (clSubTab === 'screw') {
-    csv = 'Section,Sort Order,Label,Part Number,Qty,Tool\n';
-    items.forEach(i => {
-      csv += `"${i.section_name}",${i.sort_order||0},"${i.label}","${i.part_number||''}",${i.qty||''},"${i.tool||''}"\n`;
-    });
-  } else {
-    csv = 'Section,Sort Order,Label,Description\n';
-    items.forEach(i => {
-      csv += `"${i.section_name}",${i.sort_order||0},"${i.label}","${i.description||''}"\n`;
-    });
-  }
-
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${currentDrawing.drawing_ref}_${clSubTab}_checklist.csv`;
-  a.click();
-  toast('CSV exported','ok');
 }
 
 // ============================================================
