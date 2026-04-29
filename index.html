@@ -604,7 +604,7 @@ function toggleFullscreen() {
   if (btn) btn.innerHTML = isFullscreen ? '✕ Exit Fullscreen' : '⛶ Fullscreen';
 }
 
-function handleDrawingClick(e) {
+async function handleDrawingClick(e) {
   if (isDragging) return;
   const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
@@ -644,6 +644,23 @@ function handleDrawingClick(e) {
   const sameModeOnPage = balloons.filter(b => b.page === currentPage && (b.mode||'balloon') === currentMode);
   const nextNum = sameModeOnPage.length > 0
     ? Math.max(...sameModeOnPage.map(b => b.number||0)) + 1 : 1;
+
+  // Non-cable balloons: place directly without a modal. Number/label/color/arrow can be tweaked
+  // afterward by clicking the balloon to open the edit modal.
+  if (!isCable) {
+    const { error } = await sb.from('deployops_balloons').insert({
+      drawing_id: currentDrawing.id, page: currentPage,
+      number: nextNum,
+      x_pct, y_pct, tip_x_pct: tip_x, tip_y_pct: tip_y,
+      label: '', color: MODES[currentMode].color, mode: currentMode,
+      arrow_style: currentArrowStyle
+    });
+    if (error) { toast('Save failed: '+error.message,'err'); return; }
+    toast(`${MODES[currentMode].label} placed`,'ok');
+    await loadBalloons();
+    renderBalloonsSVG();
+    return;
+  }
 
   showModal(`
     <h3>Add ${MODES[currentMode].label}</h3>
