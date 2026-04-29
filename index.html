@@ -45,6 +45,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* DRAWING VIEWER */
 .drawing-area{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:10px}
+.drawing-area.fullscreen-mode{position:fixed;inset:0;z-index:999;background:var(--bg);margin:0;border:none;border-radius:0}
+.drawing-area.fullscreen-mode .drawing-container{max-height:calc(100vh - 50px)}
+body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .drawing-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .drawing-container{position:relative;overflow:auto;max-height:calc(100vh - 220px)}
 .drawing-container img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
@@ -209,7 +212,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <select id="drawingSelect" onchange="selectDrawing(this.value)" style="min-width:180px">
     <option value="">— Select Drawing —</option>
   </select>
-  <button class="btn btn-primary admin-only btn-sm" onclick="showUploadModal()">📤 Upload PDF</button>
+  <button class="btn btn-primary admin-only btn-sm" onclick="triggerPDFFilePicker()">📤 Upload PDF</button>
   <div class="topbar-right">
     <div id="loginArea">
       <button class="btn" onclick="handleLogin()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:14px;height:14px"> Sign In</button>
@@ -273,6 +276,7 @@ let drawings = [], currentDrawing = null, currentPage = 1;
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
 let currentMode = 'balloon'; // 'dismantling' | 'cable' | 'balloon' — for new balloons + filter
 let currentArrowStyle = 'solid'; // 'solid' | 'dashed' | 'thick' | 'dot' | 'none'
+let isFullscreen = false;
 const MODES = {
   dismantling: { label:'Dismantling', icon:'●', color:'#e74c3c', desc:'Disassembly sequence — follow numbers in order', kind:'balloon' },
   cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag' },
@@ -395,34 +399,53 @@ async function selectDrawing(id) {
   renderDrawing();
 }
 
-function showUploadModal() {
-  showModal(`
-    <h3>📤 Upload Engineering Drawing</h3>
-    <label>Drawing Reference (Part Number)</label>
-    <input id="upRef" placeholder="e.g. NXMA-0800100-0-0">
-    <label>Drawing Name</label>
-    <input id="upName" placeholder="e.g. SafetyNet">
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="startPDFUpload()">Select PDF File</button>
-    </div>
-  `);
+function triggerPDFFilePicker() {
+  const input = document.getElementById('pdfInput');
+  input.value = '';
+  input.click();
 }
 
-function startPDFUpload() {
-  const ref = document.getElementById('upRef').value.trim();
-  const name = document.getElementById('upName').value.trim();
-  if (!ref || !name) { toast('Fill in both fields','err'); return; }
-  window._uploadMeta = { ref, name };
-  closeModal();
-  document.getElementById('pdfInput').click();
-}
-
-async function handlePDFUpload(event) {
+function handlePDFUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
   event.target.value = '';
-  const { ref, name } = window._uploadMeta;
+
+  const ref = file.name.replace(/\.pdf$/i, '');
+  const name = ref.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  window._pendingPDF = file;
+
+  showModal(`
+    <h3>📤 Confirm Upload</h3>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">File: <span id="upFilename"></span></p>
+    <label>Drawing Reference (Part Number)</label>
+    <input id="upRef">
+    <label>Drawing Name</label>
+    <input id="upName">
+    <div class="modal-actions">
+      <button class="btn" onclick="cancelPDFUpload()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmPDFUpload()">Confirm Upload</button>
+    </div>
+  `);
+  document.getElementById('upFilename').textContent = file.name;
+  document.getElementById('upRef').value = ref;
+  document.getElementById('upName').value = name;
+}
+
+function cancelPDFUpload() {
+  window._pendingPDF = null;
+  closeModal();
+}
+
+async function confirmPDFUpload() {
+  const ref = document.getElementById('upRef').value.trim();
+  const name = document.getElementById('upName').value.trim();
+  if (!ref || !name) { toast('Fill in both fields','err'); return; }
+  const file = window._pendingPDF;
+  if (!file) { toast('No file selected','err'); return; }
+  window._pendingPDF = null;
+  closeModal();
+
   toast('Converting PDF to images...','info');
 
   try {
@@ -481,7 +504,7 @@ function renderDrawing() {
   const pageUrl = getPageURL(currentPage);
   const modeKeys = Object.keys(MODES);
   el.innerHTML = `
-    <div class="drawing-area">
+    <div class="drawing-area ${isFullscreen?'fullscreen-mode':''}">
       <div class="drawing-toolbar">
         <div class="page-nav">
           <button class="btn btn-sm" onclick="changePage(-1)" ${currentPage<=1?'disabled':''}>◀</button>
@@ -489,11 +512,14 @@ function renderDrawing() {
           <button class="btn btn-sm" onclick="changePage(1)" ${currentPage>=currentDrawing.page_count?'disabled':''}>▶</button>
         </div>
         <div class="mode-pills">
-          ${modeKeys.map(k=>`
-            <button class="mode-pill ${currentMode===k?'active':''}" onclick="setCurrentMode('${k}')" title="${MODES[k].desc}">
-              <span class="dot" style="background:${MODES[k].color}"></span>${MODES[k].label}
-            </button>
-          `).join('')}
+          ${modeKeys.map(k=>{
+            const cnt = balloons.filter(b => b.page === currentPage && (b.mode||'balloon') === k).length;
+            return `
+            <button class="mode-pill ${currentMode===k?'active':''}" data-mode="${k}" onclick="setCurrentMode('${k}')" title="${MODES[k].desc}">
+              <span class="dot" style="background:${MODES[k].color}"></span>
+              <span class="mode-label">${MODES[k].label} (${cnt})</span>
+            </button>`;
+          }).join('')}
         </div>
         <button class="btn btn-sm admin-only ${balloonMode==='add'?'btn-danger':''}" onclick="toggleBalloonMode()" id="balloonModeBtn">
             ${balloonMode==='add'?'🔴 Cancel Add':'➕ Add ' + MODES[currentMode].label}
@@ -502,6 +528,7 @@ function renderDrawing() {
             ${balloonMode==='add'?'CLICK TO PLACE':'SELECT MODE'}
           </div>
         <button class="btn btn-sm no-print" onclick="exportAnnotatedPNG()">📷 Export PNG</button>
+        <button class="btn btn-sm no-print" id="fullscreenBtn" onclick="toggleFullscreen()">${isFullscreen?'✕ Exit Fullscreen':'⛶ Fullscreen'}</button>
         <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
         <button class="btn btn-sm btn-danger admin-only no-print" onclick="deleteCurrentPage()" ${currentDrawing.page_count<=1?'disabled':''} title="${currentDrawing.page_count<=1?'Cannot delete last page':'Delete this page'}">🗑️ Delete Page</button>
       </div>
@@ -516,10 +543,29 @@ function renderDrawing() {
 function setCurrentMode(m) {
   currentMode = m;
   // Update toolbar without full re-render to preserve image state
-  document.querySelectorAll('.mode-pill').forEach(p => p.classList.remove('active'));
-  event && event.target && event.target.closest('.mode-pill').classList.add('active');
+  document.querySelectorAll('.mode-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.mode === m);
+  });
   const btn = document.getElementById('balloonModeBtn');
   if (btn && balloonMode !== 'add') btn.innerHTML = '➕ Add ' + MODES[m].label;
+  // Selection may point to a now-hidden balloon — clear it
+  selectedBalloonId = null;
+  renderBalloonsSVG();
+}
+
+function updateModePillCounts() {
+  const counts = {};
+  Object.keys(MODES).forEach(k => counts[k] = 0);
+  balloons.filter(b => b.page === currentPage).forEach(b => {
+    const m = b.mode || 'balloon';
+    if (counts[m] !== undefined) counts[m]++;
+  });
+  document.querySelectorAll('.mode-pill').forEach(p => {
+    const m = p.dataset.mode;
+    if (!m || counts[m] === undefined) return;
+    const labelEl = p.querySelector('.mode-label');
+    if (labelEl) labelEl.textContent = `${MODES[m].label} (${counts[m]})`;
+  });
 }
 
 function onDrawingLoad() {
@@ -547,6 +593,15 @@ function toggleBalloonMode() {
   balloonMode = balloonMode === 'add' ? 'select' : 'add';
   selectedBalloonId = null;
   renderDrawing();
+}
+
+function toggleFullscreen() {
+  isFullscreen = !isFullscreen;
+  const area = document.querySelector('.drawing-area');
+  if (area) area.classList.toggle('fullscreen-mode', isFullscreen);
+  document.body.classList.toggle('is-fullscreen', isFullscreen);
+  const btn = document.getElementById('fullscreenBtn');
+  if (btn) btn.innerHTML = isFullscreen ? '✕ Exit Fullscreen' : '⛶ Fullscreen';
 }
 
 function handleDrawingClick(e) {
@@ -585,8 +640,10 @@ function handleDrawingClick(e) {
   else                   { x_pct = tip_x;      y_pct = 100-margin; }
 
   const isCable = MODES[currentMode].kind === 'tag';
-  const nextNum = balloons.filter(b => (b.mode||'balloon') !== 'cable').length > 0
-    ? Math.max(...balloons.filter(b => (b.mode||'balloon') !== 'cable').map(b => b.number||0)) + 1 : 1;
+  // Each mode gets independent numbering, scoped to the current page
+  const sameModeOnPage = balloons.filter(b => b.page === currentPage && (b.mode||'balloon') === currentMode);
+  const nextNum = sameModeOnPage.length > 0
+    ? Math.max(...sameModeOnPage.map(b => b.number||0)) + 1 : 1;
 
   showModal(`
     <h3>Add ${MODES[currentMode].label}</h3>
@@ -619,7 +676,14 @@ function handleDrawingClick(e) {
 
 async function saveBalloon(x, y, tip_x, tip_y) {
   const isCable = MODES[currentMode].kind === 'tag';
-  const num = isCable ? null : parseInt(document.getElementById('bNum').value);
+  let num;
+  if (isCable) {
+    // Auto-increment silently for internal tracking — number is not displayed on the tag
+    const cableNums = balloons.filter(b => (b.mode||'balloon') === 'cable').map(b => b.number || 0);
+    num = cableNums.length ? Math.max(...cableNums) + 1 : 1;
+  } else {
+    num = parseInt(document.getElementById('bNum').value);
+  }
   const label = document.getElementById('bLabel').value.trim();
   const color = document.getElementById('bColor').value;
   const arrowStyleEl = document.querySelector('#arrowStyleRow .arrow-style-btn.active');
@@ -676,7 +740,14 @@ function showBalloonActions(bid) {
 }
 
 async function updateBalloon(bid, isCable) {
-  const num = isCable ? null : parseInt(document.getElementById('ebNum').value);
+  let num;
+  if (isCable) {
+    // Preserve the silently-assigned number — the field is not exposed in the edit modal
+    const existing = balloons.find(x => x.id === bid);
+    num = existing ? existing.number : null;
+  } else {
+    num = parseInt(document.getElementById('ebNum').value);
+  }
   const label = document.getElementById('ebLabel').value.trim();
   const color = document.getElementById('ebColor').value;
   const styleEl = document.querySelector('#arrowStyleRowEdit .arrow-style-btn.active');
@@ -703,12 +774,26 @@ async function loadBalloons() {
   balloons = data || [];
 }
 
+// Compute the point where the line from (cx,cy) toward (tx,ty) exits an
+// axis-aligned rectangle of size w x h centered at (cx,cy). Used to clip
+// cable-tag leader arrows so they meet the rectangle edge cleanly.
+function rectEdgePoint(cx, cy, w, h, tx, ty) {
+  const dx = tx - cx, dy = ty - cy;
+  if (dx === 0 && dy === 0) return [cx, cy];
+  const tX = dx !== 0 ? (w/2) / Math.abs(dx) : Infinity;
+  const tY = dy !== 0 ? (h/2) / Math.abs(dy) : Infinity;
+  const t = Math.min(tX, tY);
+  return [cx + dx * t, cy + dy * t];
+}
+
 function renderBalloonsSVG() {
   const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
   if (!svg || !img) return;
 
-  const pageBalloons = balloons.filter(b => b.page === currentPage);
+  // Mode acts as a filter — only balloons of the active mode are shown
+  const pageBalloons = balloons.filter(b => b.page === currentPage && (b.mode || 'balloon') === currentMode);
+  updateModePillCounts();
   const r = 18; // balloon radius in SVG coords
   const imgW = img.naturalWidth || img.width;
   const imgH = img.naturalHeight || img.height;
@@ -736,16 +821,29 @@ function renderBalloonsSVG() {
     const style = b.arrow_style || (b.tip_x_pct!=null?'solid':'none');
     const ahId = 'ah_' + color.replace('#','');
 
+    // Cable-tag rectangle dimensions (computed once, used for both leader trim and body)
+    let tagW = 0, tagH = 0;
+    if (isCable) {
+      const text = b.label || '?';
+      // Approx: 6.2px/char at font-size 10 + horizontal padding + indicator square + gap
+      tagW = Math.max(34, text.length * 6.2 + 26);
+      tagH = 18;
+    }
+
     // Leader arrow (only if tip exists & style != none)
     if (b.tip_x_pct != null && b.tip_y_pct != null && style !== 'none') {
       const tx = b.tip_x_pct / 100 * vbW;
       const ty = b.tip_y_pct / 100 * vbH;
-      // Compute line endpoint at edge of balloon shape (so arrow doesn't enter the circle)
-      const dx = tx - cx, dy = ty - cy;
-      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-      const offset = isCable ? r*0.9 : r;
-      const sx = cx + dx/dist * offset;
-      const sy = cy + dy/dist * offset;
+      // Compute line endpoint at edge of balloon shape (so arrow doesn't enter the body)
+      let sx, sy;
+      if (isCable) {
+        [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
+      } else {
+        const dx = tx - cx, dy = ty - cy;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        sx = cx + dx/dist * r;
+        sy = cy + dy/dist * r;
+      }
 
       let strokeW = 2, dash = '', marker = `url(#${ahId})`;
       if (style === 'dashed') { dash = '6 4'; }
@@ -770,12 +868,17 @@ function renderBalloonsSVG() {
     // Balloon body
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
     if (isCable) {
-      // Rectangular tag
+      // Rectangular tag — white background, colored border, green indicator on left
       const text = b.label || '?';
-      const w = Math.max(24, text.length * 7 + 10);
-      const h = 18;
-      html += `<rect class="b-main" x="${cx-w/2}" y="${cy-h/2}" width="${w}" height="${h}" rx="3" fill="${color}" stroke="white" stroke-width="1.5"/>
-        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
+      const x0 = cx - tagW/2, y0 = cy - tagH/2;
+      const indPad = 3;
+      const indSize = tagH - indPad*2;
+      const indX = x0 + indPad;
+      const indY = y0 + indPad;
+      const textX = indX + indSize + 4;
+      html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="white" stroke="${color}" stroke-width="1.5"/>
+        <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="#27ae60"/>
+        <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111" font-size="10" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
     } else {
       html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
         <circle class="b-main" cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="1.5"/>
@@ -941,7 +1044,8 @@ async function exportAnnotatedPNG() {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0);
 
-  const pageBalloons = balloons.filter(b => b.page === currentPage);
+  // Export only the balloons of the currently active mode
+  const pageBalloons = balloons.filter(b => b.page === currentPage && (b.mode || 'balloon') === currentMode);
   const r = Math.min(canvas.width, canvas.height) * 0.018;
 
   // First pass: leader arrows (under balloons)
@@ -956,11 +1060,23 @@ async function exportAnnotatedPNG() {
     const color = b.color || '#e74c3c';
     const isCable = (b.mode||'balloon') === 'cable';
 
-    // Trim line to start at edge of balloon
+    // Trim line to start at edge of balloon body (rect for cable, circle otherwise)
     const dx = tx-cx, dy = ty-cy;
-    const dist = Math.sqrt(dx*dx+dy*dy)||1;
-    const off = isCable ? r*0.9 : r;
-    const sx = cx + dx/dist*off, sy = cy + dy/dist*off;
+    let sx, sy;
+    if (isCable) {
+      const text = b.label || '?';
+      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+      const tw = ctx.measureText(text).width;
+      const indSize = r*0.9;
+      const padX = r*0.35, indGap = r*0.3;
+      const tagW = padX + indSize + indGap + tw + padX;
+      const tagH = r*1.5;
+      [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
+    } else {
+      const dist = Math.sqrt(dx*dx+dy*dy)||1;
+      sx = cx + dx/dist*r;
+      sy = cy + dy/dist*r;
+    }
 
     ctx.save();
     ctx.strokeStyle = color;
@@ -999,16 +1115,28 @@ async function exportAnnotatedPNG() {
       const text = b.label || '?';
       ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
       const tw = ctx.measureText(text).width;
-      const w = tw + r*0.7, h = r*1.5;
-      ctx.fillStyle = color;
-      ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
-      ctx.beginPath();
+      const indSize = r*0.9;
+      const padX = r*0.35, indGap = r*0.3;
+      const w = padX + indSize + indGap + tw + padX, h = r*1.5;
       const rad = r*0.25;
-      ctx.roundRect(cx-w/2, cy-h/2, w, h, rad);
-      ctx.fill(); ctx.stroke();
+      const x0 = cx - w/2, y0 = cy - h/2;
+      // White rectangle with colored border
       ctx.fillStyle = 'white';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text, cx, cy);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, r*0.08);
+      ctx.beginPath();
+      ctx.roundRect(x0, y0, w, h, rad);
+      ctx.fill(); ctx.stroke();
+      // Green indicator square on left
+      ctx.fillStyle = '#27ae60';
+      const indX = x0 + padX, indY = cy - indSize/2;
+      ctx.beginPath();
+      ctx.roundRect(indX, indY, indSize, indSize, r*0.1);
+      ctx.fill();
+      // Label text — left-aligned, after indicator
+      ctx.fillStyle = '#111';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, indX + indSize + indGap, cy);
     } else {
       // White halo
       ctx.beginPath(); ctx.arc(cx, cy, r+4, 0, Math.PI*2);
@@ -1584,6 +1712,9 @@ async function toggleUnitCheck(unitId, itemId, checked) {
 // ============================================================
 async function init() {
   initAuth();
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
+  });
   await loadDrawings();
   // Auto-select first drawing if any
   if (drawings.length > 0) {
