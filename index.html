@@ -328,9 +328,6 @@ const MODES = {
   balloon:     { label:'Balloon',     icon:'①', color:'#888',    desc:'Generic numbered balloon', kind:'balloon' }
 };
 const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
-let checkItems = [], clSubTab = 'check';
-let units = [], deployUnit = null, unitChecks = {};
-
 // Models tab state (Phase 3)
 let models = [];                    // [{id,name,ref,description,icon,visible,...}]
 let modelView = null;               // currently open model id (null = list view)
@@ -405,7 +402,7 @@ function switchTab(tab) {
   document.body.dataset.tab = tab;
   if (tab === 'models')   renderModels();
   if (tab === 'drawing')  renderDrawing();
-  if (tab === 'deploy')   renderDeploy();
+  if (tab === 'deploy')   { deployLoadedFor = null; renderDeploy(); } // reload — items may have changed in Models tab
 }
 
 // ============================================================
@@ -447,9 +444,9 @@ async function selectDrawing(id) {
   currentDrawing = drawings.find(d => d.id === id) || null;
   currentPage = 1;
   if (currentDrawing) {
-    await Promise.all([loadBalloons(), loadCheckItems(), loadUnits()]);
+    await loadBalloons();
   } else {
-    balloons = []; checkItems = []; units = [];
+    balloons = [];
   }
   renderDrawing();
 }
@@ -546,8 +543,13 @@ function getPageURL(pageNum) {
   if (!currentDrawing) return '';
   const path = `${currentDrawing.drawing_ref}/page_${pageNum}.png`;
   const { data } = sb.storage.from('deployops-drawings').getPublicUrl(path);
-  return data.publicUrl;
+  // Cache-bust after page deletion: pages get shifted in storage but the URL stays the
+  // same, so the browser would serve the old image. The bumped stamp forces a fresh fetch.
+  const bust = drawingCacheBust[currentDrawing.id];
+  return bust ? `${data.publicUrl}?v=${bust}` : data.publicUrl;
 }
+
+const drawingCacheBust = {};
 
 function renderDrawing() {
   const el = document.getElementById('drawingContent');
@@ -1093,6 +1095,7 @@ async function deleteCurrentPage() {
     // 4. Update drawing page_count
     await sb.from('deployops_drawings').update({ page_count: total - 1 }).eq('id', currentDrawing.id);
 
+    drawingCacheBust[currentDrawing.id] = Date.now();
     toast(`Page ${deletedPage} deleted`,'ok');
     await loadDrawings();
     currentDrawing = drawings.find(d => d.id === currentDrawing.id);
@@ -1242,223 +1245,8 @@ async function exportAnnotatedPNG() {
 }
 
 // ============================================================
-// CHECKLIST BUILDER
+// PRINT (shared) — buildPrintHTML wraps body content for print window
 // ============================================================
-async function loadCheckItems() {
-  if (!currentDrawing) { checkItems = []; return; }
-  const { data } = await sb.from('deployops_checklist_items').select('*')
-    .eq('drawing_id', currentDrawing.id).order('sort_order');
-  checkItems = data || [];
-}
-
-function renderChecklist() {
-  const el = document.getElementById('checklistContent');
-  if (!currentDrawing) {
-    el.innerHTML = `<div class="empty"><div class="icon">✅</div><p>Select a drawing first</p></div>`;
-    return;
-  }
-
-  const checks = checkItems.filter(i => i.section_type === 'check');
-  const screws = checkItems.filter(i => i.section_type === 'screw');
-  const sections = {};
-
-  const active = clSubTab;
-  const items = active === 'check' ? checks : screws;
-  items.forEach(i => { if (!sections[i.section_name]) sections[i.section_name] = []; sections[i.section_name].push(i); });
-
-  let html = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <div class="sub-tabs" style="margin-bottom:0">
-        <button class="sub-tab ${active==='check'?'active':''}" onclick="clSubTab='check';renderChecklist()">✅ Checks (${checks.length})</button>
-        <button class="sub-tab ${active==='screw'?'active':''}" onclick="clSubTab='screw';renderChecklist()">🔩 Screws (${screws.length})</button>
-      </div>
-      <button class="btn btn-sm" onclick="printChecklist()">🖨️ Print Checklist</button>
-    </div>
-    <div class="add-form admin-only" id="addItemForm">
-        <select id="aiSection" style="min-width:120px">
-          <option value="">Section...</option>
-          ${[...new Set(items.map(i=>i.section_name))].map(s=>`<option value="${s}">${s}</option>`).join('')}
-          <option value="__new">+ New Section</option>
-        </select>
-        <input id="aiLabel" placeholder="Item label">
-        ${active==='screw'?`
-          <input id="aiPN" placeholder="Part Number" style="width:120px">
-          <input id="aiQty" type="number" placeholder="Qty" style="width:70px">
-          <input id="aiTool" placeholder="Tool" style="width:100px">
-        `:'<input id="aiDesc" placeholder="Description (optional)" style="min-width:150px">'}
-        <button class="btn btn-primary btn-sm" onclick="addItem()">Add</button>
-      </div>
-  `;
-
-  if (Object.keys(sections).length === 0) {
-    html += `<div class="empty"><div class="icon">${active==='check'?'✅':'🔩'}</div><p>No ${active} items yet. Add one above.</p></div>`;
-  }
-
-  Object.entries(sections).forEach(([secName, items]) => {
-    html += `<div class="cl-section">
-      <div class="cl-section-header"><h3>${secName}</h3><span class="badge badge-blue">${items.length}</span></div>
-      <div class="cl-section-body">`;
-    items.forEach((item, idx) => {
-      html += `<div class="cl-item">
-        <span class="order">${item.sort_order || idx+1}</span>
-        <div style="flex:1">
-          <div class="label">${item.label}</div>
-          ${item.description?`<div class="desc">${item.description}</div>`:''}
-        </div>`;
-      if (active === 'screw') {
-        if (item.part_number) html += `<span class="badge badge-blue">${item.part_number}</span>`;
-        if (item.qty) html += `<span class="badge badge-orange">×${item.qty}</span>`;
-        if (item.tool) html += `<span class="badge badge-green">${item.tool}</span>`;
-      }
-      html += `<div class="meta admin-only">
-          <button class="btn btn-sm" onclick="moveItem('${item.id}',-1)" title="Move Up">▲</button>
-          <button class="btn btn-sm" onclick="moveItem('${item.id}',1)" title="Move Down">▼</button>
-          <button class="btn btn-sm" onclick="editItem('${item.id}')" title="Edit">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteItem('${item.id}')" title="Delete">✕</button>
-        </div>
-      </div>`;
-    });
-    html += `</div></div>`;
-  });
-
-  el.innerHTML = html;
-
-  // Handle new section dropdown
-  const secSelect = document.getElementById('aiSection');
-  if (secSelect) {
-    secSelect.onchange = () => {
-      if (secSelect.value === '__new') {
-        const name = prompt('New section name:');
-        if (name) {
-          const opt = document.createElement('option');
-          opt.value = name; opt.textContent = name; opt.selected = true;
-          secSelect.insertBefore(opt, secSelect.lastElementChild);
-        } else { secSelect.value = ''; }
-      }
-    };
-  }
-}
-
-async function addItem() {
-  let secName = document.getElementById('aiSection').value;
-  if (!secName || secName === '__new') { toast('Select a section','err'); return; }
-  const label = document.getElementById('aiLabel').value.trim();
-  if (!label) { toast('Enter a label','err'); return; }
-
-  const maxOrder = checkItems.filter(i=>i.section_type===clSubTab).reduce((m,i)=>Math.max(m,i.sort_order||0),0);
-  const row = {
-    drawing_id: currentDrawing.id,
-    section_type: clSubTab,
-    section_name: secName,
-    sort_order: maxOrder + 1,
-    label
-  };
-
-  if (clSubTab === 'screw') {
-    row.part_number = document.getElementById('aiPN')?.value.trim() || null;
-    row.qty = parseInt(document.getElementById('aiQty')?.value) || null;
-    row.tool = document.getElementById('aiTool')?.value.trim() || null;
-  } else {
-    row.description = document.getElementById('aiDesc')?.value.trim() || null;
-  }
-
-  const { error } = await sb.from('deployops_checklist_items').insert(row);
-  if (error) { toast('Add failed','err'); return; }
-  toast('Item added','ok');
-  await loadCheckItems();
-  renderChecklist();
-}
-
-async function deleteItem(id) {
-  if (!confirm('Delete this checklist item?')) return;
-  await sb.from('deployops_checklist_items').delete().eq('id', id);
-  toast('Deleted','ok');
-  await loadCheckItems();
-  renderChecklist();
-}
-
-function editItem(id) {
-  const item = checkItems.find(i => i.id === id);
-  if (!item) return;
-  const isScrew = item.section_type === 'screw';
-  showModal(`
-    <h3>Edit Item</h3>
-    <label>Section</label>
-    <input id="eiSection" value="${item.section_name}">
-    <label>Label</label>
-    <input id="eiLabel" value="${item.label}">
-    ${isScrew ? `
-      <label>Part Number</label><input id="eiPN" value="${item.part_number||''}">
-      <label>Qty</label><input id="eiQty" type="number" value="${item.qty||''}">
-      <label>Tool</label><input id="eiTool" value="${item.tool||''}">
-    ` : `
-      <label>Description</label><input id="eiDesc" value="${item.description||''}">
-    `}
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveItemEdit('${id}',${isScrew})">Save</button>
-    </div>
-  `);
-}
-
-async function saveItemEdit(id, isScrew) {
-  const upd = {
-    section_name: document.getElementById('eiSection').value.trim(),
-    label: document.getElementById('eiLabel').value.trim()
-  };
-  if (isScrew) {
-    upd.part_number = document.getElementById('eiPN').value.trim() || null;
-    upd.qty = parseInt(document.getElementById('eiQty').value) || null;
-    upd.tool = document.getElementById('eiTool').value.trim() || null;
-  } else {
-    upd.description = document.getElementById('eiDesc').value.trim() || null;
-  }
-  closeModal();
-  await sb.from('deployops_checklist_items').update(upd).eq('id', id);
-  toast('Updated','ok');
-  await loadCheckItems();
-  renderChecklist();
-}
-
-async function moveItem(id, direction) {
-  const items = checkItems.filter(i => i.section_type === clSubTab).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-  const idx = items.findIndex(i => i.id === id);
-  const swapIdx = idx + direction;
-  if (swapIdx < 0 || swapIdx >= items.length) return;
-
-  const a = items[idx], b = items[swapIdx];
-  const aOrder = a.sort_order || idx, bOrder = b.sort_order || swapIdx;
-  await sb.from('deployops_checklist_items').update({ sort_order: bOrder }).eq('id', a.id);
-  await sb.from('deployops_checklist_items').update({ sort_order: aOrder }).eq('id', b.id);
-  await loadCheckItems();
-  renderChecklist();
-}
-
-function exportChecklistCSV() {
-  const items = checkItems.filter(i => i.section_type === clSubTab).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-  if (items.length === 0) { toast('No items to export','err'); return; }
-
-  let csv = '';
-  if (clSubTab === 'screw') {
-    csv = 'Section,Sort Order,Label,Part Number,Qty,Tool\n';
-    items.forEach(i => {
-      csv += `"${i.section_name}",${i.sort_order||0},"${i.label}","${i.part_number||''}",${i.qty||''},"${i.tool||''}"\n`;
-    });
-  } else {
-    csv = 'Section,Sort Order,Label,Description\n';
-    items.forEach(i => {
-      csv += `"${i.section_name}",${i.sort_order||0},"${i.label}","${i.description||''}"\n`;
-    });
-  }
-
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${currentDrawing.drawing_ref}_${clSubTab}_checklist.csv`;
-  a.click();
-  toast('CSV exported','ok');
-}
-
 function buildPrintHTML(title, subtitle, bodyHTML) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>${title}</title>
@@ -1494,289 +1282,503 @@ function buildPrintHTML(title, subtitle, bodyHTML) {
   </body></html>`;
 }
 
-function buildSectionsHTML(items, unitChecks_arr, showCheckboxState) {
-  const checkSections = {}, screwSections = {};
-  items.forEach(i => {
-    const target = i.section_type === 'screw' ? screwSections : checkSections;
-    if (!target[i.section_name]) target[i.section_name] = [];
-    target[i.section_name].push(i);
-  });
-
+// Phase-aware print body (groups by phase → section, shows checked_by + checked_at)
+function buildPhaseSectionsHTML(items, checks, phaseFilter) {
+  const phases = phaseFilter ? [phaseFilter] : ['assembly_qc','pre_deploy'];
   let html = '';
+  phases.forEach(phase => {
+    const phaseItems = items.filter(i => (i.phase||'assembly_qc') === phase);
+    if (phaseItems.length === 0) return;
+    const title = phase === 'assembly_qc' ? '🔬 Assembly QC' : '📦 Pre-Deploy';
+    const phaseDone = phaseItems.filter(i => checks.some(c => c.item_id === i.id && c.checked)).length;
+    html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${title} <span style="font-size:11px;color:#555;font-weight:400">(${phaseDone}/${phaseItems.length})</span></h2>`;
 
-  // Checks
-  if (Object.keys(checkSections).length > 0) {
-    html += '<h3 style="font-size:13px;margin:10px 0 6px">✅ Checks</h3>';
-    Object.entries(checkSections).forEach(([sec, sitems]) => {
-      html += `<div class="section"><div class="section-title">${sec}</div>
-        <table><tr><th style="width:30px">✓</th><th style="width:30px">#</th><th>Item</th><th>Description</th></tr>`;
-      sitems.forEach((item, i) => {
-        const ck = showCheckboxState && unitChecks_arr ? unitChecks_arr.some(c => c.item_id === item.id && c.checked) : false;
-        html += `<tr><td><span class="cb ${ck?'done':''}"></span></td>
-          <td>${item.sort_order || i+1}</td>
-          <td>${item.label}</td>
-          <td class="meta">${item.description || ''}</td></tr>`;
-      });
-      html += '</table></div>';
+    const sections = {};
+    const order = [];
+    phaseItems.forEach(i => {
+      const sn = i.section_name || '(unsorted)';
+      if (!sections[sn]) { sections[sn] = []; order.push(sn); }
+      sections[sn].push(i);
     });
-  }
 
-  // Screws
-  if (Object.keys(screwSections).length > 0) {
-    html += '<h3 style="font-size:13px;margin:14px 0 6px">🔩 Required Screws / Parts</h3>';
-    Object.entries(screwSections).forEach(([sec, sitems]) => {
-      html += `<div class="section"><div class="section-title">${sec}</div>
-        <table><tr><th style="width:30px">✓</th><th>Part Number</th><th>Description</th><th style="width:60px">Qty</th><th>Tool</th></tr>`;
-      sitems.forEach(item => {
-        const ck = showCheckboxState && unitChecks_arr ? unitChecks_arr.some(c => c.item_id === item.id && c.checked) : false;
-        html += `<tr><td><span class="cb ${ck?'done':''}"></span></td>
-          <td><strong>${item.part_number || '—'}</strong></td>
-          <td>${item.label}</td>
-          <td class="qty">×${item.qty || '—'}</td>
-          <td class="meta">${item.tool || '—'}</td></tr>`;
-      });
-      html += '</table></div>';
+    order.forEach(secName => {
+      const secItems = sections[secName];
+      const isKit = phase === 'pre_deploy';
+      html += `<div class="section"><div class="section-title">${esc(secName)}</div>`;
+      if (isKit) {
+        html += `<table><tr><th style="width:28px">✓</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px">Qty</th><th style="width:80px">Tool</th><th style="width:140px">Checked by / at</th></tr>`;
+        secItems.forEach(item => {
+          const c = checks.find(x => x.item_id === item.id && x.checked);
+          const ck = !!c;
+          const by = c ? `${esc(c.checked_by||'')}${c.checked_at?'<br>'+esc(formatDate(c.checked_at)):''}` : '';
+          html += `<tr><td><span class="cb ${ck?'done':''}"></span></td>
+            <td><strong>${esc(item.part_number||'—')}</strong></td>
+            <td>${esc(item.label||'')}</td>
+            <td class="qty">×${item.qty || '—'}</td>
+            <td class="meta">${esc(item.tool||'—')}</td>
+            <td class="meta" style="font-size:9px">${by}</td></tr>`;
+        });
+      } else {
+        html += `<table><tr><th style="width:28px">✓</th><th style="width:28px">#</th><th>Item</th><th>Description</th><th style="width:140px">Checked by / at</th></tr>`;
+        secItems.forEach((item, i) => {
+          const c = checks.find(x => x.item_id === item.id && x.checked);
+          const ck = !!c;
+          const by = c ? `${esc(c.checked_by||'')}${c.checked_at?'<br>'+esc(formatDate(c.checked_at)):''}` : '';
+          html += `<tr><td><span class="cb ${ck?'done':''}"></span></td>
+            <td>${item.sort_order || i+1}</td>
+            <td>${esc(item.label||'')}</td>
+            <td class="meta">${esc(item.description||'')}</td>
+            <td class="meta" style="font-size:9px">${by}</td></tr>`;
+        });
+      }
+      html += `</table></div>`;
     });
-  }
-
+  });
   return html;
 }
 
-function printChecklist() {
-  const items = checkItems.filter(i => i.visible !== false).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-  if (items.length === 0) { toast('No items to print','err'); return; }
-  const body = buildSectionsHTML(items, null, false);
-  const html = buildPrintHTML(
-    currentDrawing.name + ' — Checklist Template',
-    currentDrawing.drawing_ref + '  |  ' + new Date().toLocaleDateString(),
-    body
-  );
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
-  w.onload = () => { w.print(); };
-}
-
-function printUnitChecklist() {
-  if (!deployUnit) return;
-  const items = checkItems.filter(i => i.visible !== false).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-  const uc = unitChecks[deployUnit.id] || [];
-  const done = items.filter(i => uc.some(c => c.item_id === i.id && c.checked)).length;
-  const body = `<div style="margin-bottom:12px;font-size:12px"><strong>Progress:</strong> ${done}/${items.length} complete</div>` +
-    buildSectionsHTML(items, uc, true);
-  const html = buildPrintHTML(
-    deployUnit.unit_name + ' — Deploy Checklist',
-    currentDrawing.drawing_ref + ' — ' + currentDrawing.name + '  |  ' + new Date().toLocaleDateString(),
-    body
-  );
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
-  w.onload = () => { w.print(); };
+function formatDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 
 // ============================================================
-// UNITS
+// DEPLOY (Phase 4) — model-centric
 // ============================================================
-async function loadUnits() {
-  if (!currentDrawing) { units = []; return; }
-  const { data } = await sb.from('deployops_units').select('*').eq('drawing_id', currentDrawing.id).order('created_at');
-  units = data || [];
+let deployModelId = null;
+let deployUnits = [];
+let deployUnitItems = [];
+let deployChecks = {};
+let deployUnitId = null;
+let deployCollapsed = {};
+let deployLoadedFor = null;  // model id whose data is currently in memory
+
+async function loadDeployData(modelId) {
+  if (!modelId) {
+    deployUnits = []; deployUnitItems = []; deployChecks = {};
+    deployLoadedFor = null;
+    return;
+  }
+  try {
+    const [uRes, iRes] = await Promise.all([
+      sb.from('deployops_units').select('*').eq('model_id', modelId).order('created_at', { ascending: true }),
+      sb.from('deployops_checklist_items').select('*').eq('model_id', modelId).order('sort_order', { ascending: true })
+    ]);
+    if (uRes.error) throw uRes.error;
+    if (iRes.error) throw iRes.error;
+    deployUnits = uRes.data || [];
+    deployUnitItems = iRes.data || [];
+    deployChecks = {};
+    if (deployUnits.length > 0) {
+      const uIds = deployUnits.map(u => u.id);
+      const cRes = await sb.from('deployops_unit_checks').select('*').in('unit_id', uIds);
+      if (cRes.error) throw cRes.error;
+      (cRes.data || []).forEach(c => { (deployChecks[c.unit_id] ||= []).push(c); });
+    }
+    deployLoadedFor = modelId;
+  } catch(e) {
+    console.error(e);
+    toast('Failed to load deploy data: ' + (e.message || e), 'err');
+  }
 }
 
-function renderDeploy() {
+function deployProgress(unitId, phase) {
+  const items = deployUnitItems.filter(i => (i.phase||'assembly_qc') === phase);
+  const ck = deployChecks[unitId] || [];
+  const done = items.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+  return { done, total: items.length, pct: items.length ? Math.round(done/items.length*100) : 0 };
+}
+
+async function renderDeploy() {
   const el = document.getElementById('deployContent');
-  if (!currentDrawing) {
-    el.innerHTML = `<div class="empty"><div class="icon">🚀</div><p>Select a drawing first</p></div>`;
+
+  // Pick a default model on first entry
+  if (!deployModelId) {
+    if (models.length === 0) {
+      el.innerHTML = `<div class="empty"><div class="icon">🤖</div>
+        <p>No models yet. Add one from the <b>Models</b> tab to start deploying.</p></div>`;
+      return;
+    }
+    deployModelId = models[0].id;
+  }
+
+  if (deployLoadedFor !== deployModelId) {
+    el.innerHTML = `<div class="empty"><div class="icon">⏳</div><p>Loading…</p></div>`;
+    await loadDeployData(deployModelId);
+  }
+
+  if (deployUnitId) { renderDeployUnitDetail(el); return; }
+
+  const m = modelById(deployModelId);
+  let html = `
+    <div class="page-header">
+      <h1>🚀 Deploy</h1>
+      <button class="btn btn-primary admin-only" onclick="showAddDeployUnit()">➕ Add Unit</button>
+    </div>
+    <div class="model-picker">
+      <label>Model:</label>
+      <select onchange="onDeployModelChange(this.value)">
+        ${models.map(mm => `<option value="${mm.id}" ${mm.id===deployModelId?'selected':''}>${esc(mm.icon||'🤖')} ${esc(mm.name)}${mm.ref?' · '+esc(mm.ref):''}</option>`).join('')}
+      </select>
+    </div>
+  `;
+
+  if (!m) { el.innerHTML = html + `<div class="empty"><p>Model not found.</p></div>`; return; }
+
+  if (deployUnits.length === 0) {
+    html += `<div class="empty"><div class="icon">🤖</div>
+      <p>No units yet for <b>${esc(m.name)}</b>.</p>
+      <button class="btn btn-primary admin-only" onclick="showAddDeployUnit()">Add the first one</button></div>`;
+    el.innerHTML = html;
     return;
   }
 
-  if (deployUnit) { renderUnitChecklist(el); return; }
-
-  let html = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <h2 style="font-size:18px;flex:1">🤖 Robot Units — ${currentDrawing.name}</h2>
-      <button class="btn btn-primary admin-only" onclick="showAddUnitModal()">➕ Add Unit</button>
-    </div>
-  `;
-
-  if (units.length === 0) {
-    html += `<div class="empty"><div class="icon">🤖</div><p>No units yet. Add one to start deploying.</p></div>`;
-  } else {
-    html += `<div class="units-grid">`;
-    units.forEach(u => {
-      const total = checkItems.filter(i=>i.visible!==false).length;
-      const done = (unitChecks[u.id] || []).filter(c => c.checked).length;
-      const pct = total > 0 ? Math.round(done/total*100) : 0;
-      html += `
-        <div class="unit-card" onclick="openUnit('${u.id}')">
-          <h3>🤖 ${u.unit_name}</h3>
-          ${u.notes?`<p style="font-size:11px;color:var(--text2)">${u.notes}</p>`:''}
-          <div class="progress">${done} / ${total} checked (${pct}%)</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
-          <div style="margin-top:8px;display:flex;gap:4px;justify-content:flex-end" onclick="event.stopPropagation()">
-            <button class="btn btn-sm admin-only btn-danger" onclick="deleteUnit('${u.id}')">🗑️</button>
-          </div>
-        </div>`;
-    });
-    html += `</div>`;
-  }
-
+  html += `<div class="units-grid">`;
+  deployUnits.forEach(u => {
+    const qc  = deployProgress(u.id, 'assembly_qc');
+    const dep = deployProgress(u.id, 'pre_deploy');
+    html += `
+      <div class="unit-card" onclick="openDeployUnit('${u.id}')">
+        <div class="card-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-sm btn-danger admin-only" onclick="deleteDeployUnit('${u.id}')" title="Delete">🗑️</button>
+        </div>
+        <h3>🤖 ${esc(u.unit_name||u.name||'(unnamed)')}</h3>
+        ${u.notes?`<div class="unit-meta">${esc(u.notes)}</div>`:'<div class="unit-meta">&nbsp;</div>'}
+        <div class="phase-prog">
+          <div class="lbl"><span>🔬 Assembly QC</span><span>${qc.done}/${qc.total}</span></div>
+          <div class="prog-bar"><div class="prog-fill qc" style="width:${qc.pct}%"></div></div>
+        </div>
+        <div class="phase-prog">
+          <div class="lbl"><span>📦 Pre-Deploy</span><span>${dep.done}/${dep.total}</span></div>
+          <div class="prog-bar"><div class="prog-fill dep" style="width:${dep.pct}%"></div></div>
+        </div>
+      </div>`;
+  });
+  html += `</div>`;
   el.innerHTML = html;
 }
 
-function showAddUnitModal() {
+async function onDeployModelChange(id) {
+  deployModelId = id;
+  deployUnitId = null;
+  deployLoadedFor = null;  // force reload
+  await renderDeploy();
+}
+
+function showAddDeployUnit() {
+  const m = modelById(deployModelId);
   showModal(`
-    <h3>➕ Add Robot Unit</h3>
-    <label>Unit Name</label>
-    <input id="uName" placeholder="e.g. TX-001">
-    <label>Notes (optional)</label>
-    <textarea id="uNotes" placeholder="Location, batch, etc."></textarea>
+    <h3>➕ Add Unit</h3>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">For model: <b>${esc(m?.name||'')}</b></p>
+    <label>Unit Name / Serial</label> <input id="uName" placeholder="e.g. CE-004">
+    <label>Notes</label> <textarea id="uNotes" placeholder="Location, batch, etc."></textarea>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="addUnit()">Add</button>
+      <button class="btn btn-primary" onclick="addDeployUnit()">Add</button>
     </div>
   `);
+  setTimeout(() => { const i = document.getElementById('uName'); if (i) i.focus(); }, 30);
 }
 
-async function addUnit() {
+async function addDeployUnit() {
   const name = document.getElementById('uName').value.trim();
-  if (!name) { toast('Enter a unit name','err'); return; }
-  closeModal();
-  const { error } = await sb.from('deployops_units').insert({
-    drawing_id: currentDrawing.id,
-    unit_name: name,
-    notes: document.getElementById('uNotes').value.trim(),
-    created_by: currentUser?.email || 'unknown'
-  });
-  if (error) { toast('Add failed: ' + error.message,'err'); return; }
-  toast(`Unit "${name}" created`,'ok');
-  await loadUnits();
-  await loadAllUnitChecks();
-  renderDeploy();
-}
-
-async function deleteUnit(id) {
-  if (!confirm('Delete this unit and all its check data?')) return;
-  await sb.from('deployops_unit_checks').delete().eq('unit_id', id);
-  await sb.from('deployops_units').delete().eq('id', id);
-  toast('Unit deleted','ok');
-  await loadUnits();
-  delete unitChecks[id];
-  renderDeploy();
-}
-
-async function loadAllUnitChecks() {
-  unitChecks = {};
-  for (const u of units) {
-    const { data } = await sb.from('deployops_unit_checks').select('*').eq('unit_id', u.id);
-    unitChecks[u.id] = data || [];
+  if (!name) { toast('Enter a name', 'err'); return; }
+  try {
+    const { data, error } = await sb.from('deployops_units').insert({
+      model_id: deployModelId,
+      unit_name: name,
+      notes: document.getElementById('uNotes').value.trim(),
+      created_by: currentUser?.email || 'unknown'
+    }).select().single();
+    if (error) throw error;
+    deployUnits.push(data);
+    deployChecks[data.id] = [];
+    modelUnitCount[deployModelId] = (modelUnitCount[deployModelId] || 0) + 1;
+    closeModal(); toast(`Unit "${name}" created`, 'ok');
+    renderDeploy();
+  } catch(e) {
+    console.error(e);
+    toast('Add failed: ' + (e.message || e), 'err');
   }
 }
 
-async function openUnit(unitId) {
-  deployUnit = units.find(u => u.id === unitId);
-  if (!deployUnit) return;
-  if (!unitChecks[unitId]) {
-    const { data } = await sb.from('deployops_unit_checks').select('*').eq('unit_id', unitId);
-    unitChecks[unitId] = data || [];
+async function deleteDeployUnit(id) {
+  const u = deployUnits.find(x => x.id === id);
+  if (!u || !confirm(`Delete unit "${u.unit_name||u.name}" and its check data?`)) return;
+  try {
+    await sb.from('deployops_unit_checks').delete().eq('unit_id', id);
+    const { error } = await sb.from('deployops_units').delete().eq('id', id);
+    if (error) throw error;
+    deployUnits = deployUnits.filter(x => x.id !== id);
+    delete deployChecks[id];
+    if (deployUnitId === id) deployUnitId = null;
+    if (modelUnitCount[deployModelId]) modelUnitCount[deployModelId] = Math.max(0, modelUnitCount[deployModelId] - 1);
+    toast('Unit deleted', 'info');
+    renderDeploy();
+  } catch(e) {
+    console.error(e);
+    toast('Delete failed: ' + (e.message || e), 'err');
   }
-  renderDeploy();
 }
 
-function renderUnitChecklist(el) {
-  const u = deployUnit;
-  const checks = unitChecks[u.id] || [];
-  const items = checkItems.filter(i => i.visible !== false);
-  const done = items.filter(i => checks.some(c => c.item_id === i.id && c.checked)).length;
-  const pct = items.length > 0 ? Math.round(done/items.length*100) : 0;
+function openDeployUnit(id) { deployUnitId = id; renderDeploy(); }
+function backToDeployUnits() { deployUnitId = null; renderDeploy(); }
 
-  // Group by section_type then section_name
-  const checkSections = {}, screwSections = {};
-  items.forEach(i => {
-    const target = i.section_type === 'screw' ? screwSections : checkSections;
-    if (!target[i.section_name]) target[i.section_name] = [];
-    target[i.section_name].push(i);
-  });
+function renderDeployUnitDetail(el) {
+  const u = deployUnits.find(x => x.id === deployUnitId);
+  if (!u) { deployUnitId = null; renderDeploy(); return; }
+  const m = modelById(u.model_id) || modelById(deployModelId);
+  const qc  = deployProgress(u.id, 'assembly_qc');
+  const dep = deployProgress(u.id, 'pre_deploy');
 
   let html = `
+    <div class="crumbs">
+      <a onclick="backToDeployUnits()">← Units</a>
+      <span class="sep">/</span>
+      <span>${esc(m?.name||'')}</span>
+      <span class="sep">/</span>
+      <span>${esc(u.unit_name||u.name||'')}</span>
+    </div>
     <div class="deploy-header">
-      <button class="btn btn-sm no-print" onclick="deployUnit=null;renderDeploy()">← Back</button>
-      <h2>🤖 ${u.unit_name}</h2>
-      <button class="btn btn-sm no-print" onclick="printUnitChecklist()">🖨️ Print</button>
+      <button class="btn btn-sm no-print" onclick="backToDeployUnits()">← Back</button>
+      <h2>🤖 ${esc(u.unit_name||u.name||'')}</h2>
+      <button class="btn btn-sm no-print" onclick="showPrintOptions()">🖨️ Print / PDF</button>
+      <div class="submeta">${esc(m?.icon||'')} ${esc(m?.name||'')}${m?.ref?' · '+esc(m.ref):''}${u.notes?' · '+esc(u.notes):''}</div>
     </div>
-    <div class="deploy-progress">
-      <div class="fill" style="width:${pct}%"></div>
-      <div class="txt">${done} / ${items.length} complete (${pct}%)</div>
-    </div>
-    <div style="height:14px"></div>
   `;
 
-  // Check sections
-  if (Object.keys(checkSections).length > 0) {
-    html += `<h3 style="font-size:14px;color:var(--text2);margin:12px 0 8px">✅ Checks</h3>`;
-    Object.entries(checkSections).forEach(([secName, secItems]) => {
-      html += renderDeploySection(secName, secItems, checks, u.id, false);
-    });
-  }
+  html += renderDeployPhaseBlock(u, 'assembly_qc', '🔬', 'Assembly QC', 'Was it built correctly?', qc, 'qc');
+  html += renderDeployPhaseBlock(u, 'pre_deploy',  '📦', 'Pre-Deploy',  'Are all parts in the box?',  dep, 'dep');
 
-  // Screw sections
-  if (Object.keys(screwSections).length > 0) {
-    html += `<h3 style="font-size:14px;color:var(--text2);margin:16px 0 8px">🔩 Required Screws / Parts</h3>`;
-    Object.entries(screwSections).forEach(([secName, secItems]) => {
-      html += renderDeploySection(secName, secItems, checks, u.id, true);
-    });
-  }
-
-  if (items.length === 0) {
-    html += `<div class="empty"><p>No checklist items defined yet. Go to the Checklist tab to add items.</p></div>`;
+  if (qc.total === 0 && dep.total === 0) {
+    const mid = u.model_id || deployModelId;
+    html += `<div class="empty"><p>No checklist items defined for this model yet.<br><a onclick="modelView='${mid}';modelPhase='assembly_qc';switchTab('models')" style="color:var(--accent);cursor:pointer">Open the Models tab</a> to add some.</p></div>`;
   }
 
   el.innerHTML = html;
 }
 
-function renderDeploySection(secName, items, checks, unitId, isScrew) {
-  let html = `<div class="deploy-section">
-    <div class="deploy-section-header">
-      <span>${isScrew?'🔩':'✅'}</span> ${secName}
-      <span class="badge badge-blue" style="margin-left:auto">${items.filter(i=>checks.some(c=>c.item_id===i.id&&c.checked)).length}/${items.length}</span>
-    </div>`;
-  items.forEach(item => {
-    const ck = checks.find(c => c.item_id === item.id);
-    const checked = ck?.checked || false;
-    html += `<div class="deploy-item ${checked?'checked':''}">
-      <input type="checkbox" ${checked?'checked':''} onchange="toggleUnitCheck('${unitId}','${item.id}',this.checked)">
-      <div class="di-label">
-        ${item.label}
-        ${item.description?`<span class="sub">${item.description}</span>`:''}
-        ${item.part_number?`<span class="sub" style="color:var(--accent)">${item.part_number}${item.tool?' — '+item.tool:''}</span>`:''}
-      </div>
-      ${item.qty?`<div class="di-qty">×${item.qty}</div>`:''}
-    </div>`;
+function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
+  const phaseItems = deployUnitItems.filter(i => (i.phase||'assembly_qc') === phase)
+                                    .sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
+  if (phaseItems.length === 0) {
+    return `
+      <div class="phase-block" data-phase="${phase}">
+        <div class="phase-block-header">
+          <div class="phase-name"><span class="phase-icon">${icon}</span>${title}</div>
+          <span class="phase-meta">no items defined</span>
+        </div>
+      </div>`;
+  }
+
+  const sections = {};
+  const sectionOrder = [];
+  phaseItems.forEach(i => {
+    const sn = i.section_name || '(unsorted)';
+    if (!sections[sn]) { sections[sn] = []; sectionOrder.push(sn); }
+    sections[sn].push(i);
   });
+  const ck = deployChecks[u.id] || [];
+
+  let html = `
+    <div class="phase-block" data-phase="${phase}">
+      <div class="phase-block-header">
+        <div class="phase-name"><span class="phase-icon">${icon}</span>${title}</div>
+        <span class="phase-meta">${subtitle}</span>
+        <div class="phase-progress ${klass}">
+          <div class="fill" data-phase-fill="${phase}" style="width:${prog.pct}%"></div>
+          <div class="txt" data-phase-txt="${phase}">${prog.done} / ${prog.total} · ${prog.pct}%</div>
+        </div>
+      </div>`;
+
+  sectionOrder.forEach((secName, secIdx) => {
+    const secItems = sections[secName];
+    const secKey = `${u.id}|${phase}|${secIdx}`;
+    const collapsed = deployCollapsed[secKey];
+    const secDone = secItems.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+    html += `
+      <div class="deploy-section ${collapsed?'collapsed':''}" data-sec-key="${esc(secKey)}">
+        <div class="deploy-section-header" data-sec-toggle="${esc(secKey)}" onclick="toggleDeploySection(this.dataset.secToggle)">
+          <span class="chev">▼</span>
+          <span>${esc(secName)}</span>
+          <span class="sec-stat" data-sec-stat="${esc(secKey)}">${secDone}/${secItems.length}</span>
+        </div>
+        <div class="deploy-section-body">`;
+    secItems.forEach(item => {
+      const c = ck.find(x => x.item_id === item.id);
+      const checked = !!(c && c.checked);
+      html += `
+        <div class="deploy-item ${checked?'checked':''}" data-item-id="${item.id}" data-sec-key="${esc(secKey)}">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleDeployCheck('${u.id}','${item.id}',this.checked,this)">
+          <div class="di-label">
+            ${esc(item.label)}
+            ${item.description?`<span class="sub">${esc(item.description)}</span>`:''}
+            ${item.part_number?`<span class="sub" style="color:var(--accent)">${esc(item.part_number)}${item.tool?' · '+esc(item.tool):''}</span>`:''}
+            ${checked && c?.checked_by ? `<span class="by">✓ ${esc(c.checked_by)} · ${esc(formatDate(c.checked_at))}</span>` : ''}
+          </div>
+          ${item.qty?`<div class="di-qty">×${item.qty}</div>`:''}
+        </div>`;
+    });
+    html += `</div></div>`;
+  });
+
   html += `</div>`;
   return html;
 }
 
-async function toggleUnitCheck(unitId, itemId, checked) {
+function toggleDeploySection(secKey) {
+  deployCollapsed[secKey] = !deployCollapsed[secKey];
+  const sec = document.querySelector(`.deploy-section[data-sec-key="${cssEsc(secKey)}"]`);
+  if (sec) sec.classList.toggle('collapsed', !!deployCollapsed[secKey]);
+}
+
+function cssEsc(s) {
+  return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/[\\"]/g, '\\$&');
+}
+
+async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
   const now = new Date().toISOString();
+  const by  = currentUser?.email || 'unknown';
+
+  // Optimistic local update
+  const arr = (deployChecks[unitId] ||= []);
+  const existing = arr.find(c => c.item_id === itemId);
+  let saved;
+  if (existing) {
+    existing.checked = checked;
+    existing.checked_by = by;
+    existing.checked_at = checked ? now : null;
+    saved = existing;
+  } else {
+    saved = { unit_id: unitId, item_id: itemId, checked, checked_by: by, checked_at: checked ? now : null };
+    arr.push(saved);
+  }
+
+  // Patch DOM in place — no full re-render
+  const row = checkboxEl.closest('.deploy-item');
+  if (row) {
+    row.classList.toggle('checked', checked);
+    const labelEl = row.querySelector('.di-label');
+    let byEl = labelEl?.querySelector('.by');
+    if (checked) {
+      const html = `<span class="by">✓ ${esc(by)} · ${esc(formatDate(now))}</span>`;
+      if (byEl) byEl.outerHTML = html;
+      else if (labelEl) labelEl.insertAdjacentHTML('beforeend', html);
+    } else if (byEl) byEl.remove();
+  }
+
+  // Patch phase progress + section count
+  const item = deployUnitItems.find(i => i.id === itemId);
+  if (item) {
+    const phase = item.phase || 'assembly_qc';
+    const prog = deployProgress(unitId, phase);
+    const fill = document.querySelector(`[data-phase-fill="${phase}"]`);
+    const txt  = document.querySelector(`[data-phase-txt="${phase}"]`);
+    if (fill) fill.style.width = prog.pct + '%';
+    if (txt)  txt.textContent  = `${prog.done} / ${prog.total} · ${prog.pct}%`;
+
+    const sk = row?.dataset?.secKey;
+    if (sk) {
+      const stat = document.querySelector(`[data-sec-stat="${cssEsc(sk)}"]`);
+      if (stat) {
+        const phaseItems = deployUnitItems.filter(i => (i.phase||'assembly_qc') === phase)
+                                          .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+        const sections = {}; const order = [];
+        phaseItems.forEach(i => {
+          const sn = i.section_name || '(unsorted)';
+          if (!sections[sn]) { sections[sn] = []; order.push(sn); }
+          sections[sn].push(i);
+        });
+        const idxStr = sk.split('|')[2];
+        const secItems = sections[order[parseInt(idxStr)]] || [];
+        const secDone = secItems.filter(i => arr.some(c => c.item_id === i.id && c.checked)).length;
+        stat.textContent = `${secDone}/${secItems.length}`;
+      }
+    }
+  }
+
+  // Persist
   const { error } = await sb.from('deployops_unit_checks').upsert({
     unit_id: unitId, item_id: itemId,
-    checked,
-    checked_by: currentUser?.email || 'unknown',
+    checked, checked_by: by,
     checked_at: checked ? now : null
   }, { onConflict: 'unit_id,item_id' });
 
-  if (error) { toast('Save failed','err'); return; }
+  if (error) {
+    console.error(error);
+    toast('Save failed — reverting', 'err');
+    saved.checked = !checked;
+    if (row) row.classList.toggle('checked', !checked);
+    if (checkboxEl) checkboxEl.checked = !checked;
+    renderDeploy();
+  }
+}
 
-  // Update local state
-  const checks = unitChecks[unitId] || [];
-  const existing = checks.find(c => c.item_id === itemId);
-  if (existing) { existing.checked = checked; existing.checked_by = currentUser?.email; existing.checked_at = checked?now:null; }
-  else { checks.push({ unit_id: unitId, item_id: itemId, checked, checked_by: currentUser?.email, checked_at: checked?now:null }); }
-  unitChecks[unitId] = checks;
+// ===== Print options + execution =====
+function showPrintOptions() {
+  showModal(`
+    <h3>🖨️ Print / Save as PDF</h3>
+    <label>Phases to print</label>
+    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
+      <label class="radio-row" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
+        <input type="radio" name="phaseChoice" value="both" checked> Both phases
+      </label>
+      <label class="radio-row" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
+        <input type="radio" name="phaseChoice" value="assembly_qc"> 🔬 Assembly QC only
+      </label>
+      <label class="radio-row" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
+        <input type="radio" name="phaseChoice" value="pre_deploy"> 📦 Pre-Deploy only
+      </label>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:12px;line-height:1.5">
+      💡 To save as PDF: in the print dialog that opens, change the <b>Destination</b> from your printer to <b>"Save as PDF"</b>.
+    </p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doPrintUnit()">Print / Save</button>
+    </div>
+  `);
+}
 
-  renderDeploy();
+function doPrintUnit() {
+  const choice = document.querySelector('input[name="phaseChoice"]:checked')?.value || 'both';
+  closeModal();
+  printDeployUnit(choice === 'both' ? null : choice);
+}
+
+function printDeployUnit(phaseFilter) {
+  const u = deployUnits.find(x => x.id === deployUnitId); if (!u) return;
+  const m = modelById(u.model_id) || modelById(deployModelId);
+  const ck = deployChecks[u.id] || [];
+  let items = deployUnitItems;
+  if (phaseFilter) items = items.filter(i => (i.phase||'assembly_qc') === phaseFilter);
+  items = [...items].sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
+  const total = items.length;
+  const done = items.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+
+  const subParts = [];
+  if (m) subParts.push(esc(m.name) + (m.ref ? ` · ${esc(m.ref)}` : ''));
+  subParts.push(esc(u.unit_name||u.name||''));
+  subParts.push(new Date().toLocaleDateString());
+
+  const phaseLabel = phaseFilter
+    ? (phaseFilter === 'assembly_qc' ? 'Assembly QC' : 'Pre-Deploy')
+    : 'Both Phases';
+
+  const body = `
+    <div style="margin-bottom:12px;font-size:12px;display:flex;gap:18px;flex-wrap:wrap">
+      <span><strong>Phase:</strong> ${phaseLabel}</span>
+      <span><strong>Progress:</strong> ${done}/${total} complete</span>
+    </div>
+    ${buildPhaseSectionsHTML(items, ck, phaseFilter)}
+  `;
+  const title = `${esc(u.unit_name||u.name||'Unit')} — Deploy Checklist`;
+  const html = buildPrintHTML(title, subParts.join('  |  '), body);
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blocked. Allow pop-ups to print.', 'err'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.print(); };
 }
 
 // ============================================================
