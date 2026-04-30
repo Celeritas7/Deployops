@@ -34,8 +34,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .is-admin .admin-only{display:inline-flex}
 .is-admin .add-form.admin-only{display:flex}
 .is-admin div.mode-indicator.admin-only{display:inline-block}
-body[data-tab="models"] #drawingSelect,
-body[data-tab="models"] #uploadPdfBtn{display:none!important}
 
 /* TABS */
 .tabbar{display:flex;gap:2px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
@@ -101,49 +99,6 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .sub-tabs{display:flex;gap:2px;margin-bottom:12px}
 .sub-tab{padding:6px 14px;border-radius:6px;border:none;background:var(--surface2);color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s}
 .sub-tab.active{background:var(--accent);color:#000;font-weight:600}
-
-/* MODELS TAB */
-.page-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.page-header h1{font-size:20px;flex:1;min-width:0}
-.crumbs{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-bottom:10px;font-family:'JetBrains Mono',monospace}
-.crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
-.crumbs a:hover{text-decoration:underline}
-.crumbs .sep{opacity:.4}
-.models-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.model-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;position:relative}
-.model-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 20px rgba(96,165,250,.15)}
-.model-card .model-icon{font-size:28px;margin-bottom:6px}
-.model-card h3{font-size:16px;margin-bottom:2px}
-.model-card .ref{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);margin-bottom:8px}
-.model-card .desc{font-size:12px;color:var(--text2);margin-bottom:12px;min-height:30px;line-height:1.4}
-.model-card .stats{display:flex;gap:14px;font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;border-top:1px solid var(--border);padding-top:10px}
-.model-card .stats span{display:flex;flex-direction:column;gap:2px}
-.model-card .stats b{color:var(--text);font-size:14px}
-.model-card .card-actions{position:absolute;top:10px;right:10px;display:none;gap:4px}
-.is-admin .model-card:hover .card-actions{display:flex}
-
-/* PHASE TABS (inside a model) */
-.phase-tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--surface);border-radius:10px;padding:4px;border:1px solid var(--border);max-width:440px}
-.phase-tab{flex:1;padding:10px 16px;border-radius:8px;border:none;background:transparent;color:var(--text2);font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
-.phase-tab.active{background:var(--accent);color:#000}
-.phase-tab .count{font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.7}
-.phase-tab.active .count{opacity:1}
-
-/* PHASE TOOLBAR (above sections) */
-.phase-toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-
-/* INLINE ADD ROW + +Add button */
-.add-item-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;background:transparent;border:1px dashed var(--border);border-radius:6px;color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s;margin:6px 0 2px}
-.add-item-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface2)}
-.cl-item-inline{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;background:var(--surface3);border:1px dashed var(--accent);border-radius:8px;margin:6px 0 2px;align-items:center}
-.cl-item-inline .inline-input{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:7px 10px;border-radius:5px;font-size:12px;font-family:inherit}
-.cl-item-inline .inline-input:focus{outline:none;border-color:var(--accent)}
-.cl-item-inline .inline-label{flex:1;min-width:160px}
-.cl-item-inline .inline-actions{display:flex;gap:4px;margin-left:auto;align-items:center}
-.cl-item-inline .hint{font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-right:4px;white-space:nowrap}
-.empty-section-hint{padding:8px 10px;font-size:11px;color:var(--text2);font-style:italic;text-align:center}
-
-.row-actions{display:flex;gap:4px}
 
 /* UNITS */
 .units-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:14px}
@@ -249,7 +204,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 }
 </style>
 </head>
-<body data-tab="models">
+<body>
 
 <!-- TOPBAR -->
 <div class="topbar">
@@ -257,7 +212,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
   <select id="drawingSelect" onchange="selectDrawing(this.value)" style="min-width:180px">
     <option value="">— Select Drawing —</option>
   </select>
-  <button id="uploadPdfBtn" class="btn btn-primary admin-only btn-sm" onclick="triggerPDFFilePicker()">📤 Upload PDF</button>
+  <button class="btn btn-primary admin-only btn-sm" onclick="triggerPDFFilePicker()">📤 Upload PDF</button>
   <div class="topbar-right">
     <div id="loginArea">
       <button class="btn" onclick="handleLogin()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:14px;height:14px"> Sign In</button>
@@ -271,24 +226,24 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 
 <!-- TAB BAR -->
 <div class="tabbar">
-  <button class="tab active" data-tab="models" onclick="switchTab('models')">🤖 Models</button>
-  <button class="tab" data-tab="deploy" onclick="switchTab('deploy')">🚀 Deploy</button>
-  <button class="tab" data-tab="drawing" onclick="switchTab('drawing')">📐 Drawings</button>
+  <button class="tab active" onclick="switchTab('drawing')">📐 Drawing</button>
+  <button class="tab" onclick="switchTab('checklist')">✅ Checklist</button>
+  <button class="tab" onclick="switchTab('deploy')">🚀 Deploy</button>
 </div>
 
-<!-- MODELS TAB -->
-<div id="modelsTab" class="tab-panel active">
-  <div id="modelsContent"></div>
+<!-- DRAWING TAB -->
+<div id="drawingTab" class="tab-panel active">
+  <div id="drawingContent"></div>
+</div>
+
+<!-- CHECKLIST TAB -->
+<div id="checklistTab" class="tab-panel">
+  <div id="checklistContent"></div>
 </div>
 
 <!-- DEPLOY TAB -->
 <div id="deployTab" class="tab-panel">
   <div id="deployContent"></div>
-</div>
-
-<!-- DRAWING TAB -->
-<div id="drawingTab" class="tab-panel">
-  <div id="drawingContent"></div>
 </div>
 
 <!-- MODAL -->
@@ -330,18 +285,6 @@ const MODES = {
 const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
 let checkItems = [], clSubTab = 'check';
 let units = [], deployUnit = null, unitChecks = {};
-
-// Models tab state (Phase 3)
-let models = [];                    // [{id,name,ref,description,icon,visible,...}]
-let modelView = null;               // currently open model id (null = list view)
-let modelPhase = 'assembly_qc';     // 'assembly_qc' | 'pre_deploy'
-let modelItems = [];                // checklist items for the open model (loaded by model_id)
-let modelUnitCount = {};            // model_id → count (for list view stats)
-let modelItemCount = {};            // model_id → { assembly_qc, pre_deploy } (for list view stats)
-let inlineAddSection = null;        // section currently expanded for inline add
-let draftSections = {};             // key=`${modelId}:${phase}` → [name,...] empty sections waiting for first item
-
-function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ============================================================
 // AUTH
@@ -399,13 +342,15 @@ function setUser(cred) {
 // NAVIGATION
 // ============================================================
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const tabs = ['drawing','checklist','deploy'];
+    t.classList.toggle('active', tabs[i] === tab);
+  });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById(tab + 'Tab').classList.add('active');
-  document.body.dataset.tab = tab;
-  if (tab === 'models')   renderModels();
-  if (tab === 'drawing')  renderDrawing();
-  if (tab === 'deploy')   renderDeploy();
+  if (tab === 'drawing') renderDrawing();
+  if (tab === 'checklist') renderChecklist();
+  if (tab === 'deploy') renderDeploy();
 }
 
 // ============================================================
@@ -1780,627 +1725,6 @@ async function toggleUnitCheck(unitId, itemId, checked) {
 }
 
 // ============================================================
-// MODELS — top-level entity (Phase 3)
-// ============================================================
-async function loadModels() {
-  try {
-    const { data, error } = await sb.from('deployops_models').select('*').order('created_at', { ascending: true });
-    if (error) throw error;
-    models = (data || []).filter(m => m.visible !== false);
-    await loadModelStats();
-  } catch(e) {
-    console.error(e);
-    toast('Failed to load models: ' + (e.message || e), 'err');
-  }
-}
-
-async function loadModelStats() {
-  modelUnitCount = {}; modelItemCount = {};
-  if (models.length === 0) return;
-  const ids = models.map(m => m.id);
-  try {
-    const [unitsRes, itemsRes] = await Promise.all([
-      sb.from('deployops_units').select('id,model_id').in('model_id', ids),
-      sb.from('deployops_checklist_items').select('id,model_id,phase').in('model_id', ids)
-    ]);
-    (unitsRes.data || []).forEach(u => {
-      modelUnitCount[u.model_id] = (modelUnitCount[u.model_id] || 0) + 1;
-    });
-    (itemsRes.data || []).forEach(it => {
-      const c = (modelItemCount[it.model_id] ||= { assembly_qc: 0, pre_deploy: 0 });
-      if (it.phase === 'pre_deploy') c.pre_deploy++; else c.assembly_qc++;
-    });
-  } catch(e) {
-    console.error('stats load failed', e);
-  }
-}
-
-async function renderModels() {
-  const el = document.getElementById('modelsContent');
-  if (modelView) { await renderModelDetail(el); return; }
-
-  if (models.length === 0 && !window._modelsLoaded) {
-    el.innerHTML = `<div class="empty"><div class="icon">⏳</div><p>Loading models…</p></div>`;
-    await loadModels();
-    window._modelsLoaded = true;
-  }
-
-  let html = `
-    <div class="page-header">
-      <h1>🤖 Models</h1>
-      <button class="btn btn-primary admin-only" onclick="showAddModel()">➕ New Model</button>
-    </div>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
-      Each robot model has its own checklist split into two phases — <b>Assembly QC</b> (post-build) and
-      <b>Pre-Deploy</b> (pre-shipping). Click a model to edit its checklist.
-    </p>
-  `;
-
-  if (models.length === 0) {
-    html += `<div class="empty"><div class="icon">🤖</div><p>No models yet.</p>
-      <button class="btn btn-primary admin-only" onclick="showAddModel()">Add your first model</button></div>`;
-    el.innerHTML = html;
-    return;
-  }
-
-  html += `<div class="models-grid">`;
-  models.forEach(m => {
-    const stats = modelItemCount[m.id] || { assembly_qc: 0, pre_deploy: 0 };
-    const uN = modelUnitCount[m.id] || 0;
-    html += `
-      <div class="model-card" onclick="openModel('${m.id}')">
-        <div class="card-actions" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="showRenameModel('${m.id}')" title="Edit">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteModel('${m.id}')" title="Delete">🗑️</button>
-        </div>
-        <div class="model-icon">${m.icon || '🤖'}</div>
-        <h3>${esc(m.name)}</h3>
-        <div class="ref">REF · ${esc(m.ref || '')}</div>
-        <div class="desc">${esc(m.description || '')}</div>
-        <div class="stats">
-          <span><b>${uN}</b>units</span>
-          <span><b>${stats.assembly_qc}</b>QC items</span>
-          <span><b>${stats.pre_deploy}</b>kit items</span>
-        </div>
-      </div>`;
-  });
-  html += `</div>`;
-  el.innerHTML = html;
-}
-
-async function openModel(id) {
-  modelView = id; modelPhase = 'assembly_qc'; inlineAddSection = null;
-  await loadModelItems(id);
-  renderModels();
-}
-function backToModels() { modelView = null; modelItems = []; inlineAddSection = null; renderModels(); }
-function setModelPhase(p) { modelPhase = p; inlineAddSection = null; renderModels(); }
-
-async function loadModelItems(modelId) {
-  try {
-    const { data, error } = await sb.from('deployops_checklist_items')
-      .select('*').eq('model_id', modelId).order('sort_order', { ascending: true });
-    if (error) throw error;
-    modelItems = data || [];
-  } catch(e) {
-    console.error(e);
-    toast('Failed to load items: ' + (e.message || e), 'err');
-    modelItems = [];
-  }
-}
-
-function modelById(id) { return models.find(m => m.id === id); }
-function itemsForPhase(phase) {
-  return modelItems.filter(i => (i.phase || 'assembly_qc') === phase)
-                   .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
-}
-
-async function renderModelDetail(el) {
-  const m = modelById(modelView);
-  if (!m) { modelView = null; renderModels(); return; }
-
-  const phaseItems = itemsForPhase(modelPhase);
-  const sections = {};
-  const sectionOrder = [];
-  phaseItems.forEach(i => {
-    const sec = i.section_name || '(unsorted)';
-    if (!sections[sec]) { sections[sec] = []; sectionOrder.push(sec); }
-    sections[sec].push(i);
-  });
-  const drafts = (draftSections[m.id+':'+modelPhase] || []);
-  drafts.forEach(s => { if (!sections[s]) { sections[s] = []; sectionOrder.push(s); } });
-
-  const qcN  = itemsForPhase('assembly_qc').length;
-  const depN = itemsForPhase('pre_deploy').length;
-
-  let html = `
-    <div class="crumbs">
-      <a onclick="backToModels()">← Models</a>
-      <span class="sep">/</span>
-      <span>${esc(m.name)}</span>
-    </div>
-    <div class="page-header">
-      <h1>${m.icon||'🤖'} ${esc(m.name)} <span style="color:var(--text2);font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:400">· ${esc(m.ref||'')}</span></h1>
-      <button class="btn btn-sm admin-only" onclick="showRenameModel('${m.id}')">✏️ Edit</button>
-    </div>
-
-    <div class="phase-tabs">
-      <button class="phase-tab ${modelPhase==='assembly_qc'?'active':''}" onclick="setModelPhase('assembly_qc')">
-        🔬 Assembly QC <span class="count">(${qcN})</span>
-      </button>
-      <button class="phase-tab ${modelPhase==='pre_deploy'?'active':''}" onclick="setModelPhase('pre_deploy')">
-        📦 Pre-Deploy <span class="count">(${depN})</span>
-      </button>
-    </div>
-
-    <p style="color:var(--text2);font-size:12px;margin-bottom:14px;line-height:1.5">
-      ${modelPhase==='assembly_qc'
-        ? '<b>Assembly QC</b> — checks performed after the unit is built. Was it assembled correctly?'
-        : '<b>Pre-Deploy</b> — pre-shipping checks. Are all screws, cables, and parts in the box?'}
-    </p>
-
-    <div class="phase-toolbar admin-only">
-      <button class="btn btn-primary btn-sm" onclick="showNewSection()">➕ New Section</button>
-      <button class="btn btn-sm" onclick="openBulkAdd()">📋 Bulk add</button>
-    </div>
-  `;
-
-  if (sectionOrder.length === 0) {
-    html += `<div class="empty"><div class="icon">${modelPhase==='assembly_qc'?'🔬':'📦'}</div>
-      <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
-  }
-
-  sectionOrder.forEach(secName => {
-    const secItems = sections[secName];
-    html += `
-      <div class="cl-section">
-        <div class="cl-section-header">
-          <h3>${esc(secName)}</h3>
-          <span class="badge badge-blue">${secItems.length}</span>
-        </div>
-        <div class="cl-section-body">`;
-
-    if (secItems.length === 0) {
-      html += `<div class="empty-section-hint">Empty section — add the first item below ↓</div>`;
-    }
-
-    secItems.forEach((it, idx) => {
-      html += `<div class="cl-item">
-        <span class="order">${it.sort_order || idx+1}</span>
-        <div style="flex:1;min-width:0">
-          <div class="label">${esc(it.label)}</div>
-          ${it.description ? `<div class="desc">${esc(it.description)}</div>` : ''}
-        </div>
-        <div class="meta">
-          ${it.part_number ? `<span class="badge badge-blue">${esc(it.part_number)}</span>` : ''}
-          ${it.qty         ? `<span class="badge badge-orange">×${it.qty}</span>` : ''}
-          ${it.tool        ? `<span class="badge badge-green">${esc(it.tool)}</span>` : ''}
-        </div>
-        <div class="row-actions admin-only">
-          <button class="btn btn-sm" onclick="moveModelItem('${it.id}',-1)" title="Up">▲</button>
-          <button class="btn btn-sm" onclick="moveModelItem('${it.id}',1)"  title="Down">▼</button>
-          <button class="btn btn-sm" onclick="editModelItem('${it.id}')"    title="Edit">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteModelItem('${it.id}')" title="Delete">✕</button>
-        </div>
-      </div>`;
-    });
-
-    if (inlineAddSection === secName) {
-      html += renderInlineAddRow();
-    } else {
-      html += `<button class="add-item-btn admin-only" data-sec="${esc(secName)}" onclick="openInlineAdd(this.dataset.sec)">➕ Add item</button>`;
-    }
-
-    html += `</div></div>`;
-  });
-
-  el.innerHTML = html;
-
-  if (inlineAddSection) {
-    setTimeout(() => { const i = document.getElementById('inline-label'); if (i) i.focus(); }, 20);
-  }
-}
-
-function renderInlineAddRow() {
-  const isKit = modelPhase === 'pre_deploy';
-  return `
-    <div class="cl-item-inline">
-      <input id="inline-label" class="inline-input inline-label" placeholder="Item label" onkeydown="inlineKey(event)">
-      ${isKit ? `
-        <input id="inline-pn"   class="inline-input" placeholder="Part #"  style="flex:0 1 110px;min-width:90px"  onkeydown="inlineKey(event)">
-        <input id="inline-qty"  class="inline-input" placeholder="Qty"     style="flex:0 1 70px;min-width:60px"   type="number" onkeydown="inlineKey(event)">
-        <input id="inline-tool" class="inline-input" placeholder="Tool"    style="flex:0 1 100px;min-width:80px"  onkeydown="inlineKey(event)">
-      ` : `
-        <input id="inline-desc" class="inline-input" placeholder="Description (optional)" style="flex:1 1 200px"  onkeydown="inlineKey(event)">
-      `}
-      <div class="inline-actions">
-        <span class="hint">↵ save · esc cancel</span>
-        <button class="btn btn-sm" onclick="closeInlineAdd()">Cancel</button>
-        <button class="btn btn-primary btn-sm" onclick="saveInlineItem()">Save</button>
-      </div>
-    </div>
-  `;
-}
-
-function inlineKey(e) {
-  if (e.key === 'Enter') { e.preventDefault(); saveInlineItem(); }
-  else if (e.key === 'Escape') { e.preventDefault(); closeInlineAdd(); }
-}
-function openInlineAdd(secName) { inlineAddSection = secName; renderModels(); }
-function closeInlineAdd() {
-  const m = modelById(modelView);
-  const sec = inlineAddSection;
-  inlineAddSection = null;
-  if (m && sec) {
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey] && draftSections[dkey].includes(sec)) {
-      const has = modelItems.some(i => (i.phase||'assembly_qc') === modelPhase && i.section_name === sec);
-      if (!has) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
-    }
-  }
-  renderModels();
-}
-
-async function saveInlineItem() {
-  const m = modelById(modelView); if (!m) return;
-  const sec = inlineAddSection; if (!sec) return;
-  const labelEl = document.getElementById('inline-label'); if (!labelEl) return;
-  const label = labelEl.value.trim();
-  if (!label) { labelEl.focus(); return; }
-
-  const isKit = modelPhase === 'pre_deploy';
-  const maxSort = Math.max(0, ...itemsForPhase(modelPhase).map(i => i.sort_order||0));
-  const row = {
-    model_id: m.id,
-    phase: modelPhase,
-    section_type: isKit ? 'screw' : 'check',  // legacy column kept consistent for old code paths
-    section_name: sec,
-    sort_order: maxSort + 1,
-    label
-  };
-  if (isKit) {
-    row.part_number = document.getElementById('inline-pn').value.trim() || null;
-    const q = document.getElementById('inline-qty').value;
-    row.qty = q ? (parseInt(q) || null) : null;
-    row.tool = document.getElementById('inline-tool').value.trim() || null;
-  } else {
-    row.description = document.getElementById('inline-desc').value.trim() || null;
-  }
-
-  try {
-    const { data, error } = await sb.from('deployops_checklist_items').insert(row).select().single();
-    if (error) throw error;
-    modelItems.push(data);
-    // Drop draft (now real)
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
-    // refresh list-view stats so back-nav shows accurate counts
-    const c = (modelItemCount[m.id] ||= { assembly_qc: 0, pre_deploy: 0 });
-    c[modelPhase]++;
-    toast('Item added', 'ok');
-    renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Save failed: ' + (e.message || e), 'err');
-  }
-}
-
-function showNewSection() {
-  showModal(`
-    <h3>➕ New Section</h3>
-    <label>Section name</label>
-    <input id="newSecName" placeholder="e.g. Pillar" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewSection()}">
-    <p style="font-size:11px;color:var(--text2);margin-top:6px">A new section will appear and the inline-add row will open so you can start typing items right away.</p>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmNewSection()">Create</button>
-    </div>
-  `);
-  setTimeout(() => { const i = document.getElementById('newSecName'); if (i) i.focus(); }, 30);
-}
-function confirmNewSection() {
-  const m = modelById(modelView); if (!m) return;
-  const name = document.getElementById('newSecName').value.trim();
-  if (!name) { toast('Enter a section name', 'err'); return; }
-  const existing = new Set(itemsForPhase(modelPhase).map(i => i.section_name));
-  const dkey = m.id + ':' + modelPhase;
-  (draftSections[dkey] || []).forEach(s => existing.add(s));
-  if (existing.has(name)) {
-    toast('Section already exists — opening it', 'info');
-  } else {
-    draftSections[dkey] = draftSections[dkey] || [];
-    draftSections[dkey].push(name);
-  }
-  inlineAddSection = name;
-  closeModal();
-  renderModels();
-}
-
-// ===== Bulk add =====
-function openBulkAdd() {
-  const m = modelById(modelView); if (!m) return;
-  const real = [...new Set(itemsForPhase(modelPhase).map(i => i.section_name).filter(Boolean))];
-  const dft  = (draftSections[m.id+':'+modelPhase] || []);
-  const all  = [...new Set([...real, ...dft])];
-
-  const isKit = modelPhase === 'pre_deploy';
-  const fmt   = isKit
-    ? '<code>label | part_number | qty | tool</code> — everything after <code>label</code> is optional'
-    : '<code>label | description</code> — description is optional';
-  const sample = isKit
-    ? "M6×20 hex screws | HX-M6-20 | 8 | 5mm Allen\nM4×10 cap screws | CAP-M4-10 | 12 | 3mm Allen\nUSB-C cable 1m | CBL-USBC-1 | 2"
-    : "Frame welds inspected | Visual check at joint A/B\nBearings seated correctly\nWiring harness tagged | All cables labeled per drawing";
-
-  showModal(`
-    <h3>📋 Bulk Add — ${modelPhase==='assembly_qc'?'Assembly QC':'Pre-Deploy'}</h3>
-    <label>Section</label>
-    <select id="bulkSec">
-      ${all.length === 0 ? '<option value="__new">+ New Section…</option>' : ''}
-      ${all.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
-      ${all.length > 0 ? '<option value="__new">+ New Section…</option>' : ''}
-    </select>
-    <input id="bulkNewSec" placeholder="New section name" style="display:${all.length===0?'block':'none'};margin-top:6px">
-    <label>Items (one per line)</label>
-    <textarea id="bulkText" rows="9" placeholder="${esc(sample)}"></textarea>
-    <p style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5">Format: ${fmt}</p>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="applyBulkAdd()">Add Items</button>
-    </div>
-  `);
-  const sel = document.getElementById('bulkSec');
-  const newSecInput = document.getElementById('bulkNewSec');
-  sel.addEventListener('change', () => {
-    newSecInput.style.display = sel.value === '__new' ? 'block' : 'none';
-    if (sel.value === '__new') setTimeout(() => newSecInput.focus(), 10);
-  });
-  setTimeout(() => document.getElementById('bulkText').focus(), 30);
-}
-
-async function applyBulkAdd() {
-  const m = modelById(modelView); if (!m) return;
-  let secName = document.getElementById('bulkSec').value;
-  if (secName === '__new') {
-    secName = document.getElementById('bulkNewSec').value.trim();
-    if (!secName) { toast('Enter a section name', 'err'); return; }
-  }
-  const text = document.getElementById('bulkText').value;
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length === 0) { toast('Paste at least one line', 'err'); return; }
-
-  const isKit = modelPhase === 'pre_deploy';
-  let maxSort = Math.max(0, ...itemsForPhase(modelPhase).map(i => i.sort_order||0));
-  const rows = [];
-  lines.forEach(line => {
-    const parts = line.split('|').map(p => p.trim());
-    const label = parts[0];
-    if (!label) return;
-    maxSort++;
-    const r = {
-      model_id: m.id, phase: modelPhase,
-      section_type: isKit ? 'screw' : 'check',
-      section_name: secName, sort_order: maxSort, label
-    };
-    if (isKit) {
-      r.part_number = parts[1] || null;
-      r.qty         = parts[2] ? (parseInt(parts[2]) || null) : null;
-      r.tool        = parts[3] || null;
-    } else {
-      r.description = parts[1] || null;
-    }
-    rows.push(r);
-  });
-
-  if (rows.length === 0) { toast('Nothing to add', 'err'); return; }
-
-  try {
-    const { data, error } = await sb.from('deployops_checklist_items').insert(rows).select();
-    if (error) throw error;
-    modelItems.push(...(data || []));
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== secName);
-    const c = (modelItemCount[m.id] ||= { assembly_qc: 0, pre_deploy: 0 });
-    c[modelPhase] += rows.length;
-    closeModal();
-    toast(`Added ${rows.length} item${rows.length===1?'':'s'} to "${secName}"`, 'ok');
-    renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Bulk add failed: ' + (e.message || e), 'err');
-  }
-}
-
-// ===== Item edit/delete/move (Model flow) =====
-async function deleteModelItem(id) {
-  if (!confirm('Delete this item?')) return;
-  const it = modelItems.find(x => x.id === id);
-  try {
-    const { error } = await sb.from('deployops_checklist_items').delete().eq('id', id);
-    if (error) throw error;
-    modelItems = modelItems.filter(x => x.id !== id);
-    if (it && modelItemCount[it.model_id]) {
-      const phase = it.phase || 'assembly_qc';
-      modelItemCount[it.model_id][phase] = Math.max(0, modelItemCount[it.model_id][phase] - 1);
-    }
-    toast('Deleted', 'info');
-    renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Delete failed: ' + (e.message || e), 'err');
-  }
-}
-
-function editModelItem(id) {
-  const it = modelItems.find(i => i.id === id); if (!it) return;
-  const isKit = (it.phase || 'assembly_qc') === 'pre_deploy';
-  showModal(`
-    <h3>Edit Item</h3>
-    <label>Section</label> <input id="eiSection" value="${esc(it.section_name||'')}">
-    <label>Label</label>   <input id="eiLabel"   value="${esc(it.label||'')}">
-    ${isKit ? `
-      <label>Part Number</label> <input id="eiPN"   value="${esc(it.part_number||'')}">
-      <label>Qty</label>          <input id="eiQty"  type="number" value="${it.qty||''}">
-      <label>Tool</label>         <input id="eiTool" value="${esc(it.tool||'')}">
-    ` : `
-      <label>Description</label>  <input id="eiDesc" value="${esc(it.description||'')}">
-    `}
-    <div class="modal-actions">
-      <button class="btn btn-danger" onclick="deleteModelItem('${it.id}')">🗑️ Delete</button>
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveModelItemEdit('${it.id}',${isKit})">Save</button>
-    </div>
-  `);
-}
-
-async function saveModelItemEdit(id, isKit) {
-  const upd = {
-    section_name: document.getElementById('eiSection').value.trim(),
-    label: document.getElementById('eiLabel').value.trim()
-  };
-  if (isKit) {
-    upd.part_number = document.getElementById('eiPN').value.trim() || null;
-    const q = document.getElementById('eiQty').value;
-    upd.qty = q ? (parseInt(q) || null) : null;
-    upd.tool = document.getElementById('eiTool').value.trim() || null;
-  } else {
-    upd.description = document.getElementById('eiDesc').value.trim() || null;
-  }
-  try {
-    const { error } = await sb.from('deployops_checklist_items').update(upd).eq('id', id);
-    if (error) throw error;
-    const it = modelItems.find(i => i.id === id);
-    if (it) Object.assign(it, upd);
-    closeModal(); toast('Updated', 'ok'); renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Save failed: ' + (e.message || e), 'err');
-  }
-}
-
-async function moveModelItem(id, dir) {
-  const it = modelItems.find(i => i.id === id); if (!it) return;
-  const phase = it.phase || 'assembly_qc';
-  const list = itemsForPhase(phase);
-  const idx = list.findIndex(x => x.id === id);
-  const swap = list[idx + dir];
-  if (!swap) return;
-  const aOrder = it.sort_order, bOrder = swap.sort_order;
-  try {
-    await sb.from('deployops_checklist_items').update({ sort_order: bOrder }).eq('id', it.id);
-    await sb.from('deployops_checklist_items').update({ sort_order: aOrder }).eq('id', swap.id);
-    it.sort_order = bOrder; swap.sort_order = aOrder;
-    renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Move failed', 'err');
-  }
-}
-
-// ===== Model CRUD =====
-function showAddModel() {
-  showModal(`
-    <h3>➕ New Model</h3>
-    <label>Name</label>             <input id="mName" placeholder="e.g. CE DVT3">
-    <label>Reference / Part #</label><input id="mRef"  placeholder="e.g. CE-DVT3">
-    <label>Icon (emoji)</label>      <input id="mIcon" placeholder="🤖" maxlength="2">
-    <label>Description</label>       <textarea id="mDesc" placeholder="Short description"></textarea>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="addModel()">Create</button>
-    </div>
-  `);
-  setTimeout(() => { const i = document.getElementById('mName'); if (i) i.focus(); }, 30);
-}
-async function addModel() {
-  const name = document.getElementById('mName').value.trim();
-  const ref  = document.getElementById('mRef').value.trim();
-  if (!name) { toast('Name is required', 'err'); return; }
-  const row = {
-    name, ref: ref || null,
-    icon: document.getElementById('mIcon').value.trim() || null,
-    description: document.getElementById('mDesc').value.trim() || null,
-    visible: true,
-    created_by: currentUser?.email || 'unknown'
-  };
-  try {
-    const { data, error } = await sb.from('deployops_models').insert(row).select().single();
-    if (error) throw error;
-    models.push(data);
-    closeModal(); toast(`Model "${name}" created`, 'ok');
-    renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Create failed: ' + (e.message || e), 'err');
-  }
-}
-
-function showRenameModel(id) {
-  const m = modelById(id); if (!m) return;
-  showModal(`
-    <h3>Edit Model</h3>
-    <label>Name</label>             <input id="mName" value="${esc(m.name)}">
-    <label>Reference / Part #</label><input id="mRef"  value="${esc(m.ref||'')}">
-    <label>Icon</label>              <input id="mIcon" value="${esc(m.icon||'')}" maxlength="2">
-    <label>Description</label>       <textarea id="mDesc">${esc(m.description||'')}</textarea>
-    <div class="modal-actions">
-      <button class="btn btn-danger" onclick="deleteModel('${m.id}')">🗑️ Delete</button>
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveModel('${m.id}')">Save</button>
-    </div>
-  `);
-}
-async function saveModel(id) {
-  const m = modelById(id); if (!m) return;
-  const upd = {
-    name: document.getElementById('mName').value.trim() || m.name,
-    ref:  document.getElementById('mRef').value.trim()  || null,
-    icon: document.getElementById('mIcon').value.trim() || null,
-    description: document.getElementById('mDesc').value.trim() || null
-  };
-  try {
-    const { error } = await sb.from('deployops_models').update(upd).eq('id', id);
-    if (error) throw error;
-    Object.assign(m, upd);
-    closeModal(); toast('Model updated', 'ok'); renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Save failed: ' + (e.message || e), 'err');
-  }
-}
-async function deleteModel(id) {
-  const m = modelById(id); if (!m) return;
-  const uN = modelUnitCount[id] || 0;
-  const stats = modelItemCount[id] || { assembly_qc: 0, pre_deploy: 0 };
-  const iN = stats.assembly_qc + stats.pre_deploy;
-  const msg = `Delete model "${m.name}"?\n\n• ${iN} checklist item(s) will be deleted.\n• ${uN} unit(s) will be unlinked (kept in DB).`;
-  if (!confirm(msg)) return;
-  try {
-    // Unlink units (set model_id to null) — keeps them in DB for legacy Deploy view
-    if (uN > 0) {
-      const { error: uErr } = await sb.from('deployops_units').update({ model_id: null }).eq('model_id', id);
-      if (uErr) throw uErr;
-    }
-    // Delete checklist items for this model
-    if (iN > 0) {
-      const { error: iErr } = await sb.from('deployops_checklist_items').delete().eq('model_id', id);
-      if (iErr) throw iErr;
-    }
-    // Delete the model
-    const { error: mErr } = await sb.from('deployops_models').delete().eq('id', id);
-    if (mErr) throw mErr;
-
-    models = models.filter(x => x.id !== id);
-    delete modelItemCount[id]; delete modelUnitCount[id];
-    if (modelView === id) modelView = null;
-    closeModal(); toast('Model deleted', 'info');
-    renderModels();
-  } catch(e) {
-    console.error(e);
-    toast('Delete failed: ' + (e.message || e), 'err');
-  }
-}
-
-// ============================================================
 // INIT
 // ============================================================
 async function init() {
@@ -2408,15 +1732,13 @@ async function init() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
   });
-  document.body.dataset.tab = 'models';
-  await Promise.all([loadDrawings(), loadModels()]);
-  window._modelsLoaded = true;
-  // Auto-select first drawing so Deploy/Drawings tabs work when user switches
+  await loadDrawings();
+  // Auto-select first drawing if any
   if (drawings.length > 0) {
     document.getElementById('drawingSelect').value = drawings[0].id;
     await selectDrawing(drawings[0].id);
   }
-  renderModels();
+  renderDrawing();
 }
 
 init();
