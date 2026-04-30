@@ -35,7 +35,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .is-admin .add-form.admin-only{display:flex}
 .is-admin div.mode-indicator.admin-only{display:inline-block}
 body[data-tab="models"] #drawingSelect,
-body[data-tab="models"] #uploadPdfBtn{display:none!important}
+body[data-tab="models"] #uploadPdfBtn,
+body[data-tab="deploy"] #drawingSelect,
+body[data-tab="deploy"] #uploadPdfBtn{display:none!important}
 
 /* TABS */
 .tabbar{display:flex;gap:2px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
@@ -144,6 +146,17 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .empty-section-hint{padding:8px 10px;font-size:11px;color:var(--text2);font-style:italic;text-align:center}
 
 .row-actions{display:flex;gap:4px}
+
+/* PRINT MODAL — mode picker + phase radios */
+.mode-pick{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.mode-card{flex:1 1 180px;padding:14px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:inherit;border-radius:10px;cursor:pointer;text-align:left;transition:all .15s;min-width:0}
+.mode-card:hover{border-color:var(--accent)}
+.mode-card.active{border-color:var(--accent);background:var(--surface3);box-shadow:0 0 0 1px var(--accent) inset}
+.mode-card-icon{font-size:24px;margin-bottom:4px}
+.mode-card-title{font-size:13px;font-weight:700;margin-bottom:2px}
+.mode-card-desc{font-size:11px;color:var(--text2);line-height:1.4}
+.modal .radio-row{text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0 0 4px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer}
+.modal .radio-row input{width:auto;margin:0}
 
 /* UNITS */
 .units-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:14px}
@@ -1247,7 +1260,13 @@ async function exportAnnotatedPNG() {
 // ============================================================
 // PRINT (shared) — buildPrintHTML wraps body content for print window
 // ============================================================
-function buildPrintHTML(title, subtitle, bodyHTML) {
+function buildPrintHTML(title, subtitle, bodyHTML, opts = {}) {
+  const { customHeader, customFooter = '', extraCss = '' } = opts;
+  const header = customHeader !== undefined ? customHeader : `
+    <div class="print-header">
+      <h1>⚙️ DeployOps — ${title}</h1>
+      <p>${subtitle}</p>
+    </div>`;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>${title}</title>
   <style>
@@ -1261,24 +1280,16 @@ function buildPrintHTML(title, subtitle, bodyHTML) {
     table{width:100%;border-collapse:collapse}
     th{background:#f0f0f0;text-align:left;padding:5px 8px;font-size:10px;text-transform:uppercase;border:1px solid #aaa;letter-spacing:.5px}
     td{padding:5px 8px;border:1px solid #ccc;vertical-align:middle;font-size:11px}
-    .cb{width:16px;height:16px;border:2px solid #333;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:6px}
+    .cb{width:16px;height:16px;border:2px solid #333;border-radius:2px;display:inline-block;vertical-align:middle}
     .cb.done{background:#333;position:relative}
     .cb.done::after{content:'✓';color:#fff;position:absolute;top:-2px;left:2px;font-size:11px}
     .qty{font-weight:700;text-align:center;font-family:monospace;font-size:12px}
     .meta{color:#555;font-size:10px}
-    .footer{margin-top:20px;border-top:1px solid #aaa;padding-top:8px;font-size:10px;color:#555;display:flex;justify-content:space-between}
-    .sig-line{border-bottom:1px solid #333;width:180px;display:inline-block;margin-left:8px}
+    ${extraCss}
   </style></head><body>
-  <div class="print-header">
-    <h1>⚙️ DeployOps — ${title}</h1>
-    <p>${subtitle}</p>
-  </div>
+  ${header}
   ${bodyHTML}
-  <div class="footer">
-    <span>Checked by: <span class="sig-line"></span></span>
-    <span>Date: <span class="sig-line"></span></span>
-    <span>Approved by: <span class="sig-line"></span></span>
-  </div>
+  ${customFooter}
   </body></html>`;
 }
 
@@ -1714,39 +1725,110 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
   }
 }
 
-// ===== Print options + execution =====
+// ===== Blank work order body — no DB state, OP+QC checkboxes for Assembly QC, single cb for Pre-Deploy =====
+function buildBlankPhaseSectionsHTML(items, phaseFilter) {
+  const phases = phaseFilter ? [phaseFilter] : ['assembly_qc','pre_deploy'];
+  let html = '';
+  phases.forEach(phase => {
+    const phaseItems = items.filter(i => (i.phase||'assembly_qc') === phase);
+    if (phaseItems.length === 0) return;
+    const title = phase === 'assembly_qc' ? '🔬 Assembly QC' : '📦 Pre-Deploy';
+    html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${title} <span style="font-size:11px;color:#555;font-weight:400">(${phaseItems.length} item${phaseItems.length===1?'':'s'})</span></h2>`;
+
+    const sections = {}; const order = [];
+    phaseItems.forEach(i => {
+      const sn = i.section_name || '(unsorted)';
+      if (!sections[sn]) { sections[sn] = []; order.push(sn); }
+      sections[sn].push(i);
+    });
+
+    order.forEach(secName => {
+      const secItems = sections[secName];
+      const isKit = phase === 'pre_deploy';
+      html += `<div class="section"><div class="section-title">${esc(secName)}</div>`;
+      if (isKit) {
+        html += `<table><tr><th style="width:30px;text-align:center">✓</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px;text-align:center">Qty</th><th style="width:80px">Tool</th></tr>`;
+        secItems.forEach(item => {
+          html += `<tr>
+            <td style="text-align:center"><span class="cb"></span></td>
+            <td><strong>${esc(item.part_number||'—')}</strong></td>
+            <td>${esc(item.label||'')}</td>
+            <td class="qty">×${item.qty || '—'}</td>
+            <td class="meta">${esc(item.tool||'—')}</td></tr>`;
+        });
+      } else {
+        html += `<table><tr><th style="width:38px;text-align:center">OP</th><th style="width:38px;text-align:center">QC</th><th style="width:30px">#</th><th>Item</th><th>Description</th></tr>`;
+        secItems.forEach((item, i) => {
+          html += `<tr>
+            <td style="text-align:center"><span class="cb"></span></td>
+            <td style="text-align:center"><span class="cb"></span></td>
+            <td>${item.sort_order || i+1}</td>
+            <td>${esc(item.label||'')}</td>
+            <td class="meta">${esc(item.description||'')}</td></tr>`;
+        });
+      }
+      html += `</table></div>`;
+    });
+  });
+  return html;
+}
+
+// ===== Print options modal (unit-detail context: mode + phase) =====
 function showPrintOptions() {
   showModal(`
     <h3>🖨️ Print / Save as PDF</h3>
-    <label>Phases to print</label>
-    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
-      <label class="radio-row" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
-        <input type="radio" name="phaseChoice" value="both" checked> Both phases
-      </label>
-      <label class="radio-row" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
-        <input type="radio" name="phaseChoice" value="assembly_qc"> 🔬 Assembly QC only
-      </label>
-      <label class="radio-row" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
-        <input type="radio" name="phaseChoice" value="pre_deploy"> 📦 Pre-Deploy only
-      </label>
+
+    <label>Output</label>
+    <div class="mode-pick">
+      <button type="button" class="mode-card active" data-mode="blank" onclick="pickPrintMode('blank')">
+        <div class="mode-card-icon">📋</div>
+        <div class="mode-card-title">Blank Work Order</div>
+        <div class="mode-card-desc">Print N times, fill by hand on the shop floor</div>
+      </button>
+      <button type="button" class="mode-card" data-mode="filled" onclick="pickPrintMode('filled')">
+        <div class="mode-card-icon">📊</div>
+        <div class="mode-card-title">Filled Status</div>
+        <div class="mode-card-desc">Current DB state — for audit / review</div>
+      </button>
     </div>
+
+    <label>Phases</label>
+    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
+      <label class="radio-row"><input type="radio" name="phaseChoice" value="both" checked> All</label>
+      <label class="radio-row"><input type="radio" name="phaseChoice" value="assembly_qc"> 🔬 Assembly QC only</label>
+      <label class="radio-row"><input type="radio" name="phaseChoice" value="pre_deploy"> 📦 Pre-Deploy only</label>
+    </div>
+
     <p style="font-size:11px;color:var(--text2);margin-top:12px;line-height:1.5">
       💡 To save as PDF: in the print dialog that opens, change the <b>Destination</b> from your printer to <b>"Save as PDF"</b>.
     </p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="doPrintUnit()">Print / Save</button>
+      <button class="btn btn-primary" onclick="doPrint()">Print / Save</button>
     </div>
   `);
 }
 
-function doPrintUnit() {
-  const choice = document.querySelector('input[name="phaseChoice"]:checked')?.value || 'both';
-  closeModal();
-  printDeployUnit(choice === 'both' ? null : choice);
+function pickPrintMode(mode) {
+  document.querySelectorAll('.mode-card').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 }
 
-function printDeployUnit(phaseFilter) {
+function doPrint() {
+  const mode = document.querySelector('.mode-card.active')?.dataset.mode || 'blank';
+  const phase = document.querySelector('input[name="phaseChoice"]:checked')?.value || 'both';
+  const phaseFilter = phase === 'both' ? null : phase;
+  closeModal();
+  if (mode === 'blank') {
+    const u = deployUnits.find(x => x.id === deployUnitId);
+    const modelId = u?.model_id || deployModelId;
+    printBlankWorkOrder(modelId, deployUnitId, phaseFilter);
+  } else {
+    printFilledStatus(phaseFilter);
+  }
+}
+
+// ===== Filled-status printer (DB state, no signature lines) =====
+function printFilledStatus(phaseFilter) {
   const u = deployUnits.find(x => x.id === deployUnitId); if (!u) return;
   const m = modelById(u.model_id) || modelById(deployModelId);
   const ck = deployChecks[u.id] || [];
@@ -1774,6 +1856,104 @@ function printDeployUnit(phaseFilter) {
   `;
   const title = `${esc(u.unit_name||u.name||'Unit')} — Deploy Checklist`;
   const html = buildPrintHTML(title, subParts.join('  |  '), body);
+  openPrintWindow(html);
+}
+
+// ===== Blank work order printer (no DB state, signature footer) =====
+async function printBlankWorkOrder(modelId, unitId, phaseFilter) {
+  const m = modelById(modelId);
+  if (!m) { toast('Model not found', 'err'); return; }
+
+  // Source items: prefer in-memory if it matches the model context; otherwise fetch
+  let items;
+  if (unitId && deployLoadedFor === modelId) {
+    items = deployUnitItems;
+  } else if (modelView === modelId) {
+    items = modelItems;
+  } else {
+    try {
+      const { data, error } = await sb.from('deployops_checklist_items')
+        .select('*').eq('model_id', modelId).order('sort_order', { ascending: true });
+      if (error) throw error;
+      items = data || [];
+    } catch(e) {
+      console.error(e);
+      toast('Load failed: ' + (e.message || e), 'err');
+      return;
+    }
+  }
+
+  let filtered = phaseFilter ? items.filter(i => (i.phase||'assembly_qc') === phaseFilter) : [...items];
+  filtered = filtered.sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+  if (filtered.length === 0) { toast(phaseFilter ? 'No items in this phase to print' : 'No items to print', 'err'); return; }
+
+  const woStyles = `
+    .wo-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:14px;gap:14px}
+    .wo-top h1{font-size:18px}
+    .wo-top .wo-tagline{font-size:10px;color:#666;margin-top:2px}
+    .wo-model-ref{font-size:11px;color:#444;text-align:right;line-height:1.55;flex-shrink:0}
+    .wo-fields{width:100%;margin-bottom:18px;border-collapse:separate;border-spacing:0 4px}
+    .wo-fields td{padding:6px 4px;border:none;font-size:12px;vertical-align:bottom}
+    .wo-label{font-weight:600;color:#333;white-space:nowrap;width:1%;padding-right:8px!important}
+    .wo-line{display:block;border-bottom:1px solid #333;height:18px;width:100%;min-width:160px}
+    .wo-line.short{min-width:80px;width:120px}
+    .wo-footer{margin-top:24px;border-top:1px solid #aaa;padding-top:14px;font-size:12px;display:flex;flex-direction:column;gap:14px;break-inside:avoid}
+    .wo-footer .sig-row{display:flex;align-items:flex-end;gap:8px}
+    .wo-footer .sig-row strong{min-width:100px;font-weight:600}
+    .wo-footer .sig-row .label-date{min-width:46px;font-weight:600}
+    .wo-footer .sig-line{flex:1;border-bottom:1px solid #333;height:18px}
+    .wo-footer .sig-line.date{flex:0 0 130px}
+  `;
+
+  const customHeader = `
+    <div class="wo-top">
+      <div>
+        <h1>📋 DeployOps — Work Order</h1>
+        <div class="wo-tagline">Tape to robot. Operator ticks OP. QC inspector ticks QC.</div>
+      </div>
+      <div class="wo-model-ref">
+        <strong>Model:</strong> ${esc(m.name)}${m.ref ? ' · '+esc(m.ref) : ''}<br>
+        <span style="color:#888">${new Date().toLocaleDateString()}</span>
+      </div>
+    </div>
+    <table class="wo-fields">
+      <tr>
+        <td class="wo-label">Unit / Robot:</td>
+        <td colspan="3"><span class="wo-line"></span></td>
+      </tr>
+      <tr>
+        <td class="wo-label">Operator name:</td>
+        <td><span class="wo-line"></span></td>
+        <td class="wo-label" style="padding-left:14px!important">Date:</td>
+        <td><span class="wo-line short"></span></td>
+      </tr>
+      <tr>
+        <td class="wo-label">QC inspector:</td>
+        <td colspan="3"><span class="wo-line"></span></td>
+      </tr>
+    </table>
+  `;
+
+  const customFooter = `
+    <div class="wo-footer">
+      <div class="sig-row"><strong>Operator:</strong><span class="sig-line"></span><span class="label-date">Date:</span><span class="sig-line date"></span></div>
+      <div class="sig-row"><strong>QC:</strong><span class="sig-line"></span><span class="label-date">Date:</span><span class="sig-line date"></span></div>
+      <div class="sig-row"><strong>Approved by:</strong><span class="sig-line"></span><span class="label-date">Date:</span><span class="sig-line date"></span></div>
+    </div>
+  `;
+
+  const body = buildBlankPhaseSectionsHTML(filtered, phaseFilter);
+  const title = `${esc(m.name)} — Work Order`;
+  const html = buildPrintHTML(title, '', body, { customHeader, customFooter, extraCss: woStyles });
+  openPrintWindow(html);
+}
+
+function printModelBlankWorkOrder(modelId) {
+  // Models-tab entry: skip the choice modal — blank, both phases.
+  printBlankWorkOrder(modelId, null, null);
+}
+
+function openPrintWindow(html) {
   const w = window.open('', '_blank');
   if (!w) { toast('Pop-up blocked. Allow pop-ups to print.', 'err'); return; }
   w.document.write(html);
@@ -1923,6 +2103,7 @@ async function renderModelDetail(el) {
     </div>
     <div class="page-header">
       <h1>${m.icon||'🤖'} ${esc(m.name)} <span style="color:var(--text2);font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:400">· ${esc(m.ref||'')}</span></h1>
+      <button class="btn btn-sm" onclick="printModelBlankWorkOrder('${m.id}')">🖨️ Print Blank Work Order</button>
       <button class="btn btn-sm admin-only" onclick="showRenameModel('${m.id}')">✏️ Edit</button>
     </div>
 
