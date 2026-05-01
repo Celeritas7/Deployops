@@ -1291,8 +1291,6 @@ function buildPrintHTML(title, subtitle, bodyHTML, opts = {}) {
     .cb.done::after{content:'✓';color:#fff;position:absolute;top:-2px;left:2px;font-size:11px}
     .qty{font-weight:700;text-align:center;font-family:monospace;font-size:12px}
     .meta{color:${plain?'#444':'#555'};font-size:10px}
-    .hand-line{display:inline-block;border-bottom:1px solid #333;height:14px;width:100%;min-width:60px;vertical-align:bottom}
-    .hand-line.short{min-width:40px;max-width:90px}
     .pagebreak{page-break-after:always;height:0;margin:0;padding:0;border:none}
     ${extraCss}
   </style></head><body>
@@ -1329,7 +1327,7 @@ function genGroups(items, phaseFilter) {
   return groups;
 }
 
-// Shared CSS for blank/scratch work order layouts (top bar, handwritten fields, signature footer)
+// Shared CSS for blank work order layouts (top bar, handwritten fields, signature footer)
 const woStylesCss = `
   .wo-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:14px;gap:14px}
   .wo-top h1{font-size:18px}
@@ -1390,45 +1388,36 @@ function renderSignatureFooter() {
   `;
 }
 
-// Single section block for Blank or Scratch mode (no DB checks)
+// Single section block for Blank mode (no DB checks)
 function renderBlankSectionBlock(group, opts) {
-  const { plain, scratch } = opts;
+  const { plain } = opts;
   const isKit = group.phase === 'pre_deploy';
   let html = '';
 
   html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(group.phase, plain)} <span style="font-size:11px;color:#555;font-weight:400">(${group.items.length} item${group.items.length===1?'':'s'})</span></h2>`;
 
-  const secTitle = scratch
-    ? `Section: <span class="hand-line" style="display:inline-block;width:240px;vertical-align:bottom"></span>`
-    : esc(group.sectionName);
-  html += `<div class="section"><div class="section-title">${secTitle}</div>`;
+  html += `<div class="section"><div class="section-title">${esc(group.sectionName)}</div>`;
 
   if (isKit) {
     html += `<table><tr><th style="width:30px;text-align:center">✓</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px;text-align:center">Qty</th><th style="width:80px">Tool</th></tr>`;
     group.items.forEach(item => {
-      const partCell  = scratch ? `<span class="hand-line"></span>` : `<strong>${esc(item.part_number||'—')}</strong>`;
-      const labelCell = scratch ? `<span class="hand-line"></span>` : esc(item.label||'');
-      const qtyCell   = scratch ? `<span class="hand-line short"></span>` : `×${item.qty || '—'}`;
-      const toolCell  = scratch ? `<span class="hand-line"></span>` : esc(item.tool||'—');
       html += `<tr>
         <td style="text-align:center"><span class="cb"></span></td>
-        <td>${partCell}</td>
-        <td>${labelCell}</td>
-        <td class="qty">${qtyCell}</td>
-        <td class="meta">${toolCell}</td>
+        <td><strong>${esc(item.part_number||'—')}</strong></td>
+        <td>${esc(item.label||'')}</td>
+        <td class="qty">×${item.qty || '—'}</td>
+        <td class="meta">${esc(item.tool||'—')}</td>
       </tr>`;
     });
   } else {
     html += `<table><tr><th style="width:38px;text-align:center">OP</th><th style="width:38px;text-align:center">QC</th><th style="width:30px">#</th><th>Item</th><th>Description</th></tr>`;
     group.items.forEach((item, i) => {
-      const labelCell = scratch ? `<span class="hand-line"></span>` : esc(item.label||'');
-      const descCell  = scratch ? `<span class="hand-line"></span>` : esc(item.description||'');
       html += `<tr>
         <td style="text-align:center"><span class="cb"></span></td>
         <td style="text-align:center"><span class="cb"></span></td>
         <td>${item.sort_order || i+1}</td>
-        <td>${labelCell}</td>
-        <td class="meta">${descCell}</td>
+        <td>${esc(item.label||'')}</td>
+        <td class="meta">${esc(item.description||'')}</td>
       </tr>`;
     });
   }
@@ -1869,11 +1858,6 @@ function showPrintOptions(opts = {}) {
         <div class="mode-card-title">Blank Work Order</div>
         <div class="mode-card-desc">Items printed, blank checkboxes — fill by hand</div>
       </button>
-      <button type="button" class="mode-card" data-mode="scratch" onclick="pickPrintMode('scratch')">
-        <div class="mode-card-icon">📝</div>
-        <div class="mode-card-title">Scratch</div>
-        <div class="mode-card-desc">Section names + items blanked — write QC points by hand</div>
-      </button>
       <button type="button" class="mode-card" data-mode="filled" onclick="pickPrintMode('filled')">
         <div class="mode-card-icon">📊</div>
         <div class="mode-card-title">Filled Status</div>
@@ -1931,12 +1915,12 @@ function doPrint() {
   const plain = style === 'plain';
   closeModal();
 
-  if (mode === 'blank' || mode === 'scratch') {
+  if (mode === 'blank') {
     const u = deployUnits.find(x => x.id === deployUnitId);
     const modelId = ctx.modelId || u?.model_id || deployModelId;
     const unitId = ctx.unitId !== undefined ? ctx.unitId : deployUnitId;
     printBlankWorkOrder(modelId, unitId, {
-      phaseFilter, sectionPerPage, plain, scratch: mode === 'scratch'
+      phaseFilter, sectionPerPage, plain
     });
   } else {
     printFilledStatus({ phaseFilter, sectionPerPage, plain });
@@ -1952,7 +1936,7 @@ function printModelBlankWorkOrder(modelId) {
 // PRINT — printers
 // ============================================================
 async function printBlankWorkOrder(modelId, unitId, opts) {
-  const { phaseFilter, sectionPerPage = false, plain = false, scratch = false } = opts || {};
+  const { phaseFilter, sectionPerPage = false, plain = false } = opts || {};
   const m = modelById(modelId);
   if (!m) { toast('Model not found', 'err'); return; }
 
@@ -1993,7 +1977,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
       return `
         ${topBar}
         ${handFields}
-        ${renderBlankSectionBlock(g, { plain, scratch })}
+        ${renderBlankSectionBlock(g, { plain })}
         ${sigFooter}
         ${isLast ? '' : '<div class="pagebreak"></div>'}
       `;
@@ -2001,7 +1985,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     customHeader = '';
     customFooter = '';
   } else {
-    body = groups.map(g => renderBlankSectionBlock(g, { plain, scratch })).join('');
+    body = groups.map(g => renderBlankSectionBlock(g, { plain })).join('');
     customHeader = topBar + handFields;
     customFooter = sigFooter;
   }
