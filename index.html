@@ -1327,99 +1327,102 @@ function genGroups(items, phaseFilter) {
   return groups;
 }
 
-// Shared CSS for blank work order layouts (top bar, handwritten fields, signature footer)
+// Per-section sheet CSS (.qc-*): title row, three-column field strip, table follows.
 const woStylesCss = `
-  .wo-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:14px;gap:14px}
-  .wo-top h1{font-size:18px}
-  .wo-top .wo-tagline{font-size:10px;color:#666;margin-top:2px}
-  .wo-model-ref{font-size:11px;color:#444;text-align:right;line-height:1.55;flex-shrink:0}
-  .wo-fields{width:100%;margin-bottom:18px;border-collapse:separate;border-spacing:0 4px}
-  .wo-fields td{padding:6px 4px;border:none;font-size:12px;vertical-align:bottom}
-  .wo-label{font-weight:600;color:#333;white-space:nowrap;width:1%;padding-right:8px!important}
-  .wo-line{display:block;border-bottom:1px solid #333;height:18px;width:100%;min-width:160px}
-  .wo-line.short{min-width:80px;width:120px}
-  .wo-footer{margin-top:24px;border-top:1px solid #aaa;padding-top:14px;font-size:12px;display:flex;flex-direction:column;gap:14px;break-inside:avoid}
-  .wo-footer .sig-row{display:flex;align-items:flex-end;gap:8px}
-  .wo-footer .sig-row strong{min-width:100px;font-weight:600}
-  .wo-footer .sig-row .label-date{min-width:46px;font-weight:600}
-  .wo-footer .sig-line{flex:1;border-bottom:1px solid #333;height:18px}
-  .wo-footer .sig-line.date{flex:0 0 130px}
+  .qc-page-title{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:6px}
+  .qc-page-title h1{font-size:22px;font-weight:700;line-height:1.2}
+  .qc-page-title h1 .qc-prefix{font-size:14px;font-weight:500;color:#888;margin-right:4px}
+  .qc-page-title .qc-date-row{font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:baseline;gap:6px}
+  .qc-rule{border:none;border-top:1px solid #333;margin:0 0 10px}
+  .qc-fields-row{display:flex;gap:14px;margin-bottom:14px;font-size:12px}
+  .qc-fields-row .qc-field{flex:1 1 0;display:flex;align-items:baseline;gap:6px;min-width:0}
+  .qc-fields-row .qc-field-label{font-weight:600;white-space:nowrap}
+  .qc-line{display:inline-block;border-bottom:1px solid #333;height:14px;flex:1 1 auto;min-width:60px}
+  .qc-line.short{flex:0 0 130px;min-width:130px}
+  .qc-fixed{font-weight:600}
 `;
 
-function renderTopBar(model, plain) {
-  const title = plain ? 'Work Order' : '📋 DeployOps — Work Order';
-  const tagline = plain ? '' : '<div class="wo-tagline">Tape to robot. Operator ticks OP. QC inspector ticks QC.</div>';
+// Per-section sheet header: "Quality Checklist : <Section name>" + Date, then 3-column field strip.
+// unitName: pre-printed when invoked from Deploy tab (unit is known); blank line otherwise (Models tab).
+function renderPerSectionHeader(group, opts) {
+  const { unitName } = opts || {};
+  const unitField = unitName
+    ? `<span class="qc-field-label">Unit / Robot:</span> <span class="qc-fixed">${esc(unitName)}</span>`
+    : `<span class="qc-field-label">Unit / Robot:</span> <span class="qc-line"></span>`;
   return `
-    <div class="wo-top">
-      <div>
-        <h1>${title}</h1>
-        ${tagline}
-      </div>
-      <div class="wo-model-ref">
-        <strong>Model:</strong> ${esc(model.name)}${model.ref ? ' · '+esc(model.ref) : ''}<br>
-        <span style="color:#888">${new Date().toLocaleDateString()}</span>
-      </div>
+    <div class="qc-page-title">
+      <h1><span class="qc-prefix">Quality Checklist :</span>${esc(group.sectionName)}</h1>
+      <div class="qc-date-row">Date: <span class="qc-line short"></span></div>
+    </div>
+    <hr class="qc-rule">
+    <div class="qc-fields-row">
+      <div class="qc-field">${unitField}</div>
+      <div class="qc-field"><span class="qc-field-label">Operator:</span> <span class="qc-line"></span></div>
+      <div class="qc-field"><span class="qc-field-label">QC:</span> <span class="qc-line"></span></div>
     </div>
   `;
 }
 
-function renderHandwrittenFields() {
-  return `
-    <table class="wo-fields">
-      <tr><td class="wo-label">Unit / Robot:</td><td colspan="3"><span class="wo-line"></span></td></tr>
-      <tr>
-        <td class="wo-label">Operator name:</td>
-        <td><span class="wo-line"></span></td>
-        <td class="wo-label" style="padding-left:14px!important">Date:</td>
-        <td><span class="wo-line short"></span></td>
-      </tr>
-      <tr><td class="wo-label">QC inspector:</td><td colspan="3"><span class="wo-line"></span></td></tr>
-    </table>
-  `;
-}
-
-function renderSignatureFooter() {
-  return `
-    <div class="wo-footer">
-      <div class="sig-row"><strong>Operator:</strong><span class="sig-line"></span><span class="label-date">Date:</span><span class="sig-line date"></span></div>
-      <div class="sig-row"><strong>QC:</strong><span class="sig-line"></span><span class="label-date">Date:</span><span class="sig-line date"></span></div>
-      <div class="sig-row"><strong>Approved by:</strong><span class="sig-line"></span><span class="label-date">Date:</span><span class="sig-line date"></span></div>
-    </div>
-  `;
-}
-
-// Single section block for Blank mode (no DB checks)
-function renderBlankSectionBlock(group, opts) {
-  const { plain } = opts;
+// Single section block for Blank mode (no DB checks).
+// Columns (OP/QC always rightmost — operator reads left-to-right then ticks):
+//   Assembly QC: # | Item | Description | OP | QC
+//   Pre-Deploy:  # | Part # | Description | Qty | Tool | OP   (no QC column for packing checks)
+// opts.emptyRows = true → render EMPTY_ROWS blank numbered rows (no DB items consulted).
+// opts.emptyRows = false → render the items in group.items with empty checkboxes.
+const EMPTY_ROWS_PER_SECTION = 17;  // calibrated for ~80% A4 portrait fill at current row metrics
+function renderBlankSectionBlock(group, opts = {}) {
+  const { emptyRows = false } = opts;
   const isKit = group.phase === 'pre_deploy';
-  let html = '';
-
-  html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(group.phase, plain)} <span style="font-size:11px;color:#555;font-weight:400">(${group.items.length} item${group.items.length===1?'':'s'})</span></h2>`;
-
-  html += `<div class="section"><div class="section-title">${esc(group.sectionName)}</div>`;
+  let html = '<div class="section">';
 
   if (isKit) {
-    html += `<table><tr><th style="width:30px;text-align:center">✓</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px;text-align:center">Qty</th><th style="width:80px">Tool</th></tr>`;
-    group.items.forEach(item => {
-      html += `<tr>
-        <td style="text-align:center"><span class="cb"></span></td>
-        <td><strong>${esc(item.part_number||'—')}</strong></td>
-        <td>${esc(item.label||'')}</td>
-        <td class="qty">×${item.qty || '—'}</td>
-        <td class="meta">${esc(item.tool||'—')}</td>
-      </tr>`;
-    });
+    html += `<table><tr><th style="width:30px">#</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px;text-align:center">Qty</th><th style="width:80px">Tool</th><th style="width:38px;text-align:center">OP</th></tr>`;
+    if (emptyRows) {
+      for (let i = 1; i <= EMPTY_ROWS_PER_SECTION; i++) {
+        html += `<tr>
+          <td>${i}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td style="text-align:center"><span class="cb"></span></td>
+        </tr>`;
+      }
+    } else {
+      group.items.forEach((item, i) => {
+        html += `<tr>
+          <td>${item.sort_order || i+1}</td>
+          <td><strong>${esc(item.part_number||'—')}</strong></td>
+          <td>${esc(item.label||'')}</td>
+          <td class="qty">×${item.qty || '—'}</td>
+          <td class="meta">${esc(item.tool||'—')}</td>
+          <td style="text-align:center"><span class="cb"></span></td>
+        </tr>`;
+      });
+    }
   } else {
-    html += `<table><tr><th style="width:38px;text-align:center">OP</th><th style="width:38px;text-align:center">QC</th><th style="width:30px">#</th><th>Item</th><th>Description</th></tr>`;
-    group.items.forEach((item, i) => {
-      html += `<tr>
-        <td style="text-align:center"><span class="cb"></span></td>
-        <td style="text-align:center"><span class="cb"></span></td>
-        <td>${item.sort_order || i+1}</td>
-        <td>${esc(item.label||'')}</td>
-        <td class="meta">${esc(item.description||'')}</td>
-      </tr>`;
-    });
+    html += `<table><tr><th style="width:30px">#</th><th>Item</th><th>Description</th><th style="width:38px;text-align:center">OP</th><th style="width:38px;text-align:center">QC</th></tr>`;
+    if (emptyRows) {
+      for (let i = 1; i <= EMPTY_ROWS_PER_SECTION; i++) {
+        html += `<tr>
+          <td>${i}</td>
+          <td></td>
+          <td></td>
+          <td style="text-align:center"><span class="cb"></span></td>
+          <td style="text-align:center"><span class="cb"></span></td>
+        </tr>`;
+      }
+    } else {
+      group.items.forEach((item, i) => {
+        html += `<tr>
+          <td>${item.sort_order || i+1}</td>
+          <td>${esc(item.label||'')}</td>
+          <td class="meta">${esc(item.description||'')}</td>
+          <td style="text-align:center"><span class="cb"></span></td>
+          <td style="text-align:center"><span class="cb"></span></td>
+        </tr>`;
+      });
+    }
   }
   html += `</table></div>`;
   return html;
@@ -1856,7 +1859,7 @@ function showPrintOptions(opts = {}) {
       <button type="button" class="mode-card active" data-mode="blank" onclick="pickPrintMode('blank')">
         <div class="mode-card-icon">📋</div>
         <div class="mode-card-title">Blank Work Order</div>
-        <div class="mode-card-desc">Items printed, blank checkboxes — fill by hand</div>
+        <div class="mode-card-desc">Hand-fill checklist (template or DB items)</div>
       </button>
       <button type="button" class="mode-card" data-mode="filled" onclick="pickPrintMode('filled')">
         <div class="mode-card-icon">📊</div>
@@ -1866,22 +1869,27 @@ function showPrintOptions(opts = {}) {
     </div>
   `;
 
+  // Content sub-toggle is shown only when mode == 'blank'. Hidden when modal is locked to filled.
+  const contentInitialDisplay = lockedMode === 'filled' ? 'none' : '';
+
   showModal(`
     <h3>🖨️ Print / Save as PDF</h3>
 
     ${modeSection}
+
+    <div id="contentWrap" style="display:${contentInitialDisplay}">
+      <label>Content</label>
+      <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
+        <label class="radio-row"><input type="radio" name="contentChoice" value="empty" checked> Empty rows (template — write items by hand)</label>
+        <label class="radio-row"><input type="radio" name="contentChoice" value="items"> Items printed (DB items, empty checkboxes)</label>
+      </div>
+    </div>
 
     <label>Phases</label>
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
       <label class="radio-row"><input type="radio" name="phaseChoice" value="both" checked> All</label>
       <label class="radio-row"><input type="radio" name="phaseChoice" value="assembly_qc"> 🔬 Assembly QC only</label>
       <label class="radio-row"><input type="radio" name="phaseChoice" value="pre_deploy"> 📦 Pre-Deploy only</label>
-    </div>
-
-    <label>Layout</label>
-    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
-      <label class="radio-row"><input type="radio" name="layoutChoice" value="all" checked> All-in-one document</label>
-      <label class="radio-row"><input type="radio" name="layoutChoice" value="perSection"> One sheet per section</label>
     </div>
 
     <label>Style</label>
@@ -1902,16 +1910,16 @@ function showPrintOptions(opts = {}) {
 
 function pickPrintMode(mode) {
   document.querySelectorAll('.mode-card').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  const cw = document.getElementById('contentWrap');
+  if (cw) cw.style.display = (mode === 'blank') ? '' : 'none';
 }
 
 function doPrint() {
   const ctx = _printCtx || {};
   const mode = ctx.lockedMode || document.querySelector('.mode-card.active')?.dataset.mode || 'blank';
   const phase = document.querySelector('input[name="phaseChoice"]:checked')?.value || 'both';
-  const layout = document.querySelector('input[name="layoutChoice"]:checked')?.value || 'all';
   const style = document.querySelector('input[name="styleChoice"]:checked')?.value || 'branded';
   const phaseFilter = phase === 'both' ? null : phase;
-  const sectionPerPage = layout === 'perSection';
   const plain = style === 'plain';
   closeModal();
 
@@ -1919,11 +1927,11 @@ function doPrint() {
     const u = deployUnits.find(x => x.id === deployUnitId);
     const modelId = ctx.modelId || u?.model_id || deployModelId;
     const unitId = ctx.unitId !== undefined ? ctx.unitId : deployUnitId;
-    printBlankWorkOrder(modelId, unitId, {
-      phaseFilter, sectionPerPage, plain
-    });
+    const content = document.querySelector('input[name="contentChoice"]:checked')?.value || 'empty';
+    const emptyRows = content === 'empty';
+    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows });
   } else {
-    printFilledStatus({ phaseFilter, sectionPerPage, plain });
+    printFilledStatus({ phaseFilter, plain });
   }
 }
 
@@ -1936,7 +1944,7 @@ function printModelBlankWorkOrder(modelId) {
 // PRINT — printers
 // ============================================================
 async function printBlankWorkOrder(modelId, unitId, opts) {
-  const { phaseFilter, sectionPerPage = false, plain = false } = opts || {};
+  const { phaseFilter, plain = false, emptyRows = false } = opts || {};
   const m = modelById(modelId);
   if (!m) { toast('Model not found', 'err'); return; }
 
@@ -1964,35 +1972,29 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
   if (filtered.length === 0) { toast(phaseFilter ? 'No items in this phase to print' : 'No items to print', 'err'); return; }
 
   const groups = genGroups(filtered, phaseFilter);
-  const sigFooter  = renderSignatureFooter();
-  const handFields = renderHandwrittenFields();
-  const topBar     = renderTopBar(m, plain);
 
-  let body, customHeader, customFooter;
-
-  if (sectionPerPage) {
-    // Each section becomes its own page: top bar + handwritten fields + section + signature footer + page-break
-    body = groups.map((g, i) => {
-      const isLast = i === groups.length - 1;
-      return `
-        ${topBar}
-        ${handFields}
-        ${renderBlankSectionBlock(g, { plain })}
-        ${sigFooter}
-        ${isLast ? '' : '<div class="pagebreak"></div>'}
-      `;
-    }).join('');
-    customHeader = '';
-    customFooter = '';
-  } else {
-    body = groups.map(g => renderBlankSectionBlock(g, { plain })).join('');
-    customHeader = topBar + handFields;
-    customFooter = sigFooter;
+  // unitName is pre-printed in the per-section header when invoked from Deploy (a unit is selected);
+  // when invoked from Models tab unitId is null and the operator writes the unit name by hand.
+  let unitName = null;
+  if (unitId) {
+    const u = deployUnits.find(x => x.id === unitId);
+    if (u) unitName = u.unit_name || u.name || null;
   }
+
+  // One section per page: minimal header (title + date + field strip), section block, page break.
+  const body = groups.map((g, i) => {
+    const isLast = i === groups.length - 1;
+    return `
+      ${renderPerSectionHeader(g, { unitName })}
+      ${renderBlankSectionBlock(g, { emptyRows })}
+      ${isLast ? '' : '<div class="pagebreak"></div>'}
+    `;
+  }).join('');
 
   const title = `${esc(m.name)} — Work Order`;
   const html = buildPrintHTML(title, '', body, {
-    customHeader, customFooter,
+    customHeader: '',
+    customFooter: '',
     extraCss: woStylesCss,
     style: plain ? 'plain' : 'branded'
   });
