@@ -2263,7 +2263,7 @@ async function renderModelDetail(el) {
 
     secItems.forEach((it, idx) => {
       html += `<div class="cl-item">
-        <span class="order">${it.sort_order || idx+1}</span>
+        <span class="order">${idx+1}</span>
         <div style="flex:1;min-width:0">
           <div class="label">${esc(it.label)}</div>
           ${it.description ? `<div class="desc">${esc(it.description)}</div>` : ''}
@@ -2577,7 +2577,10 @@ async function saveModelItemEdit(id, isKit) {
 async function moveModelItem(id, dir) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
   const phase = it.phase || 'assembly_qc';
-  const list = itemsForPhase(phase);
+  const sec = it.section_name || '(unsorted)';
+  // Scope adjacency to the same section so ▲▼ swaps with the next/prev item
+  // the operator actually sees, not whichever item happens to share a phase.
+  const list = itemsForPhase(phase).filter(x => (x.section_name || '(unsorted)') === sec);
   const idx = list.findIndex(x => x.id === id);
   const swap = list[idx + dir];
   if (!swap) return;
