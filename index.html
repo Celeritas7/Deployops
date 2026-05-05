@@ -1391,7 +1391,7 @@ function renderBlankSectionBlock(group, opts = {}) {
     } else {
       group.items.forEach((item, i) => {
         html += `<tr>
-          <td>${item.sort_order || i+1}</td>
+          <td>${i+1}</td>
           <td><strong>${esc(item.part_number||'—')}</strong></td>
           <td>${esc(item.label||'')}</td>
           <td class="qty">×${item.qty || '—'}</td>
@@ -1415,7 +1415,7 @@ function renderBlankSectionBlock(group, opts = {}) {
     } else {
       group.items.forEach((item, i) => {
         html += `<tr>
-          <td>${item.sort_order || i+1}</td>
+          <td>${i+1}</td>
           <td>${esc(item.label||'')}</td>
           <td class="meta">${esc(item.description||'')}</td>
           <td style="text-align:center"><span class="cb"></span></td>
