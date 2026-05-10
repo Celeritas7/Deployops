@@ -1305,8 +1305,52 @@ function formatDate(iso) {
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 
-function phaseLabel(phase, plain) {
-  const t = phase === 'assembly_qc' ? 'Assembly QC' : 'Pre-Deploy';
+const PRINT_I18N = {
+  en: {
+    qcPrefix: 'Quality Checklist :',
+    qcTitle: 'Quality Checklist',
+    date: 'Date:', unit: 'Unit / Robot:', operator: 'Operator:', qc: 'QC:',
+    hash: '#', item: 'Item', description: 'Description',
+    op: 'OP', qcCol: 'QC',
+    partNumber: 'Part #', qty: 'Qty', tool: 'Tool',
+    checkedByAt: 'Checked by / at',
+    progress: 'Progress', phase: 'Phase', section: 'Section',
+    assemblyQC: 'Assembly QC', preDeploy: 'Pre-Deploy',
+    deployChecklist: 'Deploy Checklist',
+    complete: 'complete', all: 'All', bothPhases: 'Both Phases'
+  },
+  ja: {
+    qcPrefix: '品質チェックリスト :',
+    qcTitle: '品質チェックリスト',
+    date: '日付:', unit: '号機 / ロボット:', operator: '作業者:', qc: '検査:',
+    hash: '番号', item: '項目', description: '説明',
+    op: '作業', qcCol: '検査',
+    partNumber: '部品番号', qty: '数量', tool: '工具',
+    checkedByAt: '確認者 / 日時',
+    progress: '進捗', phase: '工程', section: 'セクション',
+    assemblyQC: '組立検査', preDeploy: '出荷前確認',
+    deployChecklist: '出荷チェックリスト',
+    complete: '完了', all: 'すべて', bothPhases: '両工程'
+  }
+};
+function tr(lang, key) { return (PRINT_I18N[lang] || PRINT_I18N.en)[key] ?? PRINT_I18N.en[key] ?? ''; }
+function pickField(item, base, lang) {
+  if (lang === 'ja') {
+    const v = item[base + '_ja'];
+    if (v != null && v !== '') return v;
+  }
+  return item[base];
+}
+function pickSection(group, lang) {
+  if (lang === 'ja') {
+    const ja = group.items.find(i => i.section_name_ja)?.section_name_ja;
+    if (ja) return ja;
+  }
+  return group.sectionName;
+}
+
+function phaseLabel(phase, plain, lang = 'en') {
+  const t = phase === 'assembly_qc' ? tr(lang, 'assemblyQC') : tr(lang, 'preDeploy');
   return plain ? t : (phase === 'assembly_qc' ? `🔬 ${t}` : `📦 ${t}`);
 }
 
@@ -1345,20 +1389,20 @@ const woStylesCss = `
 // Per-section sheet header: "Quality Checklist : <Section name>" + Date, then 3-column field strip.
 // unitName: pre-printed when invoked from Deploy tab (unit is known); blank line otherwise (Models tab).
 function renderPerSectionHeader(group, opts) {
-  const { unitName } = opts || {};
+  const { unitName, lang = 'en' } = opts || {};
   const unitField = unitName
-    ? `<span class="qc-field-label">Unit / Robot:</span> <span class="qc-fixed">${esc(unitName)}</span>`
-    : `<span class="qc-field-label">Unit / Robot:</span> <span class="qc-line"></span>`;
+    ? `<span class="qc-field-label">${tr(lang,'unit')}</span> <span class="qc-fixed">${esc(unitName)}</span>`
+    : `<span class="qc-field-label">${tr(lang,'unit')}</span> <span class="qc-line"></span>`;
   return `
     <div class="qc-page-title">
-      <h1><span class="qc-prefix">Quality Checklist :</span>${esc(group.sectionName)}</h1>
-      <div class="qc-date-row">Date: <span class="qc-line short"></span></div>
+      <h1><span class="qc-prefix">${tr(lang,'qcPrefix')}</span>${esc(pickSection(group, lang))}</h1>
+      <div class="qc-date-row">${tr(lang,'date')} <span class="qc-line short"></span></div>
     </div>
     <hr class="qc-rule">
     <div class="qc-fields-row">
       <div class="qc-field">${unitField}</div>
-      <div class="qc-field"><span class="qc-field-label">Operator:</span> <span class="qc-line"></span></div>
-      <div class="qc-field"><span class="qc-field-label">QC:</span> <span class="qc-line"></span></div>
+      <div class="qc-field"><span class="qc-field-label">${tr(lang,'operator')}</span> <span class="qc-line"></span></div>
+      <div class="qc-field"><span class="qc-field-label">${tr(lang,'qc')}</span> <span class="qc-line"></span></div>
     </div>
   `;
 }
@@ -1371,12 +1415,13 @@ function renderPerSectionHeader(group, opts) {
 // opts.emptyRows = false → render the items in group.items with empty checkboxes.
 const EMPTY_ROWS_PER_SECTION = 17;  // calibrated for ~80% A4 portrait fill at current row metrics
 function renderBlankSectionBlock(group, opts = {}) {
-  const { emptyRows = false } = opts;
+  const { emptyRows = false, lang = 'en' } = opts;
   const isKit = group.phase === 'pre_deploy';
+  const opW = lang === 'ja' ? 44 : 38;
   let html = '<div class="section">';
 
   if (isKit) {
-    html += `<table><tr><th style="width:30px">#</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px;text-align:center">Qty</th><th style="width:80px">Tool</th><th style="width:38px;text-align:center">OP</th></tr>`;
+    html += `<table><tr><th style="width:30px">${tr(lang,'hash')}</th><th style="width:96px">${tr(lang,'partNumber')}</th><th>${tr(lang,'description')}</th><th style="width:48px;text-align:center">${tr(lang,'qty')}</th><th style="width:80px">${tr(lang,'tool')}</th><th style="width:${opW}px;text-align:center">${tr(lang,'op')}</th></tr>`;
     if (emptyRows) {
       for (let i = 1; i <= EMPTY_ROWS_PER_SECTION; i++) {
         html += `<tr>
@@ -1393,7 +1438,7 @@ function renderBlankSectionBlock(group, opts = {}) {
         html += `<tr>
           <td>${i+1}</td>
           <td><strong>${esc(item.part_number||'—')}</strong></td>
-          <td>${esc(item.label||'')}</td>
+          <td>${esc(pickField(item,'label',lang)||'')}</td>
           <td class="qty">×${item.qty || '—'}</td>
           <td class="meta">${esc(item.tool||'—')}</td>
           <td style="text-align:center"><span class="cb"></span></td>
@@ -1401,7 +1446,7 @@ function renderBlankSectionBlock(group, opts = {}) {
       });
     }
   } else {
-    html += `<table><tr><th style="width:30px">#</th><th>Item</th><th>Description</th><th style="width:38px;text-align:center">OP</th><th style="width:38px;text-align:center">QC</th></tr>`;
+    html += `<table><tr><th style="width:30px">${tr(lang,'hash')}</th><th>${tr(lang,'item')}</th><th>${tr(lang,'description')}</th><th style="width:${opW}px;text-align:center">${tr(lang,'op')}</th><th style="width:${opW}px;text-align:center">${tr(lang,'qcCol')}</th></tr>`;
     if (emptyRows) {
       for (let i = 1; i <= EMPTY_ROWS_PER_SECTION; i++) {
         html += `<tr>
@@ -1416,8 +1461,8 @@ function renderBlankSectionBlock(group, opts = {}) {
       group.items.forEach((item, i) => {
         html += `<tr>
           <td>${i+1}</td>
-          <td>${esc(item.label||'')}</td>
-          <td class="meta">${esc(item.description||'')}</td>
+          <td>${esc(pickField(item,'label',lang)||'')}</td>
+          <td class="meta">${esc(pickField(item,'description',lang)||'')}</td>
           <td style="text-align:center"><span class="cb"></span></td>
           <td style="text-align:center"><span class="cb"></span></td>
         </tr>`;
@@ -1430,16 +1475,16 @@ function renderBlankSectionBlock(group, opts = {}) {
 
 // Single section block for Filled mode (DB state + checked_by/at column)
 function renderFilledSectionBlock(group, checks, opts) {
-  const { plain } = opts;
+  const { plain, lang = 'en' } = opts;
   const isKit = group.phase === 'pre_deploy';
   let html = '';
 
-  html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(group.phase, plain)} <span style="font-size:11px;color:#555;font-weight:400">(${group.items.length} item${group.items.length===1?'':'s'})</span></h2>`;
+  html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(group.phase, plain, lang)} <span style="font-size:11px;color:#555;font-weight:400">(${group.items.length} item${group.items.length===1?'':'s'})</span></h2>`;
 
-  html += `<div class="section"><div class="section-title">${esc(group.sectionName)}</div>`;
+  html += `<div class="section"><div class="section-title">${esc(pickSection(group, lang))}</div>`;
 
   if (isKit) {
-    html += `<table><tr><th style="width:28px">✓</th><th style="width:96px">Part #</th><th>Description</th><th style="width:48px">Qty</th><th style="width:80px">Tool</th><th style="width:140px">Checked by / at</th></tr>`;
+    html += `<table><tr><th style="width:28px">✓</th><th style="width:96px">${tr(lang,'partNumber')}</th><th>${tr(lang,'description')}</th><th style="width:48px">${tr(lang,'qty')}</th><th style="width:80px">${tr(lang,'tool')}</th><th style="width:140px">${tr(lang,'checkedByAt')}</th></tr>`;
     group.items.forEach(item => {
       const c = checks.find(x => x.item_id === item.id && x.checked);
       const ck = !!c;
@@ -1447,14 +1492,14 @@ function renderFilledSectionBlock(group, checks, opts) {
       html += `<tr>
         <td><span class="cb ${ck?'done':''}"></span></td>
         <td><strong>${esc(item.part_number||'—')}</strong></td>
-        <td>${esc(item.label||'')}</td>
+        <td>${esc(pickField(item,'label',lang)||'')}</td>
         <td class="qty">×${item.qty || '—'}</td>
         <td class="meta">${esc(item.tool||'—')}</td>
         <td class="meta" style="font-size:9px">${by}</td>
       </tr>`;
     });
   } else {
-    html += `<table><tr><th style="width:28px">✓</th><th style="width:28px">#</th><th>Item</th><th>Description</th><th style="width:140px">Checked by / at</th></tr>`;
+    html += `<table><tr><th style="width:28px">✓</th><th style="width:28px">${tr(lang,'hash')}</th><th>${tr(lang,'item')}</th><th>${tr(lang,'description')}</th><th style="width:140px">${tr(lang,'checkedByAt')}</th></tr>`;
     group.items.forEach((item, i) => {
       const c = checks.find(x => x.item_id === item.id && x.checked);
       const ck = !!c;
@@ -1462,8 +1507,8 @@ function renderFilledSectionBlock(group, checks, opts) {
       html += `<tr>
         <td><span class="cb ${ck?'done':''}"></span></td>
         <td>${item.sort_order || i+1}</td>
-        <td>${esc(item.label||'')}</td>
-        <td class="meta">${esc(item.description||'')}</td>
+        <td>${esc(pickField(item,'label',lang)||'')}</td>
+        <td class="meta">${esc(pickField(item,'description',lang)||'')}</td>
         <td class="meta" style="font-size:9px">${by}</td>
       </tr>`;
     });
@@ -1898,6 +1943,12 @@ function showPrintOptions(opts = {}) {
       <label class="radio-row"><input type="radio" name="styleChoice" value="plain"> Plain (black & white, no emojis)</label>
     </div>
 
+    <label>Language</label>
+    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
+      <label class="radio-row"><input type="radio" name="langChoice" value="en" checked> English</label>
+      <label class="radio-row"><input type="radio" name="langChoice" value="ja"> 日本語 (Japanese)</label>
+    </div>
+
     <p style="font-size:11px;color:var(--text2);margin-top:12px;line-height:1.5">
       💡 To save as PDF: in the print dialog that opens, change the <b>Destination</b> from your printer to <b>"Save as PDF"</b>.
     </p>
@@ -1919,6 +1970,7 @@ function doPrint() {
   const mode = ctx.lockedMode || document.querySelector('.mode-card.active')?.dataset.mode || 'blank';
   const phase = document.querySelector('input[name="phaseChoice"]:checked')?.value || 'both';
   const style = document.querySelector('input[name="styleChoice"]:checked')?.value || 'branded';
+  const lang = document.querySelector('input[name="langChoice"]:checked')?.value || 'en';
   const phaseFilter = phase === 'both' ? null : phase;
   const plain = style === 'plain';
   closeModal();
@@ -1929,9 +1981,9 @@ function doPrint() {
     const unitId = ctx.unitId !== undefined ? ctx.unitId : deployUnitId;
     const content = document.querySelector('input[name="contentChoice"]:checked')?.value || 'empty';
     const emptyRows = content === 'empty';
-    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows });
+    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang });
   } else {
-    printFilledStatus({ phaseFilter, plain });
+    printFilledStatus({ phaseFilter, plain, lang });
   }
 }
 
@@ -1944,7 +1996,7 @@ function printModelBlankWorkOrder(modelId) {
 // PRINT — printers
 // ============================================================
 async function printBlankWorkOrder(modelId, unitId, opts) {
-  const { phaseFilter, plain = false, emptyRows = false } = opts || {};
+  const { phaseFilter, plain = false, emptyRows = false, lang = 'en' } = opts || {};
   const m = modelById(modelId);
   if (!m) { toast('Model not found', 'err'); return; }
 
@@ -1985,8 +2037,8 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
   const body = groups.map((g, i) => {
     const isLast = i === groups.length - 1;
     return `
-      ${renderPerSectionHeader(g, { unitName })}
-      ${renderBlankSectionBlock(g, { emptyRows })}
+      ${renderPerSectionHeader(g, { unitName, lang })}
+      ${renderBlankSectionBlock(g, { emptyRows, lang })}
       ${isLast ? '' : '<div class="pagebreak"></div>'}
     `;
   }).join('');
@@ -2002,7 +2054,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
 }
 
 function printFilledStatus(opts) {
-  const { phaseFilter, sectionPerPage = false, plain = false } = opts || {};
+  const { phaseFilter, sectionPerPage = false, plain = false, lang = 'en' } = opts || {};
   const u = deployUnits.find(x => x.id === deployUnitId); if (!u) return;
   const m = modelById(u.model_id) || modelById(deployModelId);
   const ck = deployChecks[u.id] || [];
@@ -2019,13 +2071,13 @@ function printFilledStatus(opts) {
   const subtitle = subParts.join('  |  ');
 
   const phaseLabelText = phaseFilter
-    ? (phaseFilter === 'assembly_qc' ? 'Assembly QC' : 'Pre-Deploy')
-    : (plain ? 'All' : 'Both Phases');
+    ? (phaseFilter === 'assembly_qc' ? tr(lang,'assemblyQC') : tr(lang,'preDeploy'))
+    : (plain ? tr(lang,'all') : tr(lang,'bothPhases'));
 
   const groups = genGroups(filtered, phaseFilter);
   const titleStr = plain
-    ? 'Quality Checklist'
-    : `${esc(u.unit_name||u.name||'Unit')} — Deploy Checklist`;
+    ? tr(lang,'qcTitle')
+    : `${esc(u.unit_name||u.name||'Unit')} — ${tr(lang,'deployChecklist')}`;
 
   let body, customHeader;
 
@@ -2036,15 +2088,15 @@ function printFilledStatus(opts) {
       const secDone = g.items.filter(it => ck.some(c => c.item_id === it.id && c.checked)).length;
       const head = plain
         ? `<div class="print-header"><h1>${esc(titleStr)}</h1><p>${subtitle}</p></div>`
-        : `<div class="print-header"><h1>⚙️ DeployOps — ${esc(u.unit_name||u.name||'Unit')} — Deploy Checklist</h1><p>${subtitle}</p></div>`;
+        : `<div class="print-header"><h1>⚙️ DeployOps — ${esc(u.unit_name||u.name||'Unit')} — ${tr(lang,'deployChecklist')}</h1><p>${subtitle}</p></div>`;
       return `
         ${head}
         <div style="margin-bottom:12px;font-size:12px;display:flex;gap:18px;flex-wrap:wrap">
-          <span><strong>Phase:</strong> ${phaseLabel(g.phase, plain)}</span>
-          <span><strong>Section:</strong> ${esc(g.sectionName)}</span>
-          <span><strong>Progress:</strong> ${secDone}/${g.items.length} complete</span>
+          <span><strong>${tr(lang,'phase')}:</strong> ${phaseLabel(g.phase, plain, lang)}</span>
+          <span><strong>${tr(lang,'section')}:</strong> ${esc(pickSection(g, lang))}</span>
+          <span><strong>${tr(lang,'progress')}:</strong> ${secDone}/${g.items.length} ${tr(lang,'complete')}</span>
         </div>
-        ${renderFilledSectionBlock(g, ck, { plain })}
+        ${renderFilledSectionBlock(g, ck, { plain, lang })}
         ${isLast ? '' : '<div class="pagebreak"></div>'}
       `;
     }).join('');
@@ -2052,10 +2104,10 @@ function printFilledStatus(opts) {
   } else {
     body = `
       <div style="margin-bottom:12px;font-size:12px;display:flex;gap:18px;flex-wrap:wrap">
-        <span><strong>Phase:</strong> ${phaseLabelText}</span>
-        <span><strong>Progress:</strong> ${done}/${total} complete</span>
+        <span><strong>${tr(lang,'phase')}:</strong> ${phaseLabelText}</span>
+        <span><strong>${tr(lang,'progress')}:</strong> ${done}/${total} ${tr(lang,'complete')}</span>
       </div>
-      ${groups.map(g => renderFilledSectionBlock(g, ck, { plain })).join('')}
+      ${groups.map(g => renderFilledSectionBlock(g, ck, { plain, lang })).join('')}
     `;
     // default header from buildPrintHTML
   }
