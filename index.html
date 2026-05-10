@@ -82,14 +82,20 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 /* CHECKLIST BUILDER */
-.cl-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden}
-.cl-section-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer}
-.cl-section-header h3{font-size:14px;flex:1}
+.cl-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden}
+.cl-section-header{position:relative;padding:11px 14px 11px 28px;background:linear-gradient(180deg,var(--surface2),var(--surface3));border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.cl-section-header::before{content:'';position:absolute;left:12px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent),inset 0 0 1px rgba(255,255,255,.4)}
+.cl-section-header::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--accent);opacity:.25}
+.cl-section-header h3{flex:1;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text)}
+.cl-section-header .badge{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--accent);padding:3px 7px;background:#000;border:1px solid var(--surface3);border-radius:3px;letter-spacing:.5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
 .cl-section-body{padding:12px 16px}
-.cl-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;border:1px solid transparent;transition:all .15s;margin:4px 0}
-.cl-item:hover{background:var(--surface2);border-color:var(--border)}
-.cl-item .order{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);min-width:24px}
-.cl-item .label{flex:1;font-size:13px}
+.cl-item{display:flex;align-items:center;gap:10px;padding:8px 12px 8px 14px;border-radius:6px;border:1px solid transparent;background:var(--surface);transition:background .15s,border-color .15s;margin:4px 0;position:relative}
+.cl-item::before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--surface3);transition:background .15s,box-shadow .15s}
+.cl-item:hover{background:var(--surface2);border-color:var(--accent)}
+.cl-item:hover::before{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.cl-item .order{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--accent);min-width:30px;padding:3px 7px;background:#000;border:1px solid var(--surface3);border-radius:3px;text-align:center;letter-spacing:.5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.cl-item:hover .order{border-color:var(--accent);text-shadow:0 0 4px var(--accent)}
+.cl-item .label{flex:1;font-size:13px;line-height:1.35}
 .cl-item .desc{font-size:11px;color:var(--text2);margin-top:2px}
 .cl-item .meta{display:flex;gap:6px;flex-shrink:0}
 .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace}
@@ -145,7 +151,11 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .cl-item-inline .hint{font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-right:4px;white-space:nowrap}
 .empty-section-hint{padding:8px 10px;font-size:11px;color:var(--text2);font-style:italic;text-align:center}
 
-.row-actions{display:flex;gap:4px}
+.row-actions{display:flex;gap:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.row-actions .btn{border:none;border-radius:0;background:transparent;padding:4px 9px;font-size:11px;border-right:1px solid var(--border);transition:background .12s,color .12s}
+.row-actions .btn:last-child{border-right:none}
+.row-actions .btn:hover{background:var(--surface3)}
+.row-actions .btn-danger:hover{background:rgba(248,113,113,.12);color:var(--red)}
 
 /* PRINT MODAL — mode picker + phase radios */
 .mode-pick{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
