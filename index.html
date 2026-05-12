@@ -354,10 +354,10 @@ const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
 // Models tab state (Phase 3)
 let models = [];                    // [{id,name,ref,description,icon,visible,...}]
 let modelView = null;               // currently open model id (null = list view)
-let modelPhase = 'assembly_qc';     // 'assembly_qc' | 'pre_deploy'
+let modelPhase = 'pre_install_qc';     // 'pre_install_qc' | 'pre_test_qc' | 'pre_deploy'
 let modelItems = [];                // checklist items for the open model (loaded by model_id)
 let modelUnitCount = {};            // model_id → count (for list view stats)
-let modelItemCount = {};            // model_id → { assembly_qc, pre_deploy } (for list view stats)
+let modelItemCount = {};            // model_id → { pre_install_qc, pre_test_qc, pre_deploy } (for list view stats)
 let inlineAddSection = null;        // section currently expanded for inline add
 let draftSections = {};             // key=`${modelId}:${phase}` → [name,...] empty sections waiting for first item
 
@@ -1325,7 +1325,8 @@ const PRINT_I18N = {
     partNumber: 'Part #', qty: 'Qty', tool: 'Tool',
     checkedByAt: 'Checked by / at',
     progress: 'Progress', phase: 'Phase', section: 'Section',
-    assemblyQC: 'Assembly QC', preDeploy: 'Pre-Deploy',
+    preInstallQC: 'Pre-Install QC', preTestQC: 'Pre-Test QC', preDeploy: 'Pre-Deploy',
+    preInstallShort: 'Pre-Install', preTestShort: 'Pre-Test',
     deployChecklist: 'Deploy Checklist',
     complete: 'complete', all: 'All', bothPhases: 'Both Phases'
   },
@@ -1338,7 +1339,8 @@ const PRINT_I18N = {
     partNumber: '部品番号', qty: '数量', tool: '工具',
     checkedByAt: '確認者 / 日時',
     progress: '進捗', phase: '工程', section: 'セクション',
-    assemblyQC: '組立検査', preDeploy: '出荷前確認',
+    preInstallQC: '組立前QC', preTestQC: '試験前QC', preDeploy: '出荷前確認',
+    preInstallShort: '組立前', preTestShort: '試験前',
     deployChecklist: '出荷チェックリスト',
     complete: '完了', all: 'すべて', bothPhases: '両工程'
   }
@@ -1360,16 +1362,23 @@ function pickSection(group, lang) {
 }
 
 function phaseLabel(phase, plain, lang = 'en') {
-  const t = phase === 'assembly_qc' ? tr(lang, 'assemblyQC') : tr(lang, 'preDeploy');
-  return plain ? t : (phase === 'assembly_qc' ? `🔬 ${t}` : `📦 ${t}`);
+  const map = {
+    pre_install_qc: { key: 'preInstallQC', icon: '🛡️' },
+    pre_test_qc:    { key: 'preTestQC',    icon: '🧪' },
+    pre_deploy:     { key: 'preDeploy',    icon: '📦' },
+  };
+  const m = map[phase];
+  if (!m) return phase || '';
+  const t = tr(lang, m.key);
+  return plain ? t : `${m.icon} ${t}`;
 }
 
 // Group items by phase → section. Returns array of { phase, sectionName, items } in display order.
 function genGroups(items, phaseFilter) {
-  const phases = phaseFilter ? [phaseFilter] : ['assembly_qc','pre_deploy'];
+  const phases = phaseFilter ? [phaseFilter] : ['pre_install_qc','pre_test_qc','pre_deploy'];
   const groups = [];
   phases.forEach(phase => {
-    const phaseItems = items.filter(i => (i.phase||'assembly_qc') === phase);
+    const phaseItems = items.filter(i => (i.phase||'pre_install_qc') === phase);
     const sections = {}; const order = [];
     phaseItems.forEach(i => {
       const sn = i.section_name || '(unsorted)';
@@ -1419,7 +1428,7 @@ function renderPerSectionHeader(group, opts) {
 
 // Single section block for Blank mode (no DB checks).
 // Columns (OP/QC always rightmost — operator reads left-to-right then ticks):
-//   Assembly QC: # | Item | Description | OP | QC
+//   Pre-Install QC: # | Item | Description | OP | QC
 //   Pre-Deploy:  # | Part # | Description | Qty | Tool | OP   (no QC column for packing checks)
 // opts.emptyRows = true → render EMPTY_ROWS blank numbered rows (no DB items consulted).
 // opts.emptyRows = false → render the items in group.items with empty checkboxes.
@@ -1568,7 +1577,7 @@ async function loadDeployData(modelId) {
 }
 
 function deployProgress(unitId, phase) {
-  const items = deployUnitItems.filter(i => (i.phase||'assembly_qc') === phase);
+  const items = deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phase);
   const ck = deployChecks[unitId] || [];
   const done = items.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
   return { done, total: items.length, pct: items.length ? Math.round(done/items.length*100) : 0 };
@@ -1620,7 +1629,8 @@ async function renderDeploy() {
 
   html += `<div class="units-grid">`;
   deployUnits.forEach(u => {
-    const qc  = deployProgress(u.id, 'assembly_qc');
+    const qc1 = deployProgress(u.id, 'pre_install_qc');
+    const qc2 = deployProgress(u.id, 'pre_test_qc');
     const dep = deployProgress(u.id, 'pre_deploy');
     html += `
       <div class="unit-card" onclick="openDeployUnit('${u.id}')">
@@ -1630,8 +1640,12 @@ async function renderDeploy() {
         <h3>🤖 ${esc(u.unit_name||u.name||'(unnamed)')}</h3>
         ${u.notes?`<div class="unit-meta">${esc(u.notes)}</div>`:'<div class="unit-meta">&nbsp;</div>'}
         <div class="phase-prog">
-          <div class="lbl"><span>🔬 Assembly QC</span><span>${qc.done}/${qc.total}</span></div>
-          <div class="prog-bar"><div class="prog-fill qc" style="width:${qc.pct}%"></div></div>
+          <div class="lbl"><span>🛡️ Pre-Install QC</span><span>${qc1.done}/${qc1.total}</span></div>
+          <div class="prog-bar"><div class="prog-fill qc" style="width:${qc1.pct}%"></div></div>
+        </div>
+        <div class="phase-prog">
+          <div class="lbl"><span>🧪 Pre-Test QC</span><span>${qc2.done}/${qc2.total}</span></div>
+          <div class="prog-bar"><div class="prog-fill qc" style="width:${qc2.pct}%"></div></div>
         </div>
         <div class="phase-prog">
           <div class="lbl"><span>📦 Pre-Deploy</span><span>${dep.done}/${dep.total}</span></div>
@@ -1713,7 +1727,8 @@ function renderDeployUnitDetail(el) {
   const u = deployUnits.find(x => x.id === deployUnitId);
   if (!u) { deployUnitId = null; renderDeploy(); return; }
   const m = modelById(u.model_id) || modelById(deployModelId);
-  const qc  = deployProgress(u.id, 'assembly_qc');
+  const qc1 = deployProgress(u.id, 'pre_install_qc');
+  const qc2 = deployProgress(u.id, 'pre_test_qc');
   const dep = deployProgress(u.id, 'pre_deploy');
 
   let html = `
@@ -1732,19 +1747,20 @@ function renderDeployUnitDetail(el) {
     </div>
   `;
 
-  html += renderDeployPhaseBlock(u, 'assembly_qc', '🔬', 'Assembly QC', 'Was it built correctly?', qc, 'qc');
-  html += renderDeployPhaseBlock(u, 'pre_deploy',  '📦', 'Pre-Deploy',  'Are all parts in the box?',  dep, 'dep');
+  html += renderDeployPhaseBlock(u, 'pre_install_qc', '🛡️', 'Pre-Install QC', 'Was it built correctly?',  qc1, 'qc');
+  html += renderDeployPhaseBlock(u, 'pre_test_qc',    '🧪', 'Pre-Test QC',    'Ready for power-on?',      qc2, 'qc');
+  html += renderDeployPhaseBlock(u, 'pre_deploy',     '📦', 'Pre-Deploy',     'Are all parts in the box?', dep, 'dep');
 
-  if (qc.total === 0 && dep.total === 0) {
+  if (qc1.total === 0 && qc2.total === 0 && dep.total === 0) {
     const mid = u.model_id || deployModelId;
-    html += `<div class="empty"><p>No checklist items defined for this model yet.<br><a onclick="modelView='${mid}';modelPhase='assembly_qc';switchTab('models')" style="color:var(--accent);cursor:pointer">Open the Models tab</a> to add some.</p></div>`;
+    html += `<div class="empty"><p>No checklist items defined for this model yet.<br><a onclick="modelView='${mid}';modelPhase='pre_install_qc';switchTab('models')" style="color:var(--accent);cursor:pointer">Open the Models tab</a> to add some.</p></div>`;
   }
 
   el.innerHTML = html;
 }
 
 function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
-  const phaseItems = deployUnitItems.filter(i => (i.phase||'assembly_qc') === phase)
+  const phaseItems = deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phase)
                                     .sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
   if (phaseItems.length === 0) {
     return `
@@ -1855,7 +1871,7 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
   // Patch phase progress + section count
   const item = deployUnitItems.find(i => i.id === itemId);
   if (item) {
-    const phase = item.phase || 'assembly_qc';
+    const phase = item.phase || 'pre_install_qc';
     const prog = deployProgress(unitId, phase);
     const fill = document.querySelector(`[data-phase-fill="${phase}"]`);
     const txt  = document.querySelector(`[data-phase-txt="${phase}"]`);
@@ -1866,7 +1882,7 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
     if (sk) {
       const stat = document.querySelector(`[data-sec-stat="${cssEsc(sk)}"]`);
       if (stat) {
-        const phaseItems = deployUnitItems.filter(i => (i.phase||'assembly_qc') === phase)
+        const phaseItems = deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phase)
                                           .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
         const sections = {}; const order = [];
         phaseItems.forEach(i => {
@@ -1943,7 +1959,7 @@ function showPrintOptions(opts = {}) {
     <label>Phases</label>
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
       <label class="radio-row"><input type="radio" name="phaseChoice" value="both" checked> All</label>
-      <label class="radio-row"><input type="radio" name="phaseChoice" value="assembly_qc"> 🔬 Assembly QC only</label>
+      <label class="radio-row"><input type="radio" name="phaseChoice" value="pre_install_qc"> 🛡️ Pre-Install QC only</label>
       <label class="radio-row"><input type="radio" name="phaseChoice" value="pre_deploy"> 📦 Pre-Deploy only</label>
     </div>
 
@@ -2029,7 +2045,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     }
   }
 
-  const filtered = (phaseFilter ? items.filter(i => (i.phase||'assembly_qc') === phaseFilter) : [...items])
+  const filtered = (phaseFilter ? items.filter(i => (i.phase||'pre_install_qc') === phaseFilter) : [...items])
     .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
   if (filtered.length === 0) { toast(phaseFilter ? 'No items in this phase to print' : 'No items to print', 'err'); return; }
 
@@ -2068,7 +2084,7 @@ function printFilledStatus(opts) {
   const u = deployUnits.find(x => x.id === deployUnitId); if (!u) return;
   const m = modelById(u.model_id) || modelById(deployModelId);
   const ck = deployChecks[u.id] || [];
-  const filtered = (phaseFilter ? deployUnitItems.filter(i => (i.phase||'assembly_qc') === phaseFilter) : [...deployUnitItems])
+  const filtered = (phaseFilter ? deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phaseFilter) : [...deployUnitItems])
     .sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
 
   const total = filtered.length;
@@ -2081,7 +2097,7 @@ function printFilledStatus(opts) {
   const subtitle = subParts.join('  |  ');
 
   const phaseLabelText = phaseFilter
-    ? (phaseFilter === 'assembly_qc' ? tr(lang,'assemblyQC') : tr(lang,'preDeploy'))
+    ? phaseLabel(phaseFilter, true, lang)
     : (plain ? tr(lang,'all') : tr(lang,'bothPhases'));
 
   const groups = genGroups(filtered, phaseFilter);
@@ -2165,8 +2181,10 @@ async function loadModelStats() {
       modelUnitCount[u.model_id] = (modelUnitCount[u.model_id] || 0) + 1;
     });
     (itemsRes.data || []).forEach(it => {
-      const c = (modelItemCount[it.model_id] ||= { assembly_qc: 0, pre_deploy: 0 });
-      if (it.phase === 'pre_deploy') c.pre_deploy++; else c.assembly_qc++;
+      const c = (modelItemCount[it.model_id] ||= { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 });
+      // Only counts known phases; if a new phase value is added to the DB CHECK, add it to the initializer above too.
+      const ph = it.phase || 'pre_install_qc';
+      if (c[ph] !== undefined) c[ph]++;
     });
   } catch(e) {
     console.error('stats load failed', e);
@@ -2189,7 +2207,7 @@ async function renderModels() {
       <button class="btn btn-primary admin-only" onclick="showAddModel()">➕ New Model</button>
     </div>
     <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
-      Each robot model has its own checklist split into two phases — <b>Assembly QC</b> (post-build) and
+      Each robot model has its own checklist split into two phases — <b>Pre-Install QC</b> (post-build) and
       <b>Pre-Deploy</b> (pre-shipping). Click a model to edit its checklist.
     </p>
   `;
@@ -2203,7 +2221,7 @@ async function renderModels() {
 
   html += `<div class="models-grid">`;
   models.forEach(m => {
-    const stats = modelItemCount[m.id] || { assembly_qc: 0, pre_deploy: 0 };
+    const stats = modelItemCount[m.id] || { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 };
     const uN = modelUnitCount[m.id] || 0;
     html += `
       <div class="model-card" onclick="openModel('${m.id}')">
@@ -2217,7 +2235,7 @@ async function renderModels() {
         <div class="desc">${esc(m.description || '')}</div>
         <div class="stats">
           <span><b>${uN}</b>units</span>
-          <span><b>${stats.assembly_qc}</b>QC items</span>
+          <span><b>${stats.pre_install_qc + stats.pre_test_qc}</b>QC items</span>
           <span><b>${stats.pre_deploy}</b>kit items</span>
         </div>
       </div>`;
@@ -2227,7 +2245,7 @@ async function renderModels() {
 }
 
 async function openModel(id) {
-  modelView = id; modelPhase = 'assembly_qc'; inlineAddSection = null;
+  modelView = id; modelPhase = 'pre_install_qc'; inlineAddSection = null;
   await loadModelItems(id);
   renderModels();
 }
@@ -2249,7 +2267,7 @@ async function loadModelItems(modelId) {
 
 function modelById(id) { return models.find(m => m.id === id); }
 function itemsForPhase(phase) {
-  return modelItems.filter(i => (i.phase || 'assembly_qc') === phase)
+  return modelItems.filter(i => (i.phase || 'pre_install_qc') === phase)
                    .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
 }
 
@@ -2268,7 +2286,7 @@ async function renderModelDetail(el) {
   const drafts = (draftSections[m.id+':'+modelPhase] || []);
   drafts.forEach(s => { if (!sections[s]) { sections[s] = []; sectionOrder.push(s); } });
 
-  const qcN  = itemsForPhase('assembly_qc').length;
+  const qcN  = itemsForPhase('pre_install_qc').length;
   const depN = itemsForPhase('pre_deploy').length;
 
   let html = `
@@ -2284,8 +2302,8 @@ async function renderModelDetail(el) {
     </div>
 
     <div class="phase-tabs">
-      <button class="phase-tab ${modelPhase==='assembly_qc'?'active':''}" onclick="setModelPhase('assembly_qc')">
-        🔬 Assembly QC <span class="count">(${qcN})</span>
+      <button class="phase-tab ${modelPhase==='pre_install_qc'?'active':''}" onclick="setModelPhase('pre_install_qc')">
+        🛡️ Pre-Install QC <span class="count">(${qcN})</span>
       </button>
       <button class="phase-tab ${modelPhase==='pre_deploy'?'active':''}" onclick="setModelPhase('pre_deploy')">
         📦 Pre-Deploy <span class="count">(${depN})</span>
@@ -2293,8 +2311,8 @@ async function renderModelDetail(el) {
     </div>
 
     <p style="color:var(--text2);font-size:12px;margin-bottom:14px;line-height:1.5">
-      ${modelPhase==='assembly_qc'
-        ? '<b>Assembly QC</b> — checks performed after the unit is built. Was it assembled correctly?'
+      ${modelPhase==='pre_install_qc'
+        ? '<b>Pre-Install QC</b> — checks performed after the unit is built. Was it assembled correctly?'
         : '<b>Pre-Deploy</b> — pre-shipping checks. Are all screws, cables, and parts in the box?'}
     </p>
 
@@ -2305,7 +2323,7 @@ async function renderModelDetail(el) {
   `;
 
   if (sectionOrder.length === 0) {
-    html += `<div class="empty"><div class="icon">${modelPhase==='assembly_qc'?'🔬':'📦'}</div>
+    html += `<div class="empty"><div class="icon">${modelPhase==='pre_install_qc'?'🛡️':'📦'}</div>
       <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
   }
 
@@ -2393,7 +2411,7 @@ function closeInlineAdd() {
   if (m && sec) {
     const dkey = m.id + ':' + modelPhase;
     if (draftSections[dkey] && draftSections[dkey].includes(sec)) {
-      const has = modelItems.some(i => (i.phase||'assembly_qc') === modelPhase && i.section_name === sec);
+      const has = modelItems.some(i => (i.phase||'pre_install_qc') === modelPhase && i.section_name === sec);
       if (!has) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
     }
   }
@@ -2434,7 +2452,7 @@ async function saveInlineItem() {
     const dkey = m.id + ':' + modelPhase;
     if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
     // refresh list-view stats so back-nav shows accurate counts
-    const c = (modelItemCount[m.id] ||= { assembly_qc: 0, pre_deploy: 0 });
+    const c = (modelItemCount[m.id] ||= { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 });
     c[modelPhase]++;
     toast('Item added', 'ok');
     renderModels();
@@ -2491,7 +2509,7 @@ function openBulkAdd() {
     : "Frame welds inspected | Visual check at joint A/B\nBearings seated correctly\nWiring harness tagged | All cables labeled per drawing";
 
   showModal(`
-    <h3>📋 Bulk Add — ${modelPhase==='assembly_qc'?'Assembly QC':'Pre-Deploy'}</h3>
+    <h3>📋 Bulk Add — ${modelPhase==='pre_install_qc'?'Pre-Install QC':'Pre-Deploy'}</h3>
     <label>Section</label>
     <select id="bulkSec">
       ${all.length === 0 ? '<option value="__new">+ New Section…</option>' : ''}
@@ -2558,7 +2576,7 @@ async function applyBulkAdd() {
     modelItems.push(...(data || []));
     const dkey = m.id + ':' + modelPhase;
     if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== secName);
-    const c = (modelItemCount[m.id] ||= { assembly_qc: 0, pre_deploy: 0 });
+    const c = (modelItemCount[m.id] ||= { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 });
     c[modelPhase] += rows.length;
     closeModal();
     toast(`Added ${rows.length} item${rows.length===1?'':'s'} to "${secName}"`, 'ok');
@@ -2578,7 +2596,7 @@ async function deleteModelItem(id) {
     if (error) throw error;
     modelItems = modelItems.filter(x => x.id !== id);
     if (it && modelItemCount[it.model_id]) {
-      const phase = it.phase || 'assembly_qc';
+      const phase = it.phase || 'pre_install_qc';
       modelItemCount[it.model_id][phase] = Math.max(0, modelItemCount[it.model_id][phase] - 1);
     }
     toast('Deleted', 'info');
@@ -2591,7 +2609,7 @@ async function deleteModelItem(id) {
 
 function editModelItem(id) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
-  const isKit = (it.phase || 'assembly_qc') === 'pre_deploy';
+  const isKit = (it.phase || 'pre_install_qc') === 'pre_deploy';
   showModal(`
     <h3>Edit Item</h3>
     <label>Section</label> <input id="eiSection" value="${esc(it.section_name||'')}">
@@ -2638,7 +2656,7 @@ async function saveModelItemEdit(id, isKit) {
 
 async function moveModelItem(id, dir) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
-  const phase = it.phase || 'assembly_qc';
+  const phase = it.phase || 'pre_install_qc';
   const sec = it.section_name || '(unsorted)';
   // Scope adjacency to the same section so ▲▼ swaps with the next/prev item
   // the operator actually sees, not whichever item happens to share a phase.
@@ -2732,8 +2750,8 @@ async function saveModel(id) {
 async function deleteModel(id) {
   const m = modelById(id); if (!m) return;
   const uN = modelUnitCount[id] || 0;
-  const stats = modelItemCount[id] || { assembly_qc: 0, pre_deploy: 0 };
-  const iN = stats.assembly_qc + stats.pre_deploy;
+  const stats = modelItemCount[id] || { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 };
+  const iN = stats.pre_install_qc + stats.pre_test_qc + stats.pre_deploy;
   const msg = `Delete model "${m.name}"?\n\n• ${iN} checklist item(s) will be deleted.\n• ${uN} unit(s) will be unlinked (kept in DB).`;
   if (!confirm(msg)) return;
   try {
