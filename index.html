@@ -101,6 +101,14 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .cl-item .meta{display:flex;gap:6px;flex-shrink:0}
 .cl-item.multi{border-color:rgba(96,165,250,.32);background:rgba(96,165,250,.05)}
 .cl-item.multi::before{background:var(--accent)}
+.folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:16px}
+.folder-card{position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:24px 16px 18px;cursor:pointer;transition:border-color .15s,transform .15s,background .15s;display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:120px}
+.folder-card:hover{border-color:var(--accent);transform:translateY(-2px);background:var(--surface3)}
+.folder-card .folder-icon{font-size:32px;line-height:1}
+.folder-card .folder-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text);line-height:1.35}
+.folder-card .folder-count{position:absolute;top:10px;right:10px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--accent);padding:3px 7px;background:#000;border:1px solid var(--surface3);border-radius:3px;letter-spacing:.5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.back-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s}
+.back-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface2)}
 .phase-pills{display:flex;gap:4px;flex-shrink:0;align-items:center}
 .phase-pill{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;padding:2px 6px;border-radius:10px;border:1px solid var(--surface3);color:var(--text2);background:transparent;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
 .phase-pill.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -298,6 +306,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
   </select>
   <button id="uploadPdfBtn" class="btn btn-primary admin-only btn-sm" onclick="triggerPDFFilePicker()">📤 Upload PDF</button>
   <div class="topbar-right">
+    <button id="uiLangToggle" class="btn btn-sm" onclick="toggleUiLang()" title="Switch UI language">🌐 EN</button>
     <div id="loginArea">
       <button class="btn" onclick="handleLogin()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:14px;height:14px"> Sign In</button>
     </div>
@@ -375,6 +384,7 @@ let modelItems = [];                // checklist items for the open model (loade
 let modelUnitCount = {};            // model_id → count (for list view stats)
 let modelItemCount = {};            // model_id → { pre_install_qc, pre_test_qc, pre_deploy } (for list view stats)
 let inlineAddSection = null;        // section currently expanded for inline add
+let currentEditorSection = null;    // null = folder grid; string = open section name in editor
 let draftSections = {};             // key=`${modelId}:${phase}` → [name,...] empty sections waiting for first item
 
 function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -490,11 +500,8 @@ document.getElementById('modalOverlay').addEventListener('click', e => { if (e.t
 async function loadDrawings() {
   const { data } = await sb.from('deployops_drawings').select('*').order('created_at', { ascending: false });
   drawings = data || [];
+  renderDrawingsSelect();
   const sel = document.getElementById('drawingSelect');
-  sel.innerHTML = '<option value="">— Select Drawing —</option>';
-  drawings.forEach(d => {
-    sel.innerHTML += `<option value="${d.id}">${d.drawing_ref} — ${d.name}</option>`;
-  });
   if (drawings.length === 1) { sel.value = drawings[0].id; selectDrawing(drawings[0].id); }
 }
 
@@ -1444,6 +1451,56 @@ function pickSection(group, lang) {
     if (ja) return ja;
   }
   return group.sectionName;
+}
+
+// ============================================================
+// UI locale (Models / Drawings / Deploy tabs)
+// ============================================================
+// Separate from the print modal's transient langChoice radio: this is the
+// app-wide locale state that drives live UI rendering. Persisted in
+// localStorage so the operator's choice survives reloads. The print modal
+// keeps its own langChoice for backwards-compat — print jobs are not
+// auto-coupled to the UI locale (an EN-browsing operator may still want to
+// print a JA worksheet for a JA-speaking colleague).
+const UI_LANG_KEY = 'deployops_ui_lang';
+function getUiLang() {
+  const v = (() => { try { return localStorage.getItem(UI_LANG_KEY); } catch(e) { return null; } })();
+  return v === 'ja' ? 'ja' : 'en';
+}
+function setUiLangButton() {
+  const btn = document.getElementById('uiLangToggle');
+  if (btn) btn.textContent = getUiLang() === 'ja' ? '🌐 日本語' : '🌐 EN';
+}
+function toggleUiLang() {
+  const next = getUiLang() === 'ja' ? 'en' : 'ja';
+  try { localStorage.setItem(UI_LANG_KEY, next); } catch(e) {}
+  setUiLangButton();
+  rerenderForLangChange();
+}
+function rerenderForLangChange() {
+  // Topbar drawings dropdown is visible from every tab — re-render
+  // independently of the active tab's content.
+  renderDrawingsSelect();
+  const tab = document.querySelector('.tab.active')?.dataset?.tab;
+  if (tab === 'models') renderModels();
+  else if (tab === 'deploy') renderDeploy();
+  // 'drawing' tab content is the PDF viewer; no localized text in the
+  // viewer body, so no further re-render needed.
+}
+// Rebuilds the topbar drawing-selector <option>s from in-memory `drawings`.
+// Extracted from loadDrawings so toggleUiLang can repaint without re-
+// fetching. Caller invariant: `drawings` must be populated (loadDrawings
+// runs first at boot).
+function renderDrawingsSelect() {
+  const sel = document.getElementById('drawingSelect');
+  if (!sel || !Array.isArray(drawings)) return;
+  const currentVal = sel.value;
+  const lang = getUiLang();
+  sel.innerHTML = '<option value="">— Select Drawing —</option>';
+  drawings.forEach(d => {
+    sel.innerHTML += `<option value="${d.id}">${esc(d.drawing_ref)} — ${esc(pickField(d, 'name', lang))}</option>`;
+  });
+  if (currentVal) sel.value = currentVal;
 }
 
 function phaseLabel(phase, plain, lang = 'en') {
@@ -2526,6 +2583,7 @@ async function renderDeploy() {
   if (deployUnitId) { renderDeployUnitDetail(el); return; }
 
   const m = modelById(deployModelId);
+  const lang = getUiLang();
   let html = `
     <div class="page-header">
       <h1>🚀 Deploy</h1>
@@ -2534,7 +2592,7 @@ async function renderDeploy() {
     <div class="model-picker">
       <label>Model:</label>
       <select onchange="onDeployModelChange(this.value)">
-        ${models.map(mm => `<option value="${mm.id}" ${mm.id===deployModelId?'selected':''}>${esc(mm.icon||'🤖')} ${esc(mm.name)}${mm.ref?' · '+esc(mm.ref):''}</option>`).join('')}
+        ${models.map(mm => `<option value="${mm.id}" ${mm.id===deployModelId?'selected':''}>${esc(mm.icon||'🤖')} ${esc(pickField(mm, 'name', lang))}${mm.ref?' · '+esc(mm.ref):''}</option>`).join('')}
       </select>
     </div>
   `;
@@ -2543,7 +2601,7 @@ async function renderDeploy() {
 
   if (deployUnits.length === 0) {
     html += `<div class="empty"><div class="icon">🤖</div>
-      <p>No units yet for <b>${esc(m.name)}</b>.</p>
+      <p>No units yet for <b>${esc(pickField(m, 'name', lang))}</b>.</p>
       <button class="btn btn-primary admin-only" onclick="showAddDeployUnit()">Add the first one</button></div>`;
     el.innerHTML = html;
     return;
@@ -2554,13 +2612,14 @@ async function renderDeploy() {
     const qc1 = deployProgress(u.id, 'pre_install_qc');
     const qc2 = deployProgress(u.id, 'pre_test_qc');
     const dep = deployProgress(u.id, 'pre_deploy');
+    const notes = pickField(u, 'notes', lang);
     html += `
       <div class="unit-card" onclick="openDeployUnit('${u.id}')">
         <div class="card-actions" onclick="event.stopPropagation()">
           <button class="btn btn-sm btn-danger admin-only" onclick="deleteDeployUnit('${u.id}')" title="Delete">🗑️</button>
         </div>
         <h3>🤖 ${esc(u.unit_name||u.name||'(unnamed)')}</h3>
-        ${u.notes?`<div class="unit-meta">${esc(u.notes)}</div>`:'<div class="unit-meta">&nbsp;</div>'}
+        ${notes?`<div class="unit-meta">${esc(notes)}</div>`:'<div class="unit-meta">&nbsp;</div>'}
         <div class="phase-prog">
           <div class="lbl"><span>🛡️ Pre-Install QC</span><span>${qc1.done}/${qc1.total}</span></div>
           <div class="prog-bar"><div class="prog-fill qc" style="width:${qc1.pct}%"></div></div>
@@ -2588,9 +2647,10 @@ async function onDeployModelChange(id) {
 
 function showAddDeployUnit() {
   const m = modelById(deployModelId);
+  const lang = getUiLang();
   showModal(`
     <h3>➕ Add Unit</h3>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">For model: <b>${esc(m?.name||'')}</b></p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">For model: <b>${esc(m ? pickField(m, 'name', lang) : '')}</b></p>
     <label>Unit Name / Serial</label> <input id="uName" placeholder="e.g. CE-004">
     <label>Notes</label> <textarea id="uNotes" placeholder="Location, batch, etc."></textarea>
     <div class="modal-actions">
@@ -2652,12 +2712,15 @@ function renderDeployUnitDetail(el) {
   const qc1 = deployProgress(u.id, 'pre_install_qc');
   const qc2 = deployProgress(u.id, 'pre_test_qc');
   const dep = deployProgress(u.id, 'pre_deploy');
+  const lang = getUiLang();
+  const mName = m ? pickField(m, 'name', lang) : '';
+  const uNotes = pickField(u, 'notes', lang);
 
   let html = `
     <div class="crumbs">
       <a onclick="backToDeployUnits()">← Units</a>
       <span class="sep">/</span>
-      <span>${esc(m?.name||'')}</span>
+      <span>${esc(mName)}</span>
       <span class="sep">/</span>
       <span>${esc(u.unit_name||u.name||'')}</span>
     </div>
@@ -2665,7 +2728,7 @@ function renderDeployUnitDetail(el) {
       <button class="btn btn-sm no-print" onclick="backToDeployUnits()">← Back</button>
       <h2>🤖 ${esc(u.unit_name||u.name||'')}</h2>
       <button class="btn btn-sm no-print" onclick="showPrintOptions()">🖨️ Print / PDF</button>
-      <div class="submeta">${esc(m?.icon||'')} ${esc(m?.name||'')}${m?.ref?' · '+esc(m.ref):''}${u.notes?' · '+esc(u.notes):''}</div>
+      <div class="submeta">${esc(m?.icon||'')} ${esc(mName)}${m?.ref?' · '+esc(m.ref):''}${uNotes?' · '+esc(uNotes):''}</div>
     </div>
   `;
 
@@ -2894,8 +2957,7 @@ function showPrintOptions(opts = {}) {
 
     <label>Phases</label>
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
-      <label class="radio-row"><input type="radio" name="phaseChoice" value="both" checked> All</label>
-      <label class="radio-row"><input type="radio" name="phaseChoice" value="pre_install_qc"> 🛡️ Pre-Install QC only</label>
+      <label class="radio-row"><input type="radio" name="phaseChoice" value="both" checked> Per-unit QC (Pre-install + Pre-test)</label>
       <label class="radio-row"><input type="radio" name="phaseChoice" value="pre_deploy"> 📦 Pre-Deploy only</label>
     </div>
 
@@ -3359,6 +3421,12 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
   // table layout because it has no items/tiers to organize.
   if (!emptyRows) {
     const style = wsStyle;
+    // "All" = both per-unit phases (Pre-Install QC + Pre-Test QC). These
+    // are the operator + QC checks performed on a single unit. Pre-Deploy
+    // is a shipment-level batch operation (different stakeholders, different
+    // timing, eventually an N-column matrix per the original handoff) and
+    // is intentionally excluded from "All". It stays accessible via the
+    // dedicated "Pre-Deploy only" radio in the print modal.
     const includePhases = phaseFilter ? [phaseFilter] : ['pre_install_qc', 'pre_test_qc'];
     const visibleItems = items
       .filter(i => i.visible !== false)
@@ -3573,6 +3641,7 @@ async function renderModels() {
     return;
   }
 
+  const lang = getUiLang();
   html += `<div class="models-grid">`;
   models.forEach(m => {
     const stats = modelItemCount[m.id] || { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 };
@@ -3584,9 +3653,9 @@ async function renderModels() {
           <button class="btn btn-sm btn-danger" onclick="deleteModel('${m.id}')" title="Delete">🗑️</button>
         </div>
         <div class="model-icon">${m.icon || '🤖'}</div>
-        <h3>${esc(m.name)}</h3>
+        <h3>${esc(pickField(m, 'name', lang))}</h3>
         <div class="ref">REF · ${esc(m.ref || '')}</div>
-        <div class="desc">${esc(m.description || '')}</div>
+        <div class="desc">${esc(pickField(m, 'description', lang) || '')}</div>
         <div class="stats">
           <span><b>${uN}</b>units</span>
           <span><b>${stats.pre_install_qc + stats.pre_test_qc}</b>QC items</span>
@@ -3599,12 +3668,31 @@ async function renderModels() {
 }
 
 async function openModel(id) {
-  modelView = id; modelPhase = 'pre_install_qc'; inlineAddSection = null;
+  modelView = id; modelPhase = 'pre_install_qc'; inlineAddSection = null; currentEditorSection = null;
   await loadModelItems(id);
   renderModels();
 }
-function backToModels() { modelView = null; modelItems = []; inlineAddSection = null; renderModels(); }
-function setModelPhase(p) { modelPhase = p; inlineAddSection = null; renderModels(); }
+function backToModels() { modelView = null; modelItems = []; inlineAddSection = null; currentEditorSection = null; renderModels(); }
+function setModelPhase(p) { modelPhase = p; inlineAddSection = null; currentEditorSection = null; renderModels(); }
+
+// Folder-view navigation. openSectionFolder drills into a section's items;
+// backToFolderGrid returns to the grid, cleaning up draft sections that
+// never received any items (mirrors closeInlineAdd's cleanup logic so the
+// grid doesn't accumulate phantom cards).
+function openSectionFolder(secName) { currentEditorSection = secName; renderModels(); }
+function backToFolderGrid() {
+  const m = modelById(modelView);
+  if (m && currentEditorSection) {
+    const dkey = m.id + ':' + modelPhase;
+    if (draftSections[dkey]?.includes(currentEditorSection)) {
+      const has = modelItems.some(i => itemInPhase(i, modelPhase) && i.section_name === currentEditorSection);
+      if (!has) draftSections[dkey] = draftSections[dkey].filter(s => s !== currentEditorSection);
+    }
+  }
+  inlineAddSection = null;
+  currentEditorSection = null;
+  renderModels();
+}
 
 async function loadModelItems(modelId) {
   try {
@@ -3648,14 +3736,16 @@ async function renderModelDetail(el) {
   const drafts = (draftSections[m.id+':'+modelPhase] || []);
   drafts.forEach(s => { if (!sections[s]) { sections[s] = []; sectionOrder.push(s); } });
 
+  const lang = getUiLang();
+  const mName = pickField(m, 'name', lang);
   let html = `
     <div class="crumbs">
       <a onclick="backToModels()">← Models</a>
       <span class="sep">/</span>
-      <span>${esc(m.name)}</span>
+      <span>${esc(mName)}</span>
     </div>
     <div class="page-header">
-      <h1>${m.icon||'🤖'} ${esc(m.name)} <span style="color:var(--text2);font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:400">· ${esc(m.ref||'')}</span></h1>
+      <h1>${m.icon||'🤖'} ${esc(mName)} <span style="color:var(--text2);font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:400">· ${esc(m.ref||'')}</span></h1>
       <button class="btn btn-sm" onclick="printModelBlankWorkOrder('${m.id}')">🖨️ Print Blank Work Order</button>
       <button class="btn btn-sm admin-only" onclick="showRenameModel('${m.id}')">✏️ Edit</button>
     </div>
@@ -3683,21 +3773,55 @@ async function renderModelDetail(el) {
 
     <div class="phase-toolbar admin-only">
       <button class="btn btn-primary btn-sm" onclick="showNewSection()">➕ New Section</button>
-      <button class="btn btn-sm" onclick="openBulkAdd()">📋 Bulk add</button>
+      ${currentEditorSection ? `<button class="btn btn-sm" onclick="openBulkAdd()">📋 Bulk add</button>` : ''}
     </div>
   `;
 
-  if (sectionOrder.length === 0) {
-    html += `<div class="empty"><div class="icon">${PHASE_META[modelPhase]?.icon || '🛡️'}</div>
-      <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
-  }
+  // === Editor body: folder grid (currentEditorSection===null) or single-
+  // section detail view. Sections with zero items in the active phase are
+  // excluded from the grid; draft sections only appear once the user is
+  // navigated into them. Item row template inside detail view is byte-
+  // identical to the pre-refactor version. ===
+  const sectionsWithItems = sectionOrder.filter(s => sections[s].length > 0);
 
-  sectionOrder.forEach(secName => {
-    const secItems = sections[secName];
+  if (currentEditorSection === null) {
+    // Folder grid
+    if (sectionsWithItems.length === 0) {
+      html += `<div class="empty"><div class="icon">${PHASE_META[modelPhase]?.icon || '🛡️'}</div>
+        <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
+    } else {
+      html += `<div class="folder-grid">`;
+      sectionsWithItems.forEach(secName => {
+        const secItems = sections[secName];
+        // pickSection-style JA fallback: first item with section_name_ja wins.
+        let displayName = secName;
+        if (lang === 'ja') {
+          const ja = secItems.find(i => i.section_name_ja)?.section_name_ja;
+          if (ja) displayName = ja;
+        }
+        html += `
+          <div class="folder-card" data-sec="${esc(secName)}" onclick="openSectionFolder(this.dataset.sec)">
+            <span class="folder-count">${secItems.length}</span>
+            <div class="folder-icon">📁</div>
+            <div class="folder-name">${esc(displayName)}</div>
+          </div>`;
+      });
+      html += `</div>`;
+    }
+  } else {
+    // Single-section detail view
+    const secName = currentEditorSection;
+    const secItems = sections[secName] || [];
+    let displayName = secName;
+    if (lang === 'ja') {
+      const ja = secItems.find(i => i.section_name_ja)?.section_name_ja;
+      if (ja) displayName = ja;
+    }
     html += `
+      <button class="back-btn" onclick="backToFolderGrid()">← Back to sections</button>
       <div class="cl-section">
         <div class="cl-section-header">
-          <h3>${esc(secName)}</h3>
+          <h3>${esc(displayName)}</h3>
           <span class="badge badge-blue">${secItems.length}</span>
         </div>
         <div class="cl-section-body">`;
@@ -3743,7 +3867,7 @@ async function renderModelDetail(el) {
     }
 
     html += `</div></div>`;
-  });
+  }
 
   el.innerHTML = html;
 
@@ -3862,6 +3986,7 @@ function confirmNewSection() {
     draftSections[dkey].push(name);
   }
   inlineAddSection = name;
+  currentEditorSection = name;  // single-section view: auto-navigate into the new section
   closeModal();
   renderModels();
 }
@@ -3886,7 +4011,7 @@ function openBulkAdd() {
     <label>Section</label>
     <select id="bulkSec">
       ${all.length === 0 ? '<option value="__new">+ New Section…</option>' : ''}
-      ${all.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+      ${all.map(s => `<option value="${esc(s)}" ${s===currentEditorSection?'selected':''}>${esc(s)}</option>`).join('')}
       ${all.length > 0 ? '<option value="__new">+ New Section…</option>' : ''}
     </select>
     <input id="bulkNewSec" placeholder="New section name" style="display:${all.length===0?'block':'none'};margin-top:6px">
@@ -4134,6 +4259,10 @@ async function addModel() {
 
 function showRenameModel(id) {
   const m = modelById(id); if (!m) return;
+  // Edit form reads EN fields directly. Reading name_ja || name here would
+  // cause JA-mode edits to silently overwrite the EN column on save (mName
+  // → row.name). If JA editing is needed, add separate mName_ja / mDesc_ja
+  // inputs alongside these and wire saveModelEdit to write both columns.
   showModal(`
     <h3>Edit Model</h3>
     <label>Name</label>             <input id="mName" value="${esc(m.name)}">
@@ -4170,7 +4299,8 @@ async function deleteModel(id) {
   const uN = modelUnitCount[id] || 0;
   const stats = modelItemCount[id] || { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 };
   const iN = stats.pre_install_qc + stats.pre_test_qc + stats.pre_deploy;
-  const msg = `Delete model "${m.name}"?\n\n• ${iN} checklist item(s) will be deleted.\n• ${uN} unit(s) will be unlinked (kept in DB).`;
+  const lang = getUiLang();
+  const msg = `Delete model "${pickField(m, 'name', lang)}"?\n\n• ${iN} checklist item(s) will be deleted.\n• ${uN} unit(s) will be unlinked (kept in DB).`;
   if (!confirm(msg)) return;
   try {
     // Unlink units (set model_id to null) — keeps them in DB for legacy Deploy view
@@ -4203,6 +4333,7 @@ async function deleteModel(id) {
 // ============================================================
 async function init() {
   initAuth();
+  setUiLangButton();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
   });
