@@ -107,6 +107,17 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .folder-card .folder-icon{font-size:32px;line-height:1}
 .folder-card .folder-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text);line-height:1.35}
 .folder-card .folder-count{position:absolute;top:10px;right:10px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--accent);padding:3px 7px;background:#000;border:1px solid var(--surface3);border-radius:3px;letter-spacing:.5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.folder-card .edit-icon-btn{position:absolute;top:10px;right:48px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);width:24px;height:24px;border-radius:5px;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:11px;padding:0;transition:color .15s,border-color .15s}
+.folder-card:hover .edit-icon-btn{display:inline-flex}
+.folder-card .edit-icon-btn:hover{color:var(--orange);border-color:var(--orange)}
+.cl-section-header .section-icon-display{font-size:18px;line-height:1;margin-right:4px;vertical-align:-2px}
+.icon-picker-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:12px}
+.icon-option{aspect-ratio:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:border-color .1s,background .1s;user-select:none}
+.icon-option:hover{border-color:var(--accent);background:var(--surface2)}
+.icon-option.selected{border-color:var(--accent);background:rgba(96,165,250,.15)}
+.custom-emoji-row{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.custom-emoji-row input{flex:1}
+.custom-emoji-row .custom-preview{width:38px;height:38px;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
 .back-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s}
 .back-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface2)}
 .phase-pills{display:flex;gap:4px;flex-shrink:0;align-items:center}
@@ -384,8 +395,10 @@ let modelItems = [];                // checklist items for the open model (loade
 let modelUnitCount = {};            // model_id → count (for list view stats)
 let modelItemCount = {};            // model_id → { pre_install_qc, pre_test_qc, pre_deploy } (for list view stats)
 let inlineAddSection = null;        // section currently expanded for inline add
-let currentEditorSection = null;    // null = folder grid; string = open section name in editor
-let draftSections = {};             // key=`${modelId}:${phase}` → [name,...] empty sections waiting for first item
+let currentEditorSection = null;    // null = folder grid; UUID = open section id in editor (F.9: was section_name string in F.8)
+let sectionsCache = {};             // F.9: modelId → [{id, name, name_ja, icon, sort_order}, ...] loaded from deployops_sections
+let _pendingIcon = null;            // edit-section modal pending icon value (cleared on modal open/close)
+let draftSections = {};             // F.9: dormant — sections now persist in deployops_sections on create; closeInlineAdd cleanup is now no-op; F.10 removes both alongside legacy-column drops
 
 function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -395,6 +408,17 @@ function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<
 // as phases[0] during the transition so old read paths still work.
 // ============================================================
 const ALL_PHASES = ['pre_install_qc', 'pre_test_qc', 'pre_deploy'];
+// Curated section icons surfaced in the edit-section modal. Order groups
+// related contexts visually (mechanical / electrical / safety / containers
+// / sensors). Operators can also paste any custom emoji into the input.
+const SECTION_ICONS = [
+  '📁', '🦾', '🤖', '⚙️',
+  '🔧', '🔩', '🛠️', '🪛',
+  '⚡', '🔌', '💡', '🔋',
+  '🛡️', '⚠️', '🦺', '🚨',
+  '📦', '🗄️', '🧰', '🏛️',
+  '💨', '🔍', '👁️', '📡'
+];
 const PHASE_META = {
   pre_install_qc: { icon: '🛡️', label: 'Pre-Install QC', short: 'Pre-Install' },
   pre_test_qc:    { icon: '🧪', label: 'Pre-Test QC',    short: 'Pre-Test' },
@@ -3669,7 +3693,7 @@ async function renderModels() {
 
 async function openModel(id) {
   modelView = id; modelPhase = 'pre_install_qc'; inlineAddSection = null; currentEditorSection = null;
-  await loadModelItems(id);
+  await Promise.all([loadModelItems(id), loadSections(id)]);
   renderModels();
 }
 function backToModels() { modelView = null; modelItems = []; inlineAddSection = null; currentEditorSection = null; renderModels(); }
@@ -3707,6 +3731,47 @@ async function loadModelItems(modelId) {
   }
 }
 
+// F.9: sections live in deployops_sections (one row per (model_id, name),
+// UNIQUE constraint enforced). loadSections fetches into sectionsCache so
+// the folder grid can render even when a section has zero items in the
+// active phase.
+async function loadSections(modelId) {
+  try {
+    const { data, error } = await sb.from('deployops_sections')
+      .select('*').eq('model_id', modelId).order('sort_order', { ascending: true });
+    if (error) throw error;
+    sectionsCache[modelId] = data || [];
+    return sectionsCache[modelId];
+  } catch(e) {
+    console.error('Failed to load sections:', e);
+    sectionsCache[modelId] = [];
+    return [];
+  }
+}
+
+// Returns the section row for (modelId, name), creating it if missing.
+// Used by inline-add (after rename-on-typo) and bulk-add's "+ New" path.
+// UNIQUE(model_id, name) protects against races: on 23505 we re-fetch the
+// cache and resolve the now-existing row instead of erroring.
+async function ensureSection(modelId, name) {
+  const cache = sectionsCache[modelId] || [];
+  const found = cache.find(s => s.name === name);
+  if (found) return found;
+  const maxSort = Math.max(0, ...cache.map(s => s.sort_order || 0));
+  const { data, error } = await sb.from('deployops_sections')
+    .insert({ model_id: modelId, name, sort_order: maxSort + 1 })
+    .select().single();
+  if (!error) {
+    (sectionsCache[modelId] ||= []).push(data);
+    return data;
+  }
+  if (error.code === '23505') {
+    await loadSections(modelId);
+    return (sectionsCache[modelId] || []).find(s => s.name === name) || null;
+  }
+  throw error;
+}
+
 function modelById(id) { return models.find(m => m.id === id); }
 function itemsForPhase(phase) {
   return modelItems.filter(i => i.visible !== false && itemInPhase(i, phase))
@@ -3725,17 +3790,10 @@ async function renderModelDetail(el) {
   const showDeployTab = depN > 0;
   if (modelPhase === 'pre_deploy' && !showDeployTab) modelPhase = 'pre_install_qc';
 
-  const phaseItems = itemsForPhase(modelPhase);
-  const sections = {};
-  const sectionOrder = [];
-  phaseItems.forEach(i => {
-    const sec = i.section_name || '(unsorted)';
-    if (!sections[sec]) { sections[sec] = []; sectionOrder.push(sec); }
-    sections[sec].push(i);
-  });
-  const drafts = (draftSections[m.id+':'+modelPhase] || []);
-  drafts.forEach(s => { if (!sections[s]) { sections[s] = []; sectionOrder.push(s); } });
-
+  // F.9: legacy section_name-keyed grouping (built local `sections` / `sectionOrder`
+  // / `drafts` maps) removed — the new conditional below reads directly from
+  // sectionsCache + modelItems[section_id]. F.10 follow-up: also remove the
+  // dormant draftSections variable + closeInlineAdd cleanup branch.
   const lang = getUiLang();
   const mName = pickField(m, 'name', lang);
   let html = `
@@ -3778,31 +3836,32 @@ async function renderModelDetail(el) {
   `;
 
   // === Editor body: folder grid (currentEditorSection===null) or single-
-  // section detail view. Sections with zero items in the active phase are
-  // excluded from the grid; draft sections only appear once the user is
-  // navigated into them. Item row template inside detail view is byte-
-  // identical to the pre-refactor version. ===
-  const sectionsWithItems = sectionOrder.filter(s => sections[s].length > 0);
+  // section detail view. F.9: sections are sourced from deployops_sections
+  // (sectionsCache[modelId]); items reference them via section_id (FK).
+  // Sections with zero items in the active phase still appear in the
+  // folder grid with count 0 — the architectural win of F.9 is that
+  // empty sections persist as DB rows. ===
+  const allSections = sectionsCache[modelView] || [];
+  const countByPhase = sec => modelItems.filter(i =>
+    i.visible !== false && itemInPhase(i, modelPhase) && i.section_id === sec.id
+  ).length;
 
   if (currentEditorSection === null) {
     // Folder grid
-    if (sectionsWithItems.length === 0) {
+    if (allSections.length === 0) {
       html += `<div class="empty"><div class="icon">${PHASE_META[modelPhase]?.icon || '🛡️'}</div>
         <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
     } else {
       html += `<div class="folder-grid">`;
-      sectionsWithItems.forEach(secName => {
-        const secItems = sections[secName];
-        // pickSection-style JA fallback: first item with section_name_ja wins.
-        let displayName = secName;
-        if (lang === 'ja') {
-          const ja = secItems.find(i => i.section_name_ja)?.section_name_ja;
-          if (ja) displayName = ja;
-        }
+      allSections.forEach(section => {
+        const count = countByPhase(section);
+        const displayName = (lang === 'ja' && section.name_ja) ? section.name_ja : section.name;
+        const icon = section.icon || '📁';
         html += `
-          <div class="folder-card" data-sec="${esc(secName)}" onclick="openSectionFolder(this.dataset.sec)">
-            <span class="folder-count">${secItems.length}</span>
-            <div class="folder-icon">📁</div>
+          <div class="folder-card" data-sec="${esc(section.id)}" onclick="openSectionFolder(this.dataset.sec)">
+            <span class="folder-count">${count}</span>
+            <button class="edit-icon-btn admin-only" data-sec="${esc(section.id)}" onclick="event.stopPropagation();showEditSection(this.dataset.sec)" title="Edit section">✏</button>
+            <div class="folder-icon">${esc(icon)}</div>
             <div class="folder-name">${esc(displayName)}</div>
           </div>`;
       });
@@ -3810,18 +3869,23 @@ async function renderModelDetail(el) {
     }
   } else {
     // Single-section detail view
-    const secName = currentEditorSection;
-    const secItems = sections[secName] || [];
-    let displayName = secName;
-    if (lang === 'ja') {
-      const ja = secItems.find(i => i.section_name_ja)?.section_name_ja;
-      if (ja) displayName = ja;
+    const section = allSections.find(s => s.id === currentEditorSection);
+    if (!section) {
+      // Section was deleted mid-render (concurrent action) — bounce to grid.
+      currentEditorSection = null;
+      el.innerHTML = ''; renderModels(); return;
     }
+    const secName = section.name;
+    const displayName = (lang === 'ja' && section.name_ja) ? section.name_ja : section.name;
+    const secIcon = section.icon || '📁';
+    const secItems = modelItems.filter(i =>
+      i.visible !== false && itemInPhase(i, modelPhase) && i.section_id === section.id
+    ).sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
     html += `
       <button class="back-btn" onclick="backToFolderGrid()">← Back to sections</button>
       <div class="cl-section">
         <div class="cl-section-header">
-          <h3>${esc(displayName)}</h3>
+          <h3><span class="section-icon-display">${esc(secIcon)}</span> ${esc(displayName)}</h3>
           <span class="badge badge-blue">${secItems.length}</span>
         </div>
         <div class="cl-section-body">`;
@@ -3924,13 +3988,28 @@ async function saveInlineItem() {
   if (!label) { labelEl.focus(); return; }
 
   const isKit = modelPhase === 'pre_deploy';
+  // Defensive ensureSection: cache-first lookup short-circuits when the
+  // section already exists; only hits the DB if the section is missing
+  // (concurrent-tab race, stale cache, or a future entry-point that
+  // bypasses confirmNewSection). Mirrors applyBulkAdd's pattern.
+  let sectionRow;
+  try {
+    sectionRow = await ensureSection(m.id, sec);
+  } catch(e) {
+    console.error(e);
+    toast('Section resolve failed: ' + (e.message || e), 'err');
+    return;
+  }
+  if (!sectionRow) { toast('Section not found', 'err'); return; }
   const maxSort = Math.max(0, ...itemsForPhase(modelPhase).map(i => i.sort_order||0));
   const row = {
     model_id: m.id,
     phase: modelPhase,            // transition: single col = phases[0]
     phases: [modelPhase],         // new items belong to exactly the current phase
     section_type: isKit ? 'screw' : 'check',  // legacy column kept consistent for old code paths
-    section_name: sec,
+    section_id: sectionRow.id,                       // F.9 canonical FK
+    section_name: sectionRow.name,                   // legacy fallback for worksheet pipeline
+    section_name_ja: sectionRow.name_ja || null,     // legacy JA fallback for worksheet pipeline
     sort_order: maxSort + 1,
     label
   };
@@ -3972,31 +4051,159 @@ function showNewSection() {
   `);
   setTimeout(() => { const i = document.getElementById('newSecName'); if (i) i.focus(); }, 30);
 }
-function confirmNewSection() {
+async function confirmNewSection() {
   const m = modelById(modelView); if (!m) return;
   const name = document.getElementById('newSecName').value.trim();
   if (!name) { toast('Enter a section name', 'err'); return; }
-  const existing = new Set(itemsForPhase(modelPhase).map(i => i.section_name));
-  const dkey = m.id + ':' + modelPhase;
-  (draftSections[dkey] || []).forEach(s => existing.add(s));
-  if (existing.has(name)) {
-    toast('Section already exists — opening it', 'info');
-  } else {
-    draftSections[dkey] = draftSections[dkey] || [];
-    draftSections[dkey].push(name);
+  try {
+    // ensureSection handles both create and the "already exists" race via
+    // UNIQUE(model_id, name) — returning the existing row in the second case
+    // matches the prior "Section already exists — opening it" toast UX.
+    const wasInCache = (sectionsCache[m.id] || []).some(s => s.name === name);
+    const section = await ensureSection(m.id, name);
+    if (!section) { toast('Section not found after create', 'err'); return; }
+    if (wasInCache) toast('Section already exists — opening it', 'info');
+    inlineAddSection = section.name;       // opens inline-add row in detail view
+    currentEditorSection = section.id;     // auto-navigate into the new section
+    closeModal();
+    renderModels();
+  } catch(e) {
+    console.error(e);
+    toast('Save failed: ' + (e.message || e), 'err');
   }
-  inlineAddSection = name;
-  currentEditorSection = name;  // single-section view: auto-navigate into the new section
-  closeModal();
-  renderModels();
+}
+
+// ===== Edit section (F.9 — rename / re-icon / delete) =====
+function showEditSection(sectionId) {
+  const m = modelById(modelView); if (!m) return;
+  const section = (sectionsCache[m.id] || []).find(s => s.id === sectionId);
+  if (!section) return;
+  _pendingIcon = section.icon || '📁';
+  const itemCount = modelItems.filter(i => i.section_id === sectionId).length;
+  showModal(`
+    <h3>Edit section</h3>
+    <label>Section name (EN)</label>
+    <input type="text" id="sectionEditName" value="${esc(section.name)}">
+    <label>Section name (JA)</label>
+    <input type="text" id="sectionEditNameJa" value="${esc(section.name_ja || '')}" placeholder="日本語名（任意）">
+    <label>Icon — pick or paste a custom emoji</label>
+    <div class="icon-picker-grid" id="iconPickerGrid"></div>
+    <div class="custom-emoji-row">
+      <input type="text" id="customEmojiInput" placeholder="Paste any emoji" maxlength="8" oninput="updateCustomPreview()">
+      <div class="custom-preview" id="customPreview">${esc(_pendingIcon)}</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="deleteSection('${section.id}', ${itemCount})">🗑️ Delete</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditSection('${section.id}')">Save</button>
+    </div>
+  `);
+  renderIconPicker();
+}
+
+function renderIconPicker() {
+  const grid = document.getElementById('iconPickerGrid');
+  if (!grid) return;
+  grid.innerHTML = SECTION_ICONS.map(icon =>
+    `<div class="icon-option ${icon === _pendingIcon ? 'selected' : ''}" data-icon="${esc(icon)}" onclick="selectIcon(this.dataset.icon)">${icon}</div>`
+  ).join('');
+}
+function selectIcon(icon) {
+  _pendingIcon = icon;
+  const customInput = document.getElementById('customEmojiInput');
+  if (customInput) customInput.value = '';
+  const preview = document.getElementById('customPreview');
+  if (preview) preview.textContent = icon;
+  renderIconPicker();
+}
+function updateCustomPreview() {
+  const v = document.getElementById('customEmojiInput').value.trim();
+  const preview = document.getElementById('customPreview');
+  if (v) {
+    _pendingIcon = v;
+    if (preview) preview.textContent = v;
+    document.querySelectorAll('.icon-option').forEach(el => el.classList.remove('selected'));
+  } else if (preview) {
+    preview.textContent = _pendingIcon || '?';
+  }
+}
+
+async function saveEditSection(sectionId) {
+  const m = modelById(modelView); if (!m) return;
+  const newName = document.getElementById('sectionEditName').value.trim();
+  if (!newName) { toast('Section name cannot be empty', 'err'); return; }
+  const newNameJa = document.getElementById('sectionEditNameJa').value.trim() || null;
+  const newIcon = _pendingIcon || null;
+  try {
+    // 1. Update the section row.
+    const { error: secErr } = await sb.from('deployops_sections')
+      .update({ name: newName, name_ja: newNameJa, icon: newIcon })
+      .eq('id', sectionId);
+    if (secErr) throw secErr;
+    // 2. Cascade fallback columns on items so the worksheet pipeline
+    // (still reading section_name / section_name_ja directly from items
+    // during the F.10 transition) stays in sync.
+    const { error: itemErr } = await sb.from('deployops_checklist_items')
+      .update({ section_name: newName, section_name_ja: newNameJa })
+      .eq('section_id', sectionId);
+    if (itemErr) throw itemErr;
+    // 3. Patch in-memory caches so the re-render reflects the change
+    // without a re-fetch.
+    const sec = (sectionsCache[m.id] || []).find(s => s.id === sectionId);
+    if (sec) { sec.name = newName; sec.name_ja = newNameJa; sec.icon = newIcon; }
+    modelItems.forEach(i => {
+      if (i.section_id === sectionId) {
+        i.section_name = newName;
+        i.section_name_ja = newNameJa;
+      }
+    });
+    closeModal();
+    toast('Section updated', 'ok');
+    renderModels();
+  } catch(e) {
+    console.error(e);
+    toast('Save failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function deleteSection(sectionId, itemCount) {
+  const m = modelById(modelView); if (!m) return;
+  const section = (sectionsCache[m.id] || []).find(s => s.id === sectionId);
+  if (!section) return;
+  const msg = itemCount > 0
+    ? `Delete section "${section.name}" and all ${itemCount} item${itemCount===1?'':'s'} inside?`
+    : `Delete empty section "${section.name}"?`;
+  if (!confirm(msg)) return;
+  try {
+    if (itemCount > 0) {
+      const { error: itemErr } = await sb.from('deployops_checklist_items')
+        .delete().eq('section_id', sectionId);
+      if (itemErr) throw itemErr;
+    }
+    const { error: secErr } = await sb.from('deployops_sections')
+      .delete().eq('id', sectionId);
+    if (secErr) throw secErr;
+    sectionsCache[m.id] = (sectionsCache[m.id] || []).filter(s => s.id !== sectionId);
+    modelItems = modelItems.filter(i => i.section_id !== sectionId);
+    if (currentEditorSection === sectionId) currentEditorSection = null;
+    closeModal();
+    recountOpenModel();
+    toast('Section deleted', 'info');
+    renderModels();
+  } catch(e) {
+    console.error(e);
+    toast('Delete failed: ' + (e.message || e), 'err');
+  }
 }
 
 // ===== Bulk add =====
 function openBulkAdd() {
   const m = modelById(modelView); if (!m) return;
-  const real = [...new Set(itemsForPhase(modelPhase).map(i => i.section_name).filter(Boolean))];
-  const dft  = (draftSections[m.id+':'+modelPhase] || []);
-  const all  = [...new Set([...real, ...dft])];
+  // F.9: source from sectionsCache so empty sections (zero items in
+  // current phase) also appear in the dropdown.
+  const all = (sectionsCache[m.id] || []).map(s => s.name);
+  const currentSectionRow = (sectionsCache[m.id] || []).find(s => s.id === currentEditorSection);
+  const currentName = currentSectionRow?.name;
 
   const isKit = modelPhase === 'pre_deploy';
   const fmt   = isKit
@@ -4011,7 +4218,7 @@ function openBulkAdd() {
     <label>Section</label>
     <select id="bulkSec">
       ${all.length === 0 ? '<option value="__new">+ New Section…</option>' : ''}
-      ${all.map(s => `<option value="${esc(s)}" ${s===currentEditorSection?'selected':''}>${esc(s)}</option>`).join('')}
+      ${all.map(s => `<option value="${esc(s)}" ${s===currentName?'selected':''}>${esc(s)}</option>`).join('')}
       ${all.length > 0 ? '<option value="__new">+ New Section…</option>' : ''}
     </select>
     <input id="bulkNewSec" placeholder="New section name" style="display:${all.length===0?'block':'none'};margin-top:6px">
@@ -4039,6 +4246,15 @@ async function applyBulkAdd() {
     secName = document.getElementById('bulkNewSec').value.trim();
     if (!secName) { toast('Enter a section name', 'err'); return; }
   }
+  let sectionRow;
+  try {
+    sectionRow = await ensureSection(m.id, secName);
+  } catch(e) {
+    console.error(e);
+    toast('Section lookup failed: ' + (e.message || e), 'err');
+    return;
+  }
+  if (!sectionRow) { toast('Section lookup failed', 'err'); return; }
   const text = document.getElementById('bulkText').value;
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.length === 0) { toast('Paste at least one line', 'err'); return; }
@@ -4054,7 +4270,10 @@ async function applyBulkAdd() {
     const r = {
       model_id: m.id, phase: modelPhase, phases: [modelPhase],
       section_type: isKit ? 'screw' : 'check',
-      section_name: secName, sort_order: maxSort, label
+      section_id: sectionRow.id,
+      section_name: sectionRow.name,
+      section_name_ja: sectionRow.name_ja || null,
+      sort_order: maxSort, label
     };
     if (isKit) {
       r.part_number = parts[1] || null;
@@ -4115,6 +4334,8 @@ function recountOpenModel() {
 
 function editModelItem(id) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
+  const m = modelById(modelView);
+  const lang = getUiLang();
   const phases = itemPhases(it);
   const isKit = phases.includes('pre_deploy');
   const tier = it.tier || 'plain';
@@ -4125,9 +4346,17 @@ function editModelItem(id) {
   const phaseCks = ALL_PHASES.map(p =>
     `<label class="ck"><input type="checkbox" id="eiPh_${p}" ${phases.includes(p)?'checked':''} onchange="eiValidatePhases()"> ${PHASE_META[p].icon} ${PHASE_META[p].label}</label>`
   ).join('');
+  // F.9: section field is now a dropdown of existing sections (id-keyed),
+  // sourced from sectionsCache. Free-text typo creating a phantom section
+  // is no longer possible. To create a new section, user cancels and uses
+  // "+ New Section" from the folder grid.
+  const sectionOpts = (sectionsCache[m?.id] || []).map(s => {
+    const label = (lang === 'ja' && s.name_ja) ? s.name_ja : s.name;
+    return `<option value="${esc(s.id)}" ${s.id===it.section_id?'selected':''}>${esc(label)}</option>`;
+  }).join('');
   showModal(`
     <h3>Edit Item</h3>
-    <label>Section</label> <input id="eiSection" value="${esc(it.section_name||'')}">
+    <label>Section</label> <select id="eiSection">${sectionOpts}</select>
     <label>Label (EN)</label> <input id="eiLabel" value="${esc(it.label||'')}">
     <label>Label (JA)</label> <input id="eiLabelJa" value="${esc(it.label_ja||'')}" placeholder="日本語ラベル（任意）">
     ${isKit ? `
@@ -4168,8 +4397,14 @@ function eiValidatePhases() {
 async function saveModelItemEdit(id, isKit) {
   if (!eiValidatePhases()) return;
   const phases = eiSelectedPhases();
+  const m = modelById(modelView);
+  const newSectionId = document.getElementById('eiSection').value;
+  const sectionRow = (sectionsCache[m?.id] || []).find(s => s.id === newSectionId);
+  if (!sectionRow) { toast('Section not found', 'err'); return; }
   const upd = {
-    section_name: document.getElementById('eiSection').value.trim(),
+    section_id: sectionRow.id,
+    section_name: sectionRow.name,
+    section_name_ja: sectionRow.name_ja || null,
     label: document.getElementById('eiLabel').value.trim(),
     label_ja: document.getElementById('eiLabelJa').value.trim() || null,
     tier: document.querySelector('input[name="eiTier"]:checked')?.value || 'plain',
@@ -4199,11 +4434,11 @@ async function saveModelItemEdit(id, isKit) {
 
 async function moveModelItem(id, dir) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
-  const sec = it.section_name || '(unsorted)';
-  // Scope adjacency to the section the operator is looking at (current tab),
-  // so ▲▼ swaps with the next/prev item actually visible — not whichever item
-  // happens to share a phase membership.
-  const list = itemsForPhase(modelPhase).filter(x => (x.section_name || '(unsorted)') === sec);
+  // F.9: adjacency by section_id (more robust during the name→id migration).
+  // Items without a section_id (defensive — should not exist post-backfill)
+  // fall into a single "(unsorted)" bucket matching pre-F.9 semantics.
+  const secId = it.section_id || null;
+  const list = itemsForPhase(modelPhase).filter(x => (x.section_id || null) === secId);
   const idx = list.findIndex(x => x.id === id);
   const swap = list[idx + dir];
   if (!swap) return;
