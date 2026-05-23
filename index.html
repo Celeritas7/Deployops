@@ -6,6 +6,7 @@
 <title>DeployOps</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -98,6 +99,11 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .cl-item .label{flex:1;font-size:13px;line-height:1.35}
 .cl-item .desc{font-size:11px;color:var(--text2);margin-top:2px}
 .cl-item .meta{display:flex;gap:6px;flex-shrink:0}
+.cl-item.multi{border-color:rgba(96,165,250,.32);background:rgba(96,165,250,.05)}
+.cl-item.multi::before{background:var(--accent)}
+.phase-pills{display:flex;gap:4px;flex-shrink:0;align-items:center}
+.phase-pill{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;padding:2px 6px;border-radius:10px;border:1px solid var(--surface3);color:var(--text2);background:transparent;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.phase-pill.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace}
 .badge-blue{background:rgba(96,165,250,.12);color:var(--accent)}
 .badge-red{background:rgba(248,113,113,.12);color:var(--red)}
@@ -197,7 +203,17 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:340px;max-width:500px;width:90%}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:340px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto}
+.modal .seg{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-top:4px}
+.modal .seg label{flex:1;margin:0;padding:8px 4px;text-align:center;font-size:12px;letter-spacing:0;text-transform:none;color:var(--text2);cursor:pointer;border-right:1px solid var(--border);background:var(--bg)}
+.modal .seg label:last-child{border-right:none}
+.modal .seg label.on{background:var(--accent);color:#fff;font-weight:600}
+.modal .seg input{display:none}
+.modal .phase-cks{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.modal .phase-cks .ck{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);cursor:pointer;text-transform:none;letter-spacing:0;margin:0}
+.modal .phase-cks .ck input{width:auto;margin:0}
+.modal .inline-err{color:#e0564a;font-size:12px;margin-top:6px;display:none}
+.modal .inline-err.show{display:block}
 .modal h3{margin-bottom:14px;font-size:16px}
 .modal label{display:block;font-size:12px;color:var(--text2);margin:10px 0 4px;text-transform:uppercase;letter-spacing:1px}
 .modal input,.modal textarea,.modal select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px 10px;border-radius:6px;font-size:13px;font-family:inherit}
@@ -362,6 +378,25 @@ let inlineAddSection = null;        // section currently expanded for inline add
 let draftSections = {};             // key=`${modelId}:${phase}` → [name,...] empty sections waiting for first item
 
 function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ============================================================
+// PHASES — an item may belong to several phases at once. `item.phases`
+// (text[]) is the source of truth; `item.phase` (single) is kept in sync
+// as phases[0] during the transition so old read paths still work.
+// ============================================================
+const ALL_PHASES = ['pre_install_qc', 'pre_test_qc', 'pre_deploy'];
+const PHASE_META = {
+  pre_install_qc: { icon: '🛡️', label: 'Pre-Install QC', short: 'Pre-Install' },
+  pre_test_qc:    { icon: '🧪', label: 'Pre-Test QC',    short: 'Pre-Test' },
+  pre_deploy:     { icon: '📦', label: 'Pre-Deploy',     short: 'Pre-Deploy' },
+};
+// Normalised phase list for an item (array col preferred, single-col fallback).
+function itemPhases(it) {
+  const p = it && it.phases;
+  if (Array.isArray(p) && p.length) return p;
+  return [(it && it.phase) || 'pre_install_qc'];
+}
+function itemInPhase(it, phase) { return itemPhases(it).includes(phase); }
 
 // ============================================================
 // AUTH
@@ -1328,7 +1363,32 @@ const PRINT_I18N = {
     preInstallQC: 'Pre-Install QC', preTestQC: 'Pre-Test QC', preDeploy: 'Pre-Deploy',
     preInstallShort: 'Pre-Install', preTestShort: 'Pre-Test',
     deployChecklist: 'Deploy Checklist',
-    complete: 'complete', all: 'All', bothPhases: 'Both Phases'
+    complete: 'complete', all: 'All', bothPhases: 'Both Phases',
+    // QC worksheet (per-section PDF / printer mode). Distinct from the
+    // legacy print labels above so the worksheet template can be tuned
+    // independently. Legend descriptions and STOP lines contain raw <b>
+    // markup; renderers must NOT escape these values.
+    ws_field_unit: 'Unit',
+    ws_field_operator: 'Operator',
+    ws_field_date: 'Date',
+    ws_col_item: 'Item',
+    ws_col_notes: 'Notes / Description',
+    ws_legend_plain_title: 'Plain',
+    ws_legend_verify_title: 'Verify',
+    ws_legend_review_title: 'Review',
+    ws_legend_witness_title: 'Witness',
+    ws_legend_plain_desc: 'Tick when done.',
+    ws_legend_verify_desc: 'Tick the main box AND the small sub-step box. Both required.',
+    ws_legend_review_desc: 'Stop. Operator does not tick anything. Supervisor ticks <b>SUP</b> and initials QC.',
+    ws_legend_witness_desc: 'Stop. Safety-critical. Operator does not tick anything. Witness ticks <b>WIT</b> before the action and initials QC after. Do not proceed alone.',
+    ws_verification_mark: 'Verification mark applied',
+    ws_stop_review: 'STOP. Supervisor review required before proceeding.',
+    ws_stop_witness: 'STOP. Witness required. Do not proceed alone.',
+    ws_footer_completed_by: 'Completed by · operator',
+    ws_footer_supervisor: 'Supervisor sign-off',
+    ws_footer_date_completed: 'Date completed',
+    ws_footer_print_sign: 'Print name & sign',
+    ws_footer_date_placeholder: 'YYYY · MM · DD'
   },
   ja: {
     qcPrefix: '品質チェックリスト :',
@@ -1342,7 +1402,32 @@ const PRINT_I18N = {
     preInstallQC: '組立前QC', preTestQC: '試験前QC', preDeploy: '出荷前確認',
     preInstallShort: '組立前', preTestShort: '試験前',
     deployChecklist: '出荷チェックリスト',
-    complete: '完了', all: 'すべて', bothPhases: '両工程'
+    complete: '完了', all: 'すべて', bothPhases: '両工程',
+    // QC worksheet (per-section PDF / printer mode). See en block above.
+    // Operator role is 作業者 throughout (field, legend, footer) — never
+    // 担当者. 号機 (not ユニット) for Unit. preTestQC reuses the existing
+    // 試験前QC key above; no ws_* duplicate for phase headers.
+    ws_field_unit: '号機',
+    ws_field_operator: '作業者',
+    ws_field_date: '日付',
+    ws_col_item: '項目',
+    ws_col_notes: '備考・説明',
+    ws_legend_plain_title: '通常',
+    ws_legend_verify_title: '確認',
+    ws_legend_review_title: '監督確認',
+    ws_legend_witness_title: '立会',
+    ws_legend_plain_desc: '完了時にチェック。',
+    ws_legend_verify_desc: 'メインボックスと小ボックスの両方にチェック。両方必須。',
+    ws_legend_review_desc: '停止。作業者はチェックせず、監督者が<b>SUP</b>にチェックしQC欄に署名。',
+    ws_legend_witness_desc: '停止。安全重要項目。作業者はチェックせず、立会人が作業前に<b>WIT</b>にチェック、作業後にQC欄に署名。単独実施禁止。',
+    ws_verification_mark: '確認マーク済み',
+    ws_stop_review: '停止。続行前に監督者の確認が必要。',
+    ws_stop_witness: '停止。立会人が必要。単独実施禁止。',
+    ws_footer_completed_by: '作業者署名',
+    ws_footer_supervisor: '監督者承認',
+    ws_footer_date_completed: '完了日',
+    ws_footer_print_sign: '氏名記入・署名',
+    ws_footer_date_placeholder: 'YYYY · MM · DD'
   }
 };
 function tr(lang, key) { return (PRINT_I18N[lang] || PRINT_I18N.en)[key] ?? PRINT_I18N.en[key] ?? ''; }
@@ -1378,7 +1463,7 @@ function genGroups(items, phaseFilter) {
   const phases = phaseFilter ? [phaseFilter] : ['pre_install_qc','pre_test_qc','pre_deploy'];
   const groups = [];
   phases.forEach(phase => {
-    const phaseItems = items.filter(i => (i.phase||'pre_install_qc') === phase);
+    const phaseItems = items.filter(i => itemInPhase(i, phase));
     const sections = {}; const order = [];
     phaseItems.forEach(i => {
       const sn = i.section_name || '(unsorted)';
@@ -1505,7 +1590,7 @@ function renderFilledSectionBlock(group, checks, opts) {
   if (isKit) {
     html += `<table><tr><th style="width:28px">✓</th><th style="width:96px">${tr(lang,'partNumber')}</th><th>${tr(lang,'description')}</th><th style="width:48px">${tr(lang,'qty')}</th><th style="width:80px">${tr(lang,'tool')}</th><th style="width:140px">${tr(lang,'checkedByAt')}</th></tr>`;
     group.items.forEach(item => {
-      const c = checks.find(x => x.item_id === item.id && x.checked);
+      const c = checks.find(x => x.item_id === item.id && x.phase === group.phase && x.checked);
       const ck = !!c;
       const by = c ? `${esc(c.checked_by||'')}${c.checked_at?'<br>'+esc(formatDate(c.checked_at)):''}` : '';
       html += `<tr>
@@ -1520,7 +1605,7 @@ function renderFilledSectionBlock(group, checks, opts) {
   } else {
     html += `<table><tr><th style="width:28px">✓</th><th style="width:28px">${tr(lang,'hash')}</th><th>${tr(lang,'item')}</th><th>${tr(lang,'description')}</th><th style="width:140px">${tr(lang,'checkedByAt')}</th></tr>`;
     group.items.forEach((item, i) => {
-      const c = checks.find(x => x.item_id === item.id && x.checked);
+      const c = checks.find(x => x.item_id === item.id && x.phase === group.phase && x.checked);
       const ck = !!c;
       const by = c ? `${esc(c.checked_by||'')}${c.checked_at?'<br>'+esc(formatDate(c.checked_at)):''}` : '';
       html += `<tr>
@@ -1534,6 +1619,840 @@ function renderFilledSectionBlock(group, checks, opts) {
   }
   html += `</table></div>`;
   return html;
+}
+
+// ============================================================
+// PRINT — QC Worksheet (paper form)
+// Design source: design_handoff_qc_worksheet/. The CSS below is lifted
+// verbatim from the reference HTML (do not retune pt/mm units — it is
+// calibrated for A4 at 100% scale). Only the markup is data-generated.
+// ============================================================
+
+// Worksheet CSS. The shared base (verbatim from the design references)
+// carries every selector for all three styles; .stamp is used by the
+// plain style, .brand-block/.form-id by deployops. WS_CSS_WORD layers
+// .ws-word-scoped overrides that disguise the same markup as a Word doc.
+const WS_CSS = `
+  @page { size: A4 portrait; margin: 10mm 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #ddd;
+    font-family: 'IBM Plex Sans', Helvetica, Arial, sans-serif;
+    color: #18222e;
+    font-size: 10pt;
+    line-height: 1.35;
+  }
+  :root {
+    --v-fill: #e8f1ff; --v-bar:  #1d6ad6;
+    --r-fill: #fff4d6; --r-bar:  #c97a00;
+    --w-fill: #ffe1de; --w-bar:  #c4302b;
+    --rule:   #18222e; --hair:   #b8c0cb;
+    --ink-2:  #4a5562;
+  }
+  .sheet {
+    width: 210mm; min-height: 297mm; margin: 16px auto;
+    background: #fff; padding: 10mm;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  }
+  @media print {
+    html, body { background: #fff; }
+    .sheet { margin: 0; box-shadow: none; padding: 0; width: auto; min-height: 0; }
+    .sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Header */
+  .hdr {
+    border-bottom: 2.5pt solid var(--rule);
+    padding-bottom: 6pt; margin-bottom: 10pt;
+    display: flex; align-items: flex-end; gap: 16pt;
+  }
+  .brand-block {
+    display: flex; align-items: center; gap: 8pt;
+    align-self: stretch; padding-right: 12pt;
+    border-right: 0.75pt solid var(--hair);
+  }
+  .brand-mark {
+    width: 26pt; height: 26pt; background: var(--rule);
+    color: #ffb020; display: flex; align-items: center;
+    justify-content: center; font-size: 18pt; font-weight: 700; line-height: 1;
+  }
+  .brand-text { display: flex; flex-direction: column; gap: 1pt; }
+  .brand-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11pt; font-weight: 700; color: var(--rule);
+    letter-spacing: -0.005em; line-height: 1;
+  }
+  .brand-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt; letter-spacing: 0.18em; color: var(--ink-2);
+    text-transform: uppercase; font-weight: 600;
+  }
+  .hdr h1 {
+    font-size: 22pt; font-weight: 700;
+    letter-spacing: -0.01em; line-height: 1;
+  }
+  .hdr h1 em {
+    font-style: normal; font-weight: 500; color: var(--ink-2);
+  }
+  .hdr .fields {
+    margin-left: auto; display: grid;
+    grid-template-columns: repeat(3, auto);
+    column-gap: 16pt; align-items: end;
+  }
+  .hdr .fields .f {
+    display: flex; flex-direction: column; gap: 2pt; min-width: 90pt;
+  }
+  .hdr .fields .k {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.18em;
+    color: var(--ink-2); text-transform: uppercase;
+  }
+  .hdr .fields .v {
+    border-bottom: 0.75pt solid var(--rule);
+    min-height: 16pt; font-weight: 600;
+    font-size: 11pt; padding-bottom: 1pt;
+  }
+
+  /* 4-card emoji legend WITH V/R/W badges (matches Tier column) */
+  .legend {
+    margin: 0 0 12pt;
+    border: 0.75pt solid var(--rule);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: stretch;
+  }
+  .legend .lr {
+    padding: 7pt 9pt; border-right: 0.5pt solid var(--hair);
+    display: flex; align-items: flex-start; gap: 8pt;
+    font-size: 9pt; line-height: 1.35;
+  }
+  .legend .lr:last-child { border-right: none; }
+  .legend .lr .badge {
+    flex-shrink: 0; width: 18pt; height: 18pt;
+    border: 1.25pt solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 11pt;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .legend .lr.plain { color: var(--ink-2); }
+  .legend .lr.plain .badge { border-style: dashed; }
+  .legend .lr.v { color: var(--v-bar); background: var(--v-fill); }
+  .legend .lr.r { color: var(--r-bar); background: var(--r-fill); }
+  .legend .lr.w { color: var(--w-bar); background: var(--w-fill); }
+  .legend .lr.w .badge { background: var(--w-bar); color: #fff; border-color: var(--w-bar); }
+  .legend .lr .ld { color: var(--rule); }
+  .legend .lr .tt { font-weight: 700; display: block; margin-bottom: 1pt; }
+  .legend .lr .em { display: inline-block; margin-right: 4pt; font-size: 10pt; }
+
+  /* Phase subhead — sits just above each table */
+  .phase-head {
+    display: flex; align-items: baseline; gap: 10pt;
+    margin-bottom: 4pt; padding-left: 2pt;
+  }
+  .phase-head .ix {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt; letter-spacing: 0.22em;
+    color: var(--ink-2); font-weight: 700;
+    text-transform: uppercase;
+  }
+  .phase-head .name {
+    font-size: 14pt; font-weight: 700;
+    color: var(--rule); letter-spacing: -0.005em;
+  }
+
+  /* Table */
+  .rows {
+    border: 0.75pt solid var(--rule);
+    margin-bottom: 14pt;
+  }
+  .col-head {
+    display: grid;
+    grid-template-columns: 26pt 1fr 1.4fr 36pt 44pt;
+    background: #f0f2f5;
+    border-bottom: 0.75pt solid var(--rule);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.16em;
+    font-weight: 700; text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .col-head > div {
+    padding: 5pt 6pt; border-right: 0.5pt solid var(--hair);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .col-head > div:last-child { border-right: none; }
+  .col-head .ch-left { justify-content: flex-start; padding-left: 10pt; }
+
+  .row {
+    display: grid;
+    grid-template-columns: 26pt 1fr 1.4fr 36pt 44pt;
+    align-items: stretch;
+    border-top: 0.5pt solid var(--hair);
+    break-inside: avoid; min-height: 40pt;
+  }
+  .row:first-of-type { border-top: none; }
+  .row.v { background: var(--v-fill); }
+  .row.r { background: var(--r-fill); }
+  .row.w { background: var(--w-fill); }
+  .row.w { border-top: 1.75pt solid var(--w-bar); }
+  .row.w + .row { border-top: 1.75pt solid var(--w-bar); }
+
+  .row .cell {
+    padding: 6pt; border-right: 0.5pt solid var(--hair); display: flex;
+  }
+  .row .cell:last-child { border-right: none; }
+
+  .row .c-ix {
+    align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11pt; font-weight: 700; color: var(--rule);
+  }
+  /* Section band — italic/mono divider used inside each section's
+     document to mark a phase block (Pre-install QC, Pre-test QC).
+     Same structural treatment across all three styles; the Word
+     override below swaps only typography. Item numbering restarts at
+     each band (see renderSectionDoc). */
+  .section-band {
+    padding: 9pt 10pt 4pt;
+    border-bottom: 0.75pt solid var(--rule);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8.5pt; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 700;
+    color: var(--rule); background: #fff;
+    break-inside: avoid;
+  }
+  .section-band:first-child { border-top: none; }
+  .row + .section-band { border-top: 0.5pt solid var(--hair); }
+
+  /* Per-section document paging. Each section's content is wrapped in
+     .ws-section-page when sections are concatenated for printer mode;
+     break-before:page starts each one on a fresh sheet. The very first
+     wrapper does not break (it is the top of the print job). PDF mode
+     skips this wrapper because each section is rendered into its own
+     standalone PDF document. */
+  .ws-section-page { page-break-before: always; break-before: page; }
+  .ws-section-page:first-child { page-break-before: avoid; break-before: avoid; }
+
+  /* Item column */
+  .row .c-item {
+    flex-direction: column; gap: 3pt;
+    padding: 7pt 10pt 7pt; justify-content: center;
+  }
+  .row .c-item .label {
+    font-size: 11.5pt; font-weight: 600;
+    line-height: 1.3; color: var(--rule);
+  }
+  .row.w .c-item .label { font-weight: 700; }
+  .row .c-item .label .em { margin-right: 5pt; }
+  .row .c-item .stop {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.10em;
+    text-transform: uppercase; font-weight: 700;
+    margin-top: 2pt;
+  }
+  .row.r .c-item .stop { color: var(--r-bar); }
+  .row.w .c-item .stop { color: var(--w-bar); }
+  /* STOP copy is now inlined into .stop via renderWorksheetRow (tr-driven),
+     so the ::before pseudo-element is no longer used here or in .ws-word. */
+
+  /* Notes / Description column — smaller, gray */
+  .row .c-notes {
+    flex-direction: column; gap: 3pt;
+    padding: 7pt 10pt 7pt; justify-content: center;
+    font-size: 9.5pt; line-height: 1.4;
+    color: var(--ink-2);
+  }
+  .row .c-notes .desc { color: var(--ink-2); }
+  .row .c-notes .sub {
+    display: flex; align-items: center; gap: 7pt;
+    margin-top: 2pt; font-size: 9pt; color: var(--ink-2);
+  }
+  .row .c-notes .sub .scb {
+    width: 12pt; height: 12pt;
+    border: 1pt solid var(--v-bar);
+    flex-shrink: 0; background: #fff;
+  }
+  .row .c-notes .sub .stxt { font-style: italic; }
+  .row .c-notes .sub .stxt::before {
+    content: '↳ ';
+    font-style: normal; margin-right: 2pt;
+    color: var(--v-bar); font-weight: 700;
+  }
+  .row .c-notes .stop {
+    /* deprecated — stop notes now live in c-item; keep style as fallback */
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.14em;
+    text-transform: uppercase; font-weight: 700; margin-top: 4pt;
+  }
+
+  /* OP checkbox */
+  .row .c-check {
+    align-items: center; justify-content: center;
+  }
+  .row .c-check .cb {
+    width: 20pt; height: 20pt;
+    border: 1.25pt solid var(--rule);
+    background: #fff; display: block;
+  }
+  .row.w .c-check .cb { border-color: var(--w-bar); border-width: 1.5pt; }
+
+  /* QC column variants */
+  .row .c-gate .cb-gate {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2pt;
+  }
+  .row .c-gate .gate-lbl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt; letter-spacing: 0.16em;
+    font-weight: 700; line-height: 1;
+  }
+  .row.r .c-gate .cb {
+    width: 24pt; height: 24pt;
+    border-color: var(--r-bar); border-width: 1.75pt;
+  }
+  .row.r .c-gate .gate-lbl { color: var(--r-bar); }
+  .row.w .c-gate .cb {
+    width: 26pt; height: 26pt;
+    border-color: var(--w-bar); border-width: 2pt;
+  }
+  .row.w .c-gate .gate-lbl { color: var(--w-bar); }
+
+  /* LOCKED OP cell — keep the 🔒 + LOCKED stamp here (branded version is fine) */
+  .row .c-check.c-locked {
+    align-items: stretch; justify-content: stretch; padding: 0;
+  }
+  .row .c-check.c-locked .lock {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2pt;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .row .c-check.c-locked .lock-ic { font-size: 11pt; line-height: 1; }
+  .row .c-check.c-locked .lock-lbl {
+    font-size: 6pt; letter-spacing: 0.18em;
+    font-weight: 700; line-height: 1;
+  }
+  .c-locked-r {
+    background: repeating-linear-gradient(135deg,
+      rgba(201,122,0,0.18) 0 4pt, rgba(201,122,0,0.06) 4pt 8pt);
+  }
+  .c-locked-r .lock { color: var(--r-bar); }
+  .c-locked-w {
+    background: repeating-linear-gradient(135deg,
+      rgba(196,48,43,0.22) 0 4pt, rgba(196,48,43,0.08) 4pt 8pt);
+  }
+  .c-locked-w .lock { color: var(--w-bar); }
+
+  /* Footer */
+  .footer {
+    margin-top: 14pt; border-top: 2.5pt solid var(--rule);
+    padding-top: 10pt;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16pt;
+  }
+  .footer .ff { display: flex; flex-direction: column; gap: 3pt; }
+  .footer .ff .k {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--rule); font-weight: 700;
+  }
+  .footer .ff .ln {
+    border-bottom: 0.75pt solid var(--rule); height: 22pt;
+  }
+  .footer .ff .sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt; letter-spacing: 0.14em;
+    color: var(--ink-2); text-transform: uppercase;
+  }
+  .form-id {
+    margin-top: 10pt; padding: 4pt 0;
+    border-top: 0.5pt dashed var(--hair);
+    display: flex; align-items: center; gap: 10pt;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-2);
+  }
+  .form-id .chip {
+    background: var(--rule); color: #ffb020;
+    padding: 2pt 6pt; font-weight: 700; letter-spacing: 0.18em;
+  }
+  .form-id .note {
+    margin-left: auto; color: var(--rule); font-weight: 600;
+  }
+
+  /* Plain header chip (used when style=plain; deployops uses .brand-block) */
+  .hdr .stamp {
+      background: var(--rule); color: #fff;
+      padding: 5pt 9pt 4pt;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9.5pt; letter-spacing: 0.18em;
+      font-weight: 700; text-transform: uppercase;
+      align-self: stretch; display: flex; align-items: center;
+    }
+`;
+
+const WS_CSS_WORD = `
+  /* ============================================================
+     Word-style overrides. All selectors scoped under .ws-word so the
+     same markup renders as a hand-made Word/Excel document. Values are
+     lifted verbatim from "QC Worksheet - Word Style.html".
+     ============================================================ */
+  .ws-word, .ws-word * { font-family: Calibri, 'Segoe UI', Arial, sans-serif !important; }
+  .ws-word { color: #111; font-size: 11pt; line-height: 1.3; }
+
+  .ws-word .sheet {
+    background: #fdfcf7;
+    padding: 16mm 14mm 14mm 16mm;
+    position: relative;
+  }
+  .ws-word .sheet::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(0,0,0,0.018) 0 1px, transparent 2px),
+      radial-gradient(circle at 78% 22%, rgba(0,0,0,0.02) 0 1px, transparent 2px),
+      radial-gradient(circle at 33% 47%, rgba(0,0,0,0.015) 0 1px, transparent 2px),
+      radial-gradient(circle at 62% 71%, rgba(0,0,0,0.022) 0 1px, transparent 2px),
+      radial-gradient(circle at 18% 92%, rgba(0,0,0,0.014) 0 1px, transparent 2px);
+    background-size: 240px 240px; z-index: 0;
+  }
+  .ws-word .sheet > * { position: relative; z-index: 1; }
+  @media print {
+    .ws-word .sheet { background: #fff; }
+    .ws-word .sheet::before { display: none; }
+  }
+
+  /* Header — drop the stamp / brand block, Times serif title */
+  .ws-word .hdr {
+    border-bottom: 1.5pt solid #111; padding-bottom: 8pt;
+    margin-bottom: 14pt; display: block;
+  }
+  .ws-word .hdr .stamp, .ws-word .hdr .brand-block { display: none !important; }
+  .ws-word .hdr h1 {
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 20pt; font-weight: 700; line-height: 1.15; color: #111;
+    letter-spacing: 0;
+    transform: rotate(-0.15deg); transform-origin: left center;
+  }
+  .ws-word .hdr h1 em { font-style: normal; font-weight: 700; color: #111; }
+  .ws-word .hdr .fields {
+    margin-top: 8pt; margin-left: 0;
+    display: flex; gap: 24pt; flex-wrap: wrap;
+  }
+  .ws-word .hdr .fields .f {
+    flex-direction: row; align-items: baseline; gap: 6pt; min-width: 0;
+  }
+  .ws-word .hdr .fields .k {
+    font-size: 11pt; letter-spacing: 0; color: #111;
+    text-transform: none; font-weight: 700;
+  }
+  .ws-word .hdr .fields .v {
+    border-bottom: 0.75pt solid #111; min-width: 110pt;
+    height: 14pt; font-size: 11pt; color: #111; padding-bottom: 0;
+  }
+
+  /* Legend — lighter Word-ish cards, no V/R/W badge box */
+  .ws-word .legend { border: none; gap: 6pt; }
+  .ws-word .legend .lr {
+    border: 0.75pt solid #333; border-radius: 1pt; padding: 7pt 9pt;
+    flex-direction: column; gap: 3pt; font-size: 10pt; line-height: 1.4;
+  }
+  .ws-word .legend .lr:last-child { border-right: 0.75pt solid #333; }
+  .ws-word .legend .lr .badge { display: none; }
+  .ws-word .legend .lr.plain { background: #f1f1ec; color: #111; }
+  .ws-word .legend .lr.v { background: #eaf2ff; border-color: #4a6da8; color: #111; }
+  .ws-word .legend .lr.r { background: #fff2d0; border-color: #6b4a00; color: #111; }
+  .ws-word .legend .lr.w { background: #ffe0db; border-color: #99201d; color: #111; }
+  .ws-word .legend .lr .tt { font-weight: 700; font-size: 11pt; display: block; }
+  .ws-word .legend .lr .em { font-size: 11pt; margin-right: 4pt; }
+  .ws-word .legend .lr .ld { color: #222; }
+
+  /* Phase subhead — Times italic, no "Phase NN" chip */
+  .ws-word .phase-head { display: block; margin: 12pt 0 5pt; padding-left: 0; }
+  .ws-word .ws-phase:first-of-type .phase-head { margin-top: 0; }
+  .ws-word .phase-head .ix { display: none; }
+  .ws-word .phase-head .name {
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 13pt; font-style: italic; font-weight: 600;
+    color: #111; letter-spacing: 0;
+  }
+
+  /* Table — plain bordered grid + row tints */
+  .ws-word .rows { border: 0.75pt solid #333; margin-bottom: 8pt; }
+  .ws-word .col-head {
+    grid-template-columns: 22pt 38% 1fr 38pt 46pt;
+    background: #ececec; border-bottom: 0.75pt solid #333;
+    font-size: 10pt; letter-spacing: 0; text-transform: none;
+    color: #111; font-weight: 700;
+  }
+  .ws-word .col-head > div {
+    border-right: 0.75pt solid #333; padding: 5pt 6pt 4pt;
+  }
+  .ws-word .col-head > div:last-child { border-right: none; }
+  .ws-word .row {
+    grid-template-columns: 22pt 38% 1fr 38pt 46pt;
+    border-top: 0.75pt solid #333; min-height: 0;
+  }
+  .ws-word .row:first-of-type { border-top: none; }
+  .ws-word .row.plain { background: #fff; }
+  .ws-word .row.v { background: #eaf2ff; }
+  .ws-word .row.r { background: #fff2d0; }
+  .ws-word .row.w { background: #ffe0db; }
+  .ws-word .row.w, .ws-word .row.w + .row { border-top: 0.75pt solid #333; }
+  .ws-word .row .cell { border-right: 0.75pt solid #333; padding: 5pt 6pt; }
+  .ws-word .row .cell:last-child { border-right: none; }
+  .ws-word .row .c-ix { font-size: 10.5pt; font-weight: 700; color: #111; }
+
+  /* Section band — same structural treatment, Word's display type (Times
+     italic) takes over from the mono small caps. */
+  .ws-word .section-band {
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 12pt; font-style: italic; font-weight: 700;
+    letter-spacing: 0; text-transform: none;
+    color: #111; background: #fff;
+    border-bottom-color: #333;
+  }
+  .ws-word .row + .section-band { border-top: 0.75pt solid #333; }
+
+  .ws-word .row .c-item .label {
+    font-size: 11.5pt; font-weight: 600; line-height: 1.3; color: #111;
+  }
+  .ws-word .row.w .c-item .label { font-weight: 600; }
+  .ws-word .row .c-item .stop {
+    font-size: 8.5pt; font-weight: 700; letter-spacing: 0.02em; margin-top: 2pt;
+  }
+  .ws-word .row.r .c-item .stop { color: #6b4a00; }
+  .ws-word .row.w .c-item .stop { color: #99201d; }
+  /* STOP copy inlined via renderWorksheetRow; no ::before override needed. */
+
+  .ws-word .row .c-notes { font-size: 9.5pt; line-height: 1.4; color: #555; }
+  .ws-word .row .c-notes .desc { color: #555; }
+  .ws-word .row .c-notes .sub { color: #555; font-size: 9pt; }
+  .ws-word .row .c-notes .sub .scb { width: 11pt; height: 11pt; border: 0.75pt solid #333; }
+  .ws-word .row .c-notes .sub .stxt { font-style: normal; }
+  .ws-word .row .c-notes .sub .stxt::before { content: '- '; color: #444; font-weight: 400; }
+
+  /* Checkboxes — square, slight hand-jitter per row index */
+  .ws-word .row .c-check .cb { width: 18pt; height: 18pt; border: 1pt solid #111; }
+  .ws-word .row-2 .c-check .cb { width: 18.5pt; height: 17.5pt; }
+  .ws-word .row-3 .c-check .cb { width: 17.5pt; height: 18pt; }
+  .ws-word .row-5 .c-check .cb { width: 19pt; height: 18.5pt; }
+  .ws-word .row-7 .c-check .cb { width: 18pt; height: 19pt; }
+  .ws-word .row.w .c-check .cb { border-color: #111; border-width: 1pt; }
+
+  /* QC gate cell */
+  .ws-word .row .c-gate .cb-gate { gap: 1pt; }
+  .ws-word .row .c-gate .cb { width: 22pt; height: 22pt; border-width: 1.5pt; border-color: #111; }
+  .ws-word .row .c-gate .gate-lbl { font-size: 8pt; font-weight: 700; letter-spacing: 0; color: #111; }
+  .ws-word .row.r .c-gate .cb { border-color: #6b4a00; border-width: 1.5pt; }
+  .ws-word .row.r .c-gate .gate-lbl { color: #6b4a00; }
+  .ws-word .row.w .c-gate .cb { border-color: #99201d; border-width: 1.75pt; }
+  .ws-word .row.w .c-gate .gate-lbl { color: #99201d; }
+
+  /* Locked OP cell → flat gray block with italic N/A (Word emits text) */
+  .ws-word .row .c-check.c-locked {
+    background: #d8d8d4 !important;
+    align-items: center; justify-content: center; padding: 5pt 6pt;
+    font-family: 'Times New Roman', Times, serif !important;
+    font-style: italic; font-size: 10pt; color: #555; text-align: center;
+  }
+  .ws-word .row .c-check.c-locked .lock { display: none; }
+
+  /* Footer */
+  .ws-word .footer { border-top: 1.25pt solid #111; gap: 24pt; font-size: 10.5pt; }
+  .ws-word .footer .ff .k {
+    font-size: 10.5pt; letter-spacing: 0; text-transform: none;
+    color: #111; font-weight: 700; margin-bottom: 14pt;
+  }
+  .ws-word .footer .ff .ln { border-bottom: 0.75pt solid #111; height: 1pt; }
+  .ws-word .footer .ff .sub {
+    font-size: 9pt; color: #444; font-style: italic;
+    letter-spacing: 0; text-transform: none;
+  }
+
+  /* Word never shows the branded form-id strip */
+  .ws-word .form-id { display: none !important; }
+`;
+
+// DB tier value → worksheet row class, tier-box letter, tier fallback emoji.
+const WS_TIERS = {
+  plain:   { cls: 'plain', letter: '',  emoji: '✅' },
+  verify:  { cls: 'v',     letter: 'V', emoji: '🔍' },
+  review:  { cls: 'r',     letter: 'R', emoji: '⚠' },
+  witness: { cls: 'w',     letter: 'W', emoji: '⛔' },
+};
+function wsTier(item) { return WS_TIERS[item && item.tier] || WS_TIERS.plain; }
+
+// Per-item action-hint icons were removed: the reference design uses no
+// per-item icons. Tier icons appear only in the legend (see renderWsLegend).
+
+function wsTodayISO() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function wsCode(modelRef, sectionName) {
+  const clean = s => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return [clean(modelRef) || 'MODEL', clean(sectionName) || 'SECTION'].join('-');
+}
+
+// branded boolean → style string. Keeps old callers working; new default
+// is 'word' (looks hand-prepared, for the shop floor).
+function normalizeStyle(opts) {
+  if (opts && typeof opts.style === 'string') return opts.style;
+  if (opts && opts.branded === true) return 'deployops';
+  if (opts && opts.branded === false) return 'plain';
+  return 'word';
+}
+
+// One checklist row. idx is 1-based (resets per section when banded, per
+// phase when flat) and drives both the printed number and the .row-N class
+// (Word style uses it for hand-jitter on checkboxes). Tier no longer
+// occupies a column — it is encoded by the row background class (.v/.r/.w)
+// and by the OP/QC cell contents (locked N/A or SUP/WIT gate).
+function renderWorksheetRow(item, idx, lang, style) {
+  const t = wsTier(item);
+  const num = String(idx).padStart(2, '0');
+  const label = esc(pickField(item, 'label', lang) || '');
+  const desc = esc(pickField(item, 'description', lang) || '');
+
+  // Item cell: label only (no per-item action icon — the reference uses
+  // none). For R/W rows the STOP copy is inlined via tr() so JA / EN
+  // both flow through the same locale gate as the rest of the chrome.
+  let itemCell = `<div class="label">${label}</div>`;
+  if (t.cls === 'r') itemCell += `<div class="stop">${esc(tr(lang, 'ws_stop_review'))}</div>`;
+  else if (t.cls === 'w') itemCell += `<div class="stop">${esc(tr(lang, 'ws_stop_witness'))}</div>`;
+
+  // Notes cell: V rows carry the verification sub-step (checkbox + text);
+  // everything else shows the plain description.
+  let notesCell;
+  if (t.cls === 'v') {
+    const subTxt = esc(pickField(item, 'description', lang) || tr(lang, 'ws_verification_mark'));
+    notesCell = `<div class="sub"><span class="scb"></span><span class="stxt">${subTxt}</span></div>`;
+  } else {
+    notesCell = `<span class="desc">${desc}</span>`;
+  }
+
+  // OP / QC cells.
+  let opCell, qcCell;
+  if (t.cls === 'r' || t.cls === 'w') {
+    const lockCls = t.cls === 'w' ? 'c-locked-w' : 'c-locked-r';
+    if (style === 'word') {
+      opCell = `<div class="cell c-check c-locked">N/A</div>`;
+    } else if (style === 'deployops') {
+      opCell = `<div class="cell c-check c-locked ${lockCls}"><span class="lock"><span class="lock-ic">🔒</span><span class="lock-lbl">LOCKED</span></span></div>`;
+    } else {
+      opCell = `<div class="cell c-check c-locked ${lockCls}"><span class="lock"></span></div>`;
+    }
+    const gate = t.cls === 'w' ? 'WIT' : 'SUP';
+    qcCell = `<div class="cell c-check c-gate"><span class="cb-gate"><span class="cb"></span><span class="gate-lbl">${gate}</span></span></div>`;
+  } else {
+    opCell = `<div class="cell c-check"><span class="cb"></span></div>`;
+    qcCell = `<div class="cell c-check"><span class="cb"></span></div>`;
+  }
+
+  return `
+      <div class="row ${t.cls} row-${idx}">
+        <div class="cell c-ix">${num}</div>
+        <div class="cell c-item">${itemCell}</div>
+        <div class="cell c-notes">${notesCell}</div>
+        ${opCell}
+        ${qcCell}
+      </div>`;
+}
+
+// Shared legend (4 cards, V/R/W badges). The Word style hides the badge
+// box and restyles the cards via CSS — no markup change. Tier titles
+// are escaped (plain text); descriptions carry raw <b> emphasis around
+// SUP/WIT and must NOT be escaped.
+function renderWsLegend(lang) {
+  return `
+  <div class="legend">
+    <div class="lr plain"><div class="badge">&nbsp;</div><div><span class="tt"><span class="em">✅</span>${esc(tr(lang, 'ws_legend_plain_title'))}</span><span class="ld">${tr(lang, 'ws_legend_plain_desc')}</span></div></div>
+    <div class="lr v"><div class="badge">V</div><div><span class="tt"><span class="em">🔍</span>${esc(tr(lang, 'ws_legend_verify_title'))}</span><span class="ld">${tr(lang, 'ws_legend_verify_desc')}</span></div></div>
+    <div class="lr r"><div class="badge">R</div><div><span class="tt"><span class="em">⚠</span>${esc(tr(lang, 'ws_legend_review_title'))}</span><span class="ld">${tr(lang, 'ws_legend_review_desc')}</span></div></div>
+    <div class="lr w"><div class="badge">W</div><div><span class="tt"><span class="em">⛔</span>${esc(tr(lang, 'ws_legend_witness_title'))}</span><span class="ld">${tr(lang, 'ws_legend_witness_desc')}</span></div></div>
+  </div>`;
+}
+
+function wsHeadLeft(style) {
+  if (style === 'deployops') return `<div class="brand-block">
+      <div class="brand-mark">◢</div>
+      <div class="brand-text">
+        <div class="brand-name">DeployOps</div>
+        <div class="brand-sub">QC Worksheet</div>
+      </div>
+    </div>`;
+  if (style === 'plain') return `<div class="stamp">QC&nbsp;WORKSHEET</div>`;
+  return ''; // word: title only
+}
+
+// Group items by section_name, preserving first-seen order (after sort_order).
+// Items with a null/empty section_name are collected into a trailing
+// "leftover" bucket labeled OTHER (or その他 in JA) — appended at the end so
+// they do not disrupt the legitimate section ordering. Returns
+// [{ sectionName, displayName, items }] where sectionName is the canonical
+// English key (used for grouping and for filesystem-safe PDF filenames)
+// and displayName is the locale-aware label (pickField → section_name_ja
+// when lang==='ja' and the column is populated, else the English name).
+function wsGroupBySection(items, lang) {
+  const realMap = {}, order = [];
+  const leftover = [];
+  items.slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).forEach(it => {
+    const sn = (it.section_name || '').trim();
+    if (!sn) { leftover.push(it); return; }
+    if (!realMap[sn]) { realMap[sn] = []; order.push(sn); }
+    realMap[sn].push(it);
+  });
+  const out = order.map(sn => {
+    const groupItems = realMap[sn];
+    // Mirror pickSection: prefer the first item in the group that has
+    // section_name_ja populated; fall back to the canonical English name.
+    // More robust than pickField(items[0]) when a single item is missing
+    // its translation but siblings carry it.
+    const snJa = lang === 'ja'
+      ? groupItems.find(i => i.section_name_ja)?.section_name_ja
+      : null;
+    return { sectionName: sn, displayName: snJa || sn, items: groupItems };
+  });
+  if (leftover.length) {
+    out.push({
+      sectionName: '__leftover__',
+      displayName: lang === 'ja' ? 'その他' : 'OTHER',
+      items: leftover
+    });
+  }
+  return out;
+}
+
+// Per-style display titles for phase headers. EN uses the reference casing
+// ("Pre-install QC" / "Pre-test QC" — lowercase second word). JA falls back
+// to whatever phaseLabel() returns (SQL-managed JA translations).
+const WS_PHASE_TITLES_EN = {
+  pre_install_qc: 'Pre-install QC',
+  pre_test_qc:    'Pre-test QC',
+  pre_deploy:     'Pre-deploy'
+};
+
+// Group items by section, then within each section by phase. Returns
+// only sections that have items in at least one of the included phases.
+// Each section entry carries phaseItems = { phase: [items] } with phases
+// that have no items in this section omitted.
+function wsBuildSectionDocs(items, includePhases, lang) {
+  const groups = wsGroupBySection(items, lang);
+  return groups.map(g => {
+    const phaseItems = {};
+    includePhases.forEach(phase => {
+      const list = g.items
+        .filter(i => itemInPhase(i, phase))
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      if (list.length > 0) phaseItems[phase] = list;
+    });
+    return {
+      sectionName: g.sectionName,
+      displayName: g.displayName,
+      phaseItems
+    };
+  }).filter(s => Object.keys(s.phaseItems).length > 0);
+}
+
+// One section's worksheet body: title, fields, legend, one block per
+// phase that has items, footer. Title is "QC Checklist - <section>" —
+// model name and unit name do not appear in the body apart from the
+// fields strip. Caller wraps this in a .sheet (PDF mode) or .ws-section-
+// page .sheet (concatenated printer mode).
+function renderSectionDoc(model, unitName, section, lang, style) {
+  const titlePrefix = lang === 'ja' ? 'QCチェックリスト - ' : 'QC Checklist - ';
+  const unitField = unitName
+    ? `<div class="v filled">${esc(unitName)}</div>`
+    : `<div class="v">&nbsp;</div>`;
+
+  // OP/QC column headers route through the existing PRINT_I18N op/qcCol
+  // keys: 'OP'/'QC' in EN, '作業'/'検査' in JA (per JA convention memory —
+  // visual consistency on a JA page wins over keeping Latin abbrevs).
+  // The physical-stamp badges N/A, SUP, WIT stay Latin in both locales —
+  // they appear inside the OP/QC cells via renderWorksheetRow.
+  const COL_HEAD = `<div class="col-head">
+        <div>#</div><div class="ch-left">${esc(tr(lang, 'ws_col_item'))}</div><div class="ch-left">${esc(tr(lang, 'ws_col_notes'))}</div><div>${esc(tr(lang, 'op'))}</div><div>${esc(tr(lang, 'qcCol'))}</div>
+      </div>`;
+
+  // Phase header text. JA path resolves to PRINT_I18N.ja.preTestQC
+  // ('試験前QC') / PRINT_I18N.ja.preInstallQC ('組立前QC') via
+  // phaseLabel → tr — the existing keys, not a new ws_* one. EN path
+  // uses WS_PHASE_TITLES_EN for the lowercase-second-word casing
+  // ("Pre-install QC"). Confirming the JA override: open the
+  // regenerated JA PDF and look for '試験前QC' as a phase divider.
+  const phaseBlocks = Object.entries(section.phaseItems).map(([phase, list]) => {
+    const phaseTxt = lang === 'ja'
+      ? (phaseLabel(phase, true, lang) || (PHASE_META[phase] || {}).label || phase)
+      : (WS_PHASE_TITLES_EN[phase] || (PHASE_META[phase] || {}).label || phase);
+    const rows = list.map((it, i) => renderWorksheetRow(it, i + 1, lang, style)).join('');
+    return `
+  <div class="section-band">${esc(phaseTxt)}</div>
+  <div class="rows">${COL_HEAD}${rows}</div>`;
+  }).join('');
+
+  // Form-id uses canonical English sectionName so the audit code stays
+  // ASCII-meaningful (wsCode strips non-A-Z0-9; a JA displayName would
+  // collapse to 'SECTION').
+  const formId = style === 'deployops' ? `
+  <div class="form-id">
+    <span class="chip">DeployOps</span>
+    <span>WS-${esc(wsCode(model?.ref, section.sectionName))} · rev A · generated ${wsTodayISO()}</span>
+    <span class="note">Return signed copy to QC bin</span>
+  </div>` : '';
+
+  return `
+  <div class="hdr">
+    ${wsHeadLeft(style)}
+    <h1>${titlePrefix}${esc(section.displayName)}</h1>
+    <div class="fields">
+      <div class="f"><div class="k">${esc(tr(lang, 'ws_field_unit'))}</div>${unitField}</div>
+      <div class="f"><div class="k">${esc(tr(lang, 'ws_field_operator'))}</div><div class="v">&nbsp;</div></div>
+      <div class="f"><div class="k">${esc(tr(lang, 'ws_field_date'))}</div><div class="v">&nbsp;</div></div>
+    </div>
+  </div>
+
+  ${renderWsLegend(lang)}
+
+  ${phaseBlocks}
+
+  <div class="footer">
+    <div class="ff"><div class="k">${esc(tr(lang, 'ws_footer_completed_by'))}</div><div class="ln"></div><div class="sub">${esc(tr(lang, 'ws_footer_print_sign'))}</div></div>
+    <div class="ff"><div class="k">${esc(tr(lang, 'ws_footer_supervisor'))}</div><div class="ln"></div><div class="sub">${esc(tr(lang, 'ws_footer_print_sign'))}</div></div>
+    <div class="ff"><div class="k">${esc(tr(lang, 'ws_footer_date_completed'))}</div><div class="ln"></div><div class="sub">${esc(tr(lang, 'ws_footer_date_placeholder'))}</div></div>
+  </div>
+  ${formId}`;
+}
+
+// All section docs concatenated into a single body for browser print.
+// Each section is wrapped in .ws-section-page .sheet so the printer
+// emits one page (or contiguous run of pages) per section.
+function renderAllSectionsForPrint(model, unitName, sections, lang, style) {
+  return sections.map(s =>
+    `<div class="ws-section-page sheet">${renderSectionDoc(model, unitName, s, lang, style)}</div>`
+  ).join('');
+}
+
+// Full standalone worksheet document. forPdf=true bakes the @media-print
+// sheet styles in as base styles (html2pdf rasterizes screen media, so the
+// @media print block never fires during PDF capture).
+function buildWorksheetDoc(sheetsHtml, opts = {}) {
+  const style = normalizeStyle(opts);
+  const forPdf = opts.forPdf || false;
+  const pdfOverride = forPdf
+    ? `.sheet{margin:0;box-shadow:none;padding:0;width:auto;min-height:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}`
+    : '';
+  const title = style === 'deployops' ? 'QC Worksheet · DeployOps' : 'QC Worksheet';
+  // Word style uses system Calibri / Times — no external font load.
+  const fontLink = style === 'word'
+    ? ''
+    : '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">';
+  const wrapOpen  = style === 'word' ? '<div class="ws-word">' : '';
+  const wrapClose = style === 'word' ? '</div>' : '';
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>${esc(title)}</title>
+${fontLink}
+<style>${WS_CSS}${WS_CSS_WORD}${pdfOverride}</style>
+</head><body>
+${wrapOpen}${sheetsHtml}${wrapClose}
+</body></html>`;
 }
 
 // ============================================================
@@ -1576,10 +2495,13 @@ async function loadDeployData(modelId) {
   }
 }
 
+// Per-phase progress is independent: an item applies in a phase if that
+// phase is in its phases[]; its check state for that phase is the
+// unit_checks row keyed (unit_id, item_id, phase).
 function deployProgress(unitId, phase) {
-  const items = deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phase);
+  const items = deployUnitItems.filter(i => i.visible !== false && itemInPhase(i, phase));
   const ck = deployChecks[unitId] || [];
-  const done = items.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+  const done = items.filter(i => ck.some(c => c.item_id === i.id && c.phase === phase && c.checked)).length;
   return { done, total: items.length, pct: items.length ? Math.round(done/items.length*100) : 0 };
 }
 
@@ -1760,7 +2682,7 @@ function renderDeployUnitDetail(el) {
 }
 
 function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
-  const phaseItems = deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phase)
+  const phaseItems = deployUnitItems.filter(i => i.visible !== false && itemInPhase(i, phase))
                                     .sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
   if (phaseItems.length === 0) {
     return `
@@ -1796,7 +2718,7 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
     const secItems = sections[secName];
     const secKey = `${u.id}|${phase}|${secIdx}`;
     const collapsed = deployCollapsed[secKey];
-    const secDone = secItems.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+    const secDone = secItems.filter(i => ck.some(c => c.item_id === i.id && c.phase === phase && c.checked)).length;
     html += `
       <div class="deploy-section ${collapsed?'collapsed':''}" data-sec-key="${esc(secKey)}">
         <div class="deploy-section-header" data-sec-toggle="${esc(secKey)}" onclick="toggleDeploySection(this.dataset.secToggle)">
@@ -1806,11 +2728,11 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
         </div>
         <div class="deploy-section-body">`;
     secItems.forEach(item => {
-      const c = ck.find(x => x.item_id === item.id);
+      const c = ck.find(x => x.item_id === item.id && x.phase === phase);
       const checked = !!(c && c.checked);
       html += `
-        <div class="deploy-item ${checked?'checked':''}" data-item-id="${item.id}" data-sec-key="${esc(secKey)}">
-          <input type="checkbox" ${checked?'checked':''} onchange="toggleDeployCheck('${u.id}','${item.id}',this.checked,this)">
+        <div class="deploy-item ${checked?'checked':''}" data-item-id="${item.id}" data-phase="${phase}" data-sec-key="${esc(secKey)}">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleDeployCheck('${u.id}','${item.id}','${phase}',this.checked,this)">
           <div class="di-label">
             ${esc(item.label)}
             ${item.description?`<span class="sub">${esc(item.description)}</span>`:''}
@@ -1837,13 +2759,14 @@ function cssEsc(s) {
   return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/[\\"]/g, '\\$&');
 }
 
-async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
+async function toggleDeployCheck(unitId, itemId, phase, checked, checkboxEl) {
   const now = new Date().toISOString();
   const by  = currentUser?.email || 'unknown';
 
-  // Optimistic local update
+  // Optimistic local update — check state is keyed per phase, so an item
+  // shared across phases has independent rows.
   const arr = (deployChecks[unitId] ||= []);
-  const existing = arr.find(c => c.item_id === itemId);
+  const existing = arr.find(c => c.item_id === itemId && c.phase === phase);
   let saved;
   if (existing) {
     existing.checked = checked;
@@ -1851,7 +2774,7 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
     existing.checked_at = checked ? now : null;
     saved = existing;
   } else {
-    saved = { unit_id: unitId, item_id: itemId, checked, checked_by: by, checked_at: checked ? now : null };
+    saved = { unit_id: unitId, item_id: itemId, phase, checked, checked_by: by, checked_at: checked ? now : null };
     arr.push(saved);
   }
 
@@ -1868,10 +2791,9 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
     } else if (byEl) byEl.remove();
   }
 
-  // Patch phase progress + section count
+  // Patch phase progress + section count (scoped to the phase that changed)
   const item = deployUnitItems.find(i => i.id === itemId);
   if (item) {
-    const phase = item.phase || 'pre_install_qc';
     const prog = deployProgress(unitId, phase);
     const fill = document.querySelector(`[data-phase-fill="${phase}"]`);
     const txt  = document.querySelector(`[data-phase-txt="${phase}"]`);
@@ -1882,7 +2804,7 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
     if (sk) {
       const stat = document.querySelector(`[data-sec-stat="${cssEsc(sk)}"]`);
       if (stat) {
-        const phaseItems = deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phase)
+        const phaseItems = deployUnitItems.filter(i => i.visible !== false && itemInPhase(i, phase))
                                           .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
         const sections = {}; const order = [];
         phaseItems.forEach(i => {
@@ -1892,7 +2814,7 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
         });
         const idxStr = sk.split('|')[2];
         const secItems = sections[order[parseInt(idxStr)]] || [];
-        const secDone = secItems.filter(i => arr.some(c => c.item_id === i.id && c.checked)).length;
+        const secDone = secItems.filter(i => arr.some(c => c.item_id === i.id && c.phase === phase && c.checked)).length;
         stat.textContent = `${secDone}/${secItems.length}`;
       }
     }
@@ -1900,10 +2822,10 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
 
   // Persist
   const { error } = await sb.from('deployops_unit_checks').upsert({
-    unit_id: unitId, item_id: itemId,
+    unit_id: unitId, item_id: itemId, phase,
     checked, checked_by: by,
     checked_at: checked ? now : null
-  }, { onConflict: 'unit_id,item_id' });
+  }, { onConflict: 'unit_id,item_id,phase' });
 
   if (error) {
     console.error(error);
@@ -1920,9 +2842,17 @@ async function toggleDeployCheck(unitId, itemId, checked, checkboxEl) {
 // ============================================================
 let _printCtx = null;
 
+const WS_STYLE_KEY = 'deployops_ws_style';
+const WS_STYLES = ['word', 'plain', 'deployops'];
+function savedWsStyle() {
+  const v = localStorage.getItem(WS_STYLE_KEY);
+  return WS_STYLES.includes(v) ? v : 'word';
+}
+
 function showPrintOptions(opts = {}) {
   _printCtx = opts;
   const lockedMode = opts.lockedMode;
+  const wsStyle = savedWsStyle();
 
   const modeSection = lockedMode ? '' : `
     <label>Output</label>
@@ -1957,8 +2887,8 @@ function showPrintOptions(opts = {}) {
     <div id="contentWrap" style="display:${contentInitialDisplay}">
       <label>Content</label>
       <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
-        <label class="radio-row"><input type="radio" name="contentChoice" value="empty" checked> Empty rows (template — write items by hand)</label>
-        <label class="radio-row"><input type="radio" name="contentChoice" value="items"> Items printed (DB items, empty checkboxes)</label>
+        <label class="radio-row"><input type="radio" name="contentChoice" value="items" checked> QC Worksheet (live items, tiers &amp; signature gates)</label>
+        <label class="radio-row"><input type="radio" name="contentChoice" value="empty"> Blank rows (hand-write template)</label>
       </div>
     </div>
 
@@ -1971,8 +2901,9 @@ function showPrintOptions(opts = {}) {
 
     <label>Style</label>
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
-      <label class="radio-row"><input type="radio" name="styleChoice" value="branded" checked> Branded (emojis, colors)</label>
-      <label class="radio-row"><input type="radio" name="styleChoice" value="plain"> Plain (black & white, no emojis)</label>
+      <label class="radio-row"><input type="radio" name="styleChoice" value="word"${wsStyle==='word'?' checked':''}> 📝 Word-style <span style="color:var(--text2);font-size:11px">(hand-prepared look — for the shop floor)</span></label>
+      <label class="radio-row"><input type="radio" name="styleChoice" value="plain"${wsStyle==='plain'?' checked':''}> Plain <span style="color:var(--text2);font-size:11px">(clean app look, no branding)</span></label>
+      <label class="radio-row"><input type="radio" name="styleChoice" value="deployops"${wsStyle==='deployops'?' checked':''}> DeployOps-branded <span style="color:var(--text2);font-size:11px">(logo + form ID — audit copy)</span></label>
     </div>
 
     <label>Language</label>
@@ -1998,11 +2929,15 @@ function doPrint() {
   const ctx = _printCtx || {};
   const mode = ctx.lockedMode || document.querySelector('.mode-card.active')?.dataset.mode || 'blank';
   const phase = document.querySelector('input[name="phaseChoice"]:checked')?.value || 'both';
-  const style = document.querySelector('input[name="styleChoice"]:checked')?.value || 'branded';
+  const styleRaw = document.querySelector('input[name="styleChoice"]:checked')?.value;
+  const wsStyle = WS_STYLES.includes(styleRaw) ? styleRaw : 'word';
+  try { localStorage.setItem(WS_STYLE_KEY, wsStyle); } catch(e) {}
   const lang = document.querySelector('input[name="langChoice"]:checked')?.value || 'en';
   const dest  = document.querySelector('input[name="destChoice"]:checked')?.value || 'printer';
   const phaseFilter = phase === 'both' ? null : phase;
-  const plain = style === 'plain';
+  // Legacy hand-write/filled templates only know plain vs branded;
+  // word/deployops both fall back to branded there.
+  const plain = wsStyle === 'plain';
   closeModal();
 
   if (mode === 'blank') {
@@ -2011,7 +2946,7 @@ function doPrint() {
     const unitId = ctx.unitId !== undefined ? ctx.unitId : deployUnitId;
     const content = document.querySelector('input[name="contentChoice"]:checked')?.value || 'empty';
     const emptyRows = content === 'empty';
-    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang, dest });
+    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang, dest, wsStyle });
   } else {
     printFilledStatus({ phaseFilter, plain, lang, dest });
   }
@@ -2137,6 +3072,10 @@ function transformCssRule(rule, scope) {
 function prefixCssSelector(sel, scope) {
   if (!sel) return '';
   if (sel === 'body') return `.${scope}`;
+  // :root / html → the scope root itself. CSS custom properties declared
+  // there still inherit to descendants (the scope class sits on <body>).
+  if (sel === ':root' || sel === 'html') return `.${scope}`;
+  if (sel === 'html, body' || sel === 'html,body') return `.${scope}`;
   if (sel === '*')   return `.${scope}, .${scope} *`;
   if (sel.startsWith('body ')) return `.${scope} ${sel.slice(5)}`;
   if (/^body\s*>/.test(sel)) return `.${scope} ${sel.replace(/^body\s*/, '')}`;
@@ -2170,12 +3109,14 @@ async function openPdfFromGroups(groups, renderOne, buildOpts, lang, printerFall
       showPdfProgress(i + 1, groups.length);
 
       const sectionBody = renderOne(g);
-      const docHtml = buildPrintHTML(
-        buildOpts.title,
-        buildOpts.subtitle || '',
-        sectionBody,
-        buildOpts
-      );
+      const docHtml = buildOpts.docBuilder
+        ? buildOpts.docBuilder(sectionBody)
+        : buildPrintHTML(
+            buildOpts.title,
+            buildOpts.subtitle || '',
+            sectionBody,
+            buildOpts
+          );
 
       iframe.contentDocument.open();
       iframe.contentDocument.write(docHtml);
@@ -2237,10 +3178,148 @@ async function openPdfFromGroups(groups, renderOne, buildOpts, lang, printerFall
 }
 
 // ============================================================
+// PDF — per-section PDF zip (QC worksheet output)
+// ============================================================
+
+// QC_list_<section>.pdf — filesystem-safe, UTF-8 preserved (JA names OK).
+function pdfFilenameForSection(sectionName) {
+  const safe = String(sectionName || 'section')
+    .replace(/[\\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '_')
+    .trim() || 'section';
+  return `QC_list_${safe}.pdf`;
+}
+
+// Zip filename for the per-section bundle: QC_lists_<model>_<unit>.zip
+function zipFilenameForModelUnit(modelName, unitName) {
+  const safe = s => String(s || '')
+    .replace(/[\\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '_')
+    .trim();
+  const m = safe(modelName) || 'model';
+  const u = safe(unitName) || 'unit';
+  return `QC_lists_${m}_${u}.zip`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Per-section PDF mode: render each section as its own complete PDF
+// via the same iframe + scoped-CSS pipeline as openPdfFromGroups, but
+// collect outputPdf('blob') results into a JSZip archive and trigger
+// one zip download at the end. Any error routes to the printer fallback.
+async function generatePerSectionPdfZip(model, unitName, sections, lang, style, printerFallback) {
+  if (!sections || sections.length === 0) { toast('No content to render', 'err'); return; }
+
+  showPdfProgress(0, sections.length);
+
+  try {
+    await loadHtml2Pdf();
+  } catch (e) {
+    hidePdfProgress();
+    console.error(e);
+    showPrinterFallback(e.message || 'Could not load PDF library', printerFallback);
+    return;
+  }
+  if (!window.JSZip) {
+    hidePdfProgress();
+    showPrinterFallback('JSZip library not available (check head script tag)', printerFallback);
+    return;
+  }
+
+  const zip = new window.JSZip();
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0';
+  document.body.appendChild(iframe);
+
+  try {
+    for (let i = 0; i < sections.length; i++) {
+      const sec = sections[i];
+      showPdfProgress(i + 1, sections.length);
+
+      const bodyHtml = `<div class="sheet">${renderSectionDoc(model, unitName, sec, lang, style)}</div>`;
+      const docHtml = buildWorksheetDoc(bodyHtml, { style, forPdf: true });
+
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(docHtml);
+      iframe.contentDocument.close();
+
+      // Layout + font settle before rasterizing.
+      await new Promise(r => setTimeout(r, 50));
+
+      const sheets = iframe.contentDocument.styleSheets;
+      if (!sheets || sheets.length === 0) throw new Error('Iframe has no stylesheet');
+      try { void sheets[0].cssRules; } catch (e) { throw new Error('CSSOM access failed: ' + (e.message || e)); }
+      if (!sheets[0].cssRules) throw new Error('CSSOM cssRules returned null');
+
+      const scope = `pdf-render-${++_pdfScopeCounter}`;
+      const rawCss = Array.from(iframe.contentDocument.querySelectorAll('style'))
+        .map(s => s.textContent).join('\n');
+      let injectedStyle = null;
+      try {
+        const scopedCss = scopePrintCss(rawCss, scope);
+        injectedStyle = document.createElement('style');
+        injectedStyle.id = scope;
+        injectedStyle.textContent = scopedCss;
+        document.head.appendChild(injectedStyle);
+        iframe.contentDocument.body.classList.add(scope);
+
+        const blob = await window.html2pdf()
+          .from(iframe.contentDocument.body)
+          .set({
+            // No margin from html2pdf — CSS @page is the single source of
+            // truth. html2pdf's default ~10mm stacked on top of @page
+            // produced ~28mm effective gutters and roughly halved content
+            // density vs the reference design.
+            margin:      0,
+            image:       { type: 'jpeg', quality: 0.96 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:   { mode: ['css', 'legacy'] }
+          })
+          .outputPdf('blob');
+
+        // Filenames stay English regardless of lang — sectionName holds the
+        // canonical English key, displayName is the locale-aware label and
+        // belongs in the title only. Leftover sentinel maps to 'Other'.
+        const fnameKey = sec.sectionName === '__leftover__'
+          ? 'Other'
+          : (sec.sectionName || sec.displayName || 'section');
+        zip.file(pdfFilenameForSection(fnameKey), blob);
+      } finally {
+        if (injectedStyle) injectedStyle.remove();
+      }
+    }
+  } catch (e) {
+    console.error('Per-section PDF zip generation failed', e);
+    iframe.remove();
+    hidePdfProgress();
+    showPrinterFallback(`PDF generation failed: ${e.message || e}`, printerFallback);
+    return;
+  }
+
+  iframe.remove();
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  hidePdfProgress();
+
+  const zipName = zipFilenameForModelUnit(model?.name, unitName);
+  downloadBlob(zipBlob, zipName);
+  toast(`Generated ${sections.length} PDF${sections.length === 1 ? '' : 's'} in ${zipName}`, 'ok');
+}
+
+// ============================================================
 // PRINT — printers
 // ============================================================
 async function printBlankWorkOrder(modelId, unitId, opts) {
-  const { phaseFilter, plain = false, emptyRows = false, lang = 'en', dest = 'printer' } = opts || {};
+  const { phaseFilter, plain = false, emptyRows = false, lang = 'en', dest = 'printer', wsStyle = 'word' } = opts || {};
   const m = modelById(modelId);
   if (!m) { toast('Model not found', 'err'); return; }
 
@@ -2263,19 +3342,49 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     }
   }
 
-  const filtered = (phaseFilter ? items.filter(i => (i.phase||'pre_install_qc') === phaseFilter) : [...items])
-    .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
-  if (filtered.length === 0) { toast(phaseFilter ? 'No items in this phase to print' : 'No items to print', 'err'); return; }
-
-  const groups = genGroups(filtered, phaseFilter);
-
-  // unitName is pre-printed in the per-section header when invoked from Deploy (a unit is selected);
-  // when invoked from Models tab unitId is null and the operator writes the unit name by hand.
+  // unitName is pre-printed when invoked from Deploy (a unit is selected);
+  // when invoked from Models tab unitId is null and the operator writes it by hand.
   let unitName = null;
   if (unitId) {
     const u = deployUnits.find(x => x.id === unitId);
     if (u) unitName = u.unit_name || u.name || null;
   }
+
+  // QC Worksheet (paper form) — used whenever real DB items are printed.
+  // Per-section output: each section is its own self-contained document
+  // (title, fields, legend, phase blocks for any phases with items in
+  // this section, footer). Printer mode concatenates them with a page
+  // break between; PDF mode bundles them into a single .zip download.
+  // The empty-rows hand-write template (below) keeps the legacy simple-
+  // table layout because it has no items/tiers to organize.
+  if (!emptyRows) {
+    const style = wsStyle;
+    const includePhases = phaseFilter ? [phaseFilter] : ['pre_install_qc', 'pre_test_qc'];
+    const visibleItems = items
+      .filter(i => i.visible !== false)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const sectionDocs = wsBuildSectionDocs(visibleItems, includePhases, lang);
+    if (sectionDocs.length === 0) {
+      toast('No items in these phases to print', 'err'); return;
+    }
+    const wsPrinterPath = () => {
+      const body = renderAllSectionsForPrint(m, unitName, sectionDocs, lang, style);
+      openPrintWindow(buildWorksheetDoc(body, { style, forPdf: false }));
+    };
+    if (dest === 'pdf') {
+      await generatePerSectionPdfZip(m, unitName, sectionDocs, lang, style, wsPrinterPath);
+    } else {
+      wsPrinterPath();
+    }
+    return;
+  }
+
+  // Legacy hand-write template (emptyRows): blank numbered rows, one section
+  // per page. Phase membership-aware grouping.
+  const filtered = (phaseFilter ? items.filter(i => itemInPhase(i, phaseFilter)) : [...items])
+    .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+  if (filtered.length === 0) { toast(phaseFilter ? 'No items in this phase to print' : 'No items to print', 'err'); return; }
+  const groups = genGroups(filtered, phaseFilter);
 
   // One section per page: minimal header (title + date + field strip), section block, page break.
   const renderOne = (g) => `
@@ -2311,11 +3420,8 @@ async function printFilledStatus(opts) {
   const u = deployUnits.find(x => x.id === deployUnitId); if (!u) return;
   const m = modelById(u.model_id) || modelById(deployModelId);
   const ck = deployChecks[u.id] || [];
-  const filtered = (phaseFilter ? deployUnitItems.filter(i => (i.phase||'pre_install_qc') === phaseFilter) : [...deployUnitItems])
+  const filtered = (phaseFilter ? deployUnitItems.filter(i => itemInPhase(i, phaseFilter)) : [...deployUnitItems])
     .sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-
-  const total = filtered.length;
-  const done  = filtered.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
 
   const subParts = [];
   if (m) subParts.push(esc(m.name) + (m.ref ? ` · ${esc(m.ref)}` : ''));
@@ -2328,6 +3434,11 @@ async function printFilledStatus(opts) {
     : (plain ? tr(lang,'all') : tr(lang,'bothPhases'));
 
   const groups = genGroups(filtered, phaseFilter);
+  // Totals over the rendered groups so a multi-phase item is counted once per
+  // phase it appears in, matching the per-phase check state.
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  const done  = groups.reduce((n, g) =>
+    n + g.items.filter(it => ck.some(c => c.item_id === it.id && c.phase === g.phase && c.checked)).length, 0);
   const titleStr = plain
     ? tr(lang,'qcTitle')
     : `${esc(u.unit_name||u.name||'Unit')} — ${tr(lang,'deployChecklist')}`;
@@ -2335,7 +3446,7 @@ async function printFilledStatus(opts) {
   // Per-section renderer — used both for the PDF path (one PDF per group) and
   // the printer's sectionPerPage path. Self-contained: own header + progress strip + block.
   const renderOne = (g) => {
-    const secDone = g.items.filter(it => ck.some(c => c.item_id === it.id && c.checked)).length;
+    const secDone = g.items.filter(it => ck.some(c => c.item_id === it.id && c.phase === g.phase && c.checked)).length;
     const head = plain
       ? `<div class="print-header"><h1>${esc(titleStr)}</h1><p>${subtitle}</p></div>`
       : `<div class="print-header"><h1>⚙️ DeployOps — ${esc(u.unit_name||u.name||'Unit')} — ${tr(lang,'deployChecklist')}</h1><p>${subtitle}</p></div>`;
@@ -2417,16 +3528,16 @@ async function loadModelStats() {
   try {
     const [unitsRes, itemsRes] = await Promise.all([
       sb.from('deployops_units').select('id,model_id').in('model_id', ids),
-      sb.from('deployops_checklist_items').select('id,model_id,phase').in('model_id', ids)
+      sb.from('deployops_checklist_items').select('id,model_id,phase,phases,visible').in('model_id', ids)
     ]);
     (unitsRes.data || []).forEach(u => {
       modelUnitCount[u.model_id] = (modelUnitCount[u.model_id] || 0) + 1;
     });
     (itemsRes.data || []).forEach(it => {
+      if (it.visible === false) return;
       const c = (modelItemCount[it.model_id] ||= { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 });
-      // Only counts known phases; if a new phase value is added to the DB CHECK, add it to the initializer above too.
-      const ph = it.phase || 'pre_install_qc';
-      if (c[ph] !== undefined) c[ph]++;
+      // An item counts once per phase it belongs to (unnest(phases) semantics).
+      itemPhases(it).forEach(ph => { if (c[ph] !== undefined) c[ph]++; });
     });
   } catch(e) {
     console.error('stats load failed', e);
@@ -2449,8 +3560,9 @@ async function renderModels() {
       <button class="btn btn-primary admin-only" onclick="showAddModel()">➕ New Model</button>
     </div>
     <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
-      Each robot model has its own checklist split into two phases — <b>Pre-Install QC</b> (post-build) and
-      <b>Pre-Deploy</b> (pre-shipping). Click a model to edit its checklist.
+      Each robot model has its own checklist split across phases — <b>Pre-Install QC</b> (post-build),
+      <b>Pre-Test QC</b> (pre power-on) and <b>Pre-Deploy</b> (pre-shipping). An item can belong to
+      more than one phase. Click a model to edit its checklist.
     </p>
   `;
 
@@ -2509,13 +3621,21 @@ async function loadModelItems(modelId) {
 
 function modelById(id) { return models.find(m => m.id === id); }
 function itemsForPhase(phase) {
-  return modelItems.filter(i => (i.phase || 'pre_install_qc') === phase)
+  return modelItems.filter(i => i.visible !== false && itemInPhase(i, phase))
                    .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
 }
 
 async function renderModelDetail(el) {
   const m = modelById(modelView);
   if (!m) { modelView = null; renderModels(); return; }
+
+  const qcN   = itemsForPhase('pre_install_qc').length;
+  const testN = itemsForPhase('pre_test_qc').length;
+  const depN  = itemsForPhase('pre_deploy').length;
+  // Tab visibility: Pre-Install & Pre-Test always; Pre-Deploy only if it has
+  // items. If the active tab became hidden, fall back to Pre-Install.
+  const showDeployTab = depN > 0;
+  if (modelPhase === 'pre_deploy' && !showDeployTab) modelPhase = 'pre_install_qc';
 
   const phaseItems = itemsForPhase(modelPhase);
   const sections = {};
@@ -2527,9 +3647,6 @@ async function renderModelDetail(el) {
   });
   const drafts = (draftSections[m.id+':'+modelPhase] || []);
   drafts.forEach(s => { if (!sections[s]) { sections[s] = []; sectionOrder.push(s); } });
-
-  const qcN  = itemsForPhase('pre_install_qc').length;
-  const depN = itemsForPhase('pre_deploy').length;
 
   let html = `
     <div class="crumbs">
@@ -2547,14 +3664,20 @@ async function renderModelDetail(el) {
       <button class="phase-tab ${modelPhase==='pre_install_qc'?'active':''}" onclick="setModelPhase('pre_install_qc')">
         🛡️ Pre-Install QC <span class="count">(${qcN})</span>
       </button>
+      <button class="phase-tab ${modelPhase==='pre_test_qc'?'active':''}" onclick="setModelPhase('pre_test_qc')">
+        🧪 Pre-Test QC <span class="count">(${testN})</span>
+      </button>
+      ${showDeployTab ? `
       <button class="phase-tab ${modelPhase==='pre_deploy'?'active':''}" onclick="setModelPhase('pre_deploy')">
         📦 Pre-Deploy <span class="count">(${depN})</span>
-      </button>
+      </button>` : ''}
     </div>
 
     <p style="color:var(--text2);font-size:12px;margin-bottom:14px;line-height:1.5">
       ${modelPhase==='pre_install_qc'
         ? '<b>Pre-Install QC</b> — checks performed after the unit is built. Was it assembled correctly?'
+        : modelPhase==='pre_test_qc'
+        ? '<b>Pre-Test QC</b> — checks before power-on. Is the unit ready to be energised and tested?'
         : '<b>Pre-Deploy</b> — pre-shipping checks. Are all screws, cables, and parts in the box?'}
     </p>
 
@@ -2565,7 +3688,7 @@ async function renderModelDetail(el) {
   `;
 
   if (sectionOrder.length === 0) {
-    html += `<div class="empty"><div class="icon">${modelPhase==='pre_install_qc'?'🛡️':'📦'}</div>
+    html += `<div class="empty"><div class="icon">${PHASE_META[modelPhase]?.icon || '🛡️'}</div>
       <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
   }
 
@@ -2584,12 +3707,21 @@ async function renderModelDetail(el) {
     }
 
     secItems.forEach((it, idx) => {
-      html += `<div class="cl-item">
+      const ph = itemPhases(it);
+      const multi = ph.length > 1;
+      const pills = ALL_PHASES.filter(p => ph.includes(p)).map(p =>
+        `<span class="phase-pill ${p===modelPhase?'on':''}" title="${esc(PHASE_META[p].label)}">${esc(PHASE_META[p].short)}</span>`
+      ).join('');
+      const tierBadge = (it.tier && it.tier !== 'plain')
+        ? `<span class="badge badge-blue" title="${esc((WS_TIERS[it.tier]||{}).cls||it.tier)}">${esc((WS_TIERS[it.tier]||{}).letter||'')}</span>`
+        : '';
+      html += `<div class="cl-item ${multi?'multi':''}">
         <span class="order">${idx+1}</span>
         <div style="flex:1;min-width:0">
           <div class="label">${esc(it.label)}</div>
           ${it.description ? `<div class="desc">${esc(it.description)}</div>` : ''}
         </div>
+        <div class="phase-pills">${tierBadge}${pills}</div>
         <div class="meta">
           ${it.part_number ? `<span class="badge badge-blue">${esc(it.part_number)}</span>` : ''}
           ${it.qty         ? `<span class="badge badge-orange">×${it.qty}</span>` : ''}
@@ -2653,7 +3785,7 @@ function closeInlineAdd() {
   if (m && sec) {
     const dkey = m.id + ':' + modelPhase;
     if (draftSections[dkey] && draftSections[dkey].includes(sec)) {
-      const has = modelItems.some(i => (i.phase||'pre_install_qc') === modelPhase && i.section_name === sec);
+      const has = modelItems.some(i => itemInPhase(i, modelPhase) && i.section_name === sec);
       if (!has) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
     }
   }
@@ -2671,7 +3803,8 @@ async function saveInlineItem() {
   const maxSort = Math.max(0, ...itemsForPhase(modelPhase).map(i => i.sort_order||0));
   const row = {
     model_id: m.id,
-    phase: modelPhase,
+    phase: modelPhase,            // transition: single col = phases[0]
+    phases: [modelPhase],         // new items belong to exactly the current phase
     section_type: isKit ? 'screw' : 'check',  // legacy column kept consistent for old code paths
     section_name: sec,
     sort_order: maxSort + 1,
@@ -2693,9 +3826,7 @@ async function saveInlineItem() {
     // Drop draft (now real)
     const dkey = m.id + ':' + modelPhase;
     if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
-    // refresh list-view stats so back-nav shows accurate counts
-    const c = (modelItemCount[m.id] ||= { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 });
-    c[modelPhase]++;
+    recountOpenModel();  // refresh list-view stats so back-nav shows accurate counts
     toast('Item added', 'ok');
     renderModels();
   } catch(e) {
@@ -2796,7 +3927,7 @@ async function applyBulkAdd() {
     if (!label) return;
     maxSort++;
     const r = {
-      model_id: m.id, phase: modelPhase,
+      model_id: m.id, phase: modelPhase, phases: [modelPhase],
       section_type: isKit ? 'screw' : 'check',
       section_name: secName, sort_order: maxSort, label
     };
@@ -2818,8 +3949,7 @@ async function applyBulkAdd() {
     modelItems.push(...(data || []));
     const dkey = m.id + ':' + modelPhase;
     if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== secName);
-    const c = (modelItemCount[m.id] ||= { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 });
-    c[modelPhase] += rows.length;
+    recountOpenModel();
     closeModal();
     toast(`Added ${rows.length} item${rows.length===1?'':'s'} to "${secName}"`, 'ok');
     renderModels();
@@ -2837,10 +3967,7 @@ async function deleteModelItem(id) {
     const { error } = await sb.from('deployops_checklist_items').delete().eq('id', id);
     if (error) throw error;
     modelItems = modelItems.filter(x => x.id !== id);
-    if (it && modelItemCount[it.model_id]) {
-      const phase = it.phase || 'pre_install_qc';
-      modelItemCount[it.model_id][phase] = Math.max(0, modelItemCount[it.model_id][phase] - 1);
-    }
+    recountOpenModel();
     toast('Deleted', 'info');
     renderModels();
   } catch(e) {
@@ -2849,13 +3976,35 @@ async function deleteModelItem(id) {
   }
 }
 
+// Recompute the open model's per-phase item counts from the in-memory item
+// list. An item counts once in every phase it belongs to.
+function recountOpenModel() {
+  const m = modelById(modelView); if (!m) return;
+  const c = { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 };
+  modelItems.forEach(it => {
+    if (it.visible === false) return;
+    itemPhases(it).forEach(p => { if (c[p] !== undefined) c[p]++; });
+  });
+  modelItemCount[m.id] = c;
+}
+
 function editModelItem(id) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
-  const isKit = (it.phase || 'pre_install_qc') === 'pre_deploy';
+  const phases = itemPhases(it);
+  const isKit = phases.includes('pre_deploy');
+  const tier = it.tier || 'plain';
+  const TIER_OPTS = [['plain','Plain'],['verify','Verify · V'],['review','Review · R'],['witness','Witness · W']];
+  const tierSeg = TIER_OPTS.map(([v,lbl]) =>
+    `<label class="${tier===v?'on':''}" data-tier="${v}"><input type="radio" name="eiTier" value="${v}" ${tier===v?'checked':''} onchange="eiPickTier('${v}')">${lbl}</label>`
+  ).join('');
+  const phaseCks = ALL_PHASES.map(p =>
+    `<label class="ck"><input type="checkbox" id="eiPh_${p}" ${phases.includes(p)?'checked':''} onchange="eiValidatePhases()"> ${PHASE_META[p].icon} ${PHASE_META[p].label}</label>`
+  ).join('');
   showModal(`
     <h3>Edit Item</h3>
     <label>Section</label> <input id="eiSection" value="${esc(it.section_name||'')}">
-    <label>Label</label>   <input id="eiLabel"   value="${esc(it.label||'')}">
+    <label>Label (EN)</label> <input id="eiLabel" value="${esc(it.label||'')}">
+    <label>Label (JA)</label> <input id="eiLabelJa" value="${esc(it.label_ja||'')}" placeholder="日本語ラベル（任意）">
     ${isKit ? `
       <label>Part Number</label> <input id="eiPN"   value="${esc(it.part_number||'')}">
       <label>Qty</label>          <input id="eiQty"  type="number" value="${it.qty||''}">
@@ -2863,18 +4012,44 @@ function editModelItem(id) {
     ` : `
       <label>Description</label>  <input id="eiDesc" value="${esc(it.description||'')}">
     `}
+    <label>Tier</label>
+    <div class="seg" id="eiTierSeg">${tierSeg}</div>
+    <label>Show in phases</label>
+    <div class="phase-cks">${phaseCks}</div>
+    <div class="inline-err" id="eiPhaseErr">Select at least one phase.</div>
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="deleteModelItem('${it.id}')">🗑️ Delete</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveModelItemEdit('${it.id}',${isKit})">Save</button>
+      <button class="btn btn-primary" id="eiSaveBtn" onclick="saveModelItemEdit('${it.id}',${isKit})">Save</button>
     </div>
   `);
+  eiValidatePhases();
+}
+
+function eiPickTier(v) {
+  document.querySelectorAll('#eiTierSeg label').forEach(l => l.classList.toggle('on', l.dataset.tier === v));
+}
+function eiSelectedPhases() {
+  return ALL_PHASES.filter(p => document.getElementById('eiPh_' + p)?.checked);
+}
+function eiValidatePhases() {
+  const ok = eiSelectedPhases().length > 0;
+  document.getElementById('eiPhaseErr')?.classList.toggle('show', !ok);
+  const btn = document.getElementById('eiSaveBtn');
+  if (btn) btn.disabled = !ok;
+  return ok;
 }
 
 async function saveModelItemEdit(id, isKit) {
+  if (!eiValidatePhases()) return;
+  const phases = eiSelectedPhases();
   const upd = {
     section_name: document.getElementById('eiSection').value.trim(),
-    label: document.getElementById('eiLabel').value.trim()
+    label: document.getElementById('eiLabel').value.trim(),
+    label_ja: document.getElementById('eiLabelJa').value.trim() || null,
+    tier: document.querySelector('input[name="eiTier"]:checked')?.value || 'plain',
+    phases,
+    phase: phases[0],   // transition: keep the single-phase column in sync (= phases[0])
   };
   if (isKit) {
     upd.part_number = document.getElementById('eiPN').value.trim() || null;
@@ -2889,6 +4064,7 @@ async function saveModelItemEdit(id, isKit) {
     if (error) throw error;
     const it = modelItems.find(i => i.id === id);
     if (it) Object.assign(it, upd);
+    recountOpenModel();
     closeModal(); toast('Updated', 'ok'); renderModels();
   } catch(e) {
     console.error(e);
@@ -2898,11 +4074,11 @@ async function saveModelItemEdit(id, isKit) {
 
 async function moveModelItem(id, dir) {
   const it = modelItems.find(i => i.id === id); if (!it) return;
-  const phase = it.phase || 'pre_install_qc';
   const sec = it.section_name || '(unsorted)';
-  // Scope adjacency to the same section so ▲▼ swaps with the next/prev item
-  // the operator actually sees, not whichever item happens to share a phase.
-  const list = itemsForPhase(phase).filter(x => (x.section_name || '(unsorted)') === sec);
+  // Scope adjacency to the section the operator is looking at (current tab),
+  // so ▲▼ swaps with the next/prev item actually visible — not whichever item
+  // happens to share a phase membership.
+  const list = itemsForPhase(modelPhase).filter(x => (x.section_name || '(unsorted)') === sec);
   const idx = list.findIndex(x => x.id === id);
   const swap = list[idx + dir];
   if (!swap) return;
