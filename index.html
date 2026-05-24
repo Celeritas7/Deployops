@@ -398,7 +398,6 @@ let inlineAddSection = null;        // section currently expanded for inline add
 let currentEditorSection = null;    // null = folder grid; UUID = open section id in editor (F.9: was section_name string in F.8)
 let sectionsCache = {};             // F.9: modelId → [{id, name, name_ja, icon, sort_order}, ...] loaded from deployops_sections
 let _pendingIcon = null;            // edit-section modal pending icon value (cleared on modal open/close)
-let draftSections = {};             // F.9: dormant — sections now persist in deployops_sections on create; closeInlineAdd cleanup is now no-op; F.10 removes both alongside legacy-column drops
 
 function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -1469,12 +1468,28 @@ function pickField(item, base, lang) {
   }
   return item[base];
 }
+// F.10: locale-aware section display name. `section` is a row from
+// sectionsCache (deployops_sections). Used everywhere a worksheet, legacy
+// print template, or Deploy-tab UI renders a section header.
+function sectionName(section, lang) {
+  if (!section) return '(unknown)';
+  return (lang === 'ja' && section.name_ja) ? section.name_ja : section.name;
+}
+// Backward-compat shim: callers pass a group with {items, sectionName}.
+// We look up the section row via the first item's section_id and route
+// through sectionName(). If cache is cold, fall back to group.sectionName
+// (the canonical English string callers always pass). F.10 guards in
+// printBlankWorkOrder + loadDeployData ensure cache is hot at render
+// time, so the fallback should not normally fire.
 function pickSection(group, lang) {
-  if (lang === 'ja') {
-    const ja = group.items.find(i => i.section_name_ja)?.section_name_ja;
-    if (ja) return ja;
+  if (!group) return '';
+  const sid = group.items?.[0]?.section_id;
+  const modelId = group.items?.[0]?.model_id;
+  if (sid && modelId && sectionsCache[modelId]) {
+    const section = sectionsCache[modelId].find(s => s.id === sid);
+    if (section) return sectionName(section, lang);
   }
-  return group.sectionName;
+  return group.sectionName || '';
 }
 
 // ============================================================
@@ -1539,19 +1554,37 @@ function phaseLabel(phase, plain, lang = 'en') {
   return plain ? t : `${m.icon} ${t}`;
 }
 
-// Group items by phase → section. Returns array of { phase, sectionName, items } in display order.
-function genGroups(items, phaseFilter) {
+// Group items by phase → section. Returns array of { phase, sectionName,
+// displayName, items } in display order. F.10: groups by section_id (FK)
+// instead of legacy section_name string; displayName populated via
+// sectionName(section, lang) so callers can render locale-aware without
+// a separate pickSection step. Items lacking section_id (defensive —
+// shouldn't exist after F.9 backfill) bucket to '__unsorted__'.
+function genGroups(items, phaseFilter, lang = 'en') {
   const phases = phaseFilter ? [phaseFilter] : ['pre_install_qc','pre_test_qc','pre_deploy'];
+  const modelId = items[0]?.model_id;
+  const cache = (modelId && sectionsCache[modelId]) || [];
+  const byId = {};
+  cache.forEach(s => { byId[s.id] = s; });
   const groups = [];
   phases.forEach(phase => {
     const phaseItems = items.filter(i => itemInPhase(i, phase));
-    const sections = {}; const order = [];
+    const sectionMap = {}; const order = [];
     phaseItems.forEach(i => {
-      const sn = i.section_name || '(unsorted)';
-      if (!sections[sn]) { sections[sn] = []; order.push(sn); }
-      sections[sn].push(i);
+      const sid = i.section_id;
+      const key = (sid && byId[sid]) ? sid : '__unsorted__';
+      if (!sectionMap[key]) { sectionMap[key] = []; order.push(key); }
+      sectionMap[key].push(i);
     });
-    order.forEach(sn => groups.push({ phase, sectionName: sn, items: sections[sn] }));
+    order.forEach(key => {
+      const section = byId[key];
+      groups.push({
+        phase,
+        sectionName: section ? section.name : '(unsorted)',
+        displayName: section ? sectionName(section, lang) : (lang === 'ja' ? 'その他' : '(unsorted)'),
+        items: sectionMap[key]
+      });
+    });
   });
   return groups;
 }
@@ -2364,33 +2397,38 @@ function wsHeadLeft(style) {
   return ''; // word: title only
 }
 
-// Group items by section_name, preserving first-seen order (after sort_order).
-// Items with a null/empty section_name are collected into a trailing
-// "leftover" bucket labeled OTHER (or その他 in JA) — appended at the end so
-// they do not disrupt the legitimate section ordering. Returns
-// [{ sectionName, displayName, items }] where sectionName is the canonical
-// English key (used for grouping and for filesystem-safe PDF filenames)
-// and displayName is the locale-aware label (pickField → section_name_ja
-// when lang==='ja' and the column is populated, else the English name).
+// Group items by section, preserving first-seen order (after sort_order).
+// Items with no section_id (defensive — shouldn't exist after F.9 backfill)
+// collected into a trailing "leftover" bucket labeled OTHER / その他.
+// Returns [{ sectionName, displayName, items }] where sectionName is the
+// canonical English key (also used for filesystem-safe PDF filenames) and
+// displayName is the locale-aware label.
+//
+// F.10: groups by section_id (FK to deployops_sections) and resolves the
+// display name via sectionName() against sectionsCache. Caller must
+// ensure sectionsCache[modelId] is populated — printBlankWorkOrder pre-
+// warms it via the lazy-load guard before calling wsBuildSectionDocs.
 function wsGroupBySection(items, lang) {
+  const modelId = items[0]?.model_id;
+  const cache = (modelId && sectionsCache[modelId]) || [];
+  const byId = {};
+  cache.forEach(s => { byId[s.id] = s; });
+
   const realMap = {}, order = [];
   const leftover = [];
   items.slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).forEach(it => {
-    const sn = (it.section_name || '').trim();
-    if (!sn) { leftover.push(it); return; }
-    if (!realMap[sn]) { realMap[sn] = []; order.push(sn); }
-    realMap[sn].push(it);
+    const sid = it.section_id;
+    if (!sid || !byId[sid]) { leftover.push(it); return; }
+    if (!realMap[sid]) { realMap[sid] = []; order.push(sid); }
+    realMap[sid].push(it);
   });
-  const out = order.map(sn => {
-    const groupItems = realMap[sn];
-    // Mirror pickSection: prefer the first item in the group that has
-    // section_name_ja populated; fall back to the canonical English name.
-    // More robust than pickField(items[0]) when a single item is missing
-    // its translation but siblings carry it.
-    const snJa = lang === 'ja'
-      ? groupItems.find(i => i.section_name_ja)?.section_name_ja
-      : null;
-    return { sectionName: sn, displayName: snJa || sn, items: groupItems };
+  const out = order.map(sid => {
+    const section = byId[sid];
+    return {
+      sectionName: section.name,
+      displayName: sectionName(section, lang),
+      items: realMap[sid]
+    };
   });
   if (leftover.length) {
     out.push({
@@ -2554,6 +2592,10 @@ async function loadDeployData(modelId) {
     return;
   }
   try {
+    // F.10: pre-warm sectionsCache (idempotent) before fetching unit
+    // data so renderDeployPhaseBlock's section grouping is ready on
+    // first paint. Sequential — one extra round trip only on cold cache.
+    if (!sectionsCache[modelId]) await loadSections(modelId);
     const [uRes, iRes] = await Promise.all([
       sb.from('deployops_units').select('*').eq('model_id', modelId).order('created_at', { ascending: true }),
       sb.from('deployops_checklist_items').select('*').eq('model_id', modelId).order('sort_order', { ascending: true })
@@ -2781,12 +2823,21 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
       </div>`;
   }
 
+  // F.10: group by section_id (was section_name). secKey ('u|phase|idx')
+  // unchanged — idx is into the section ORDER array, which now holds
+  // section UUIDs. Display label resolved via sectionName(section, lang).
+  const lang = getUiLang();
+  const cache = sectionsCache[u.model_id] || [];
+  const byId = {};
+  cache.forEach(s => { byId[s.id] = s; });
+
   const sections = {};
   const sectionOrder = [];
   phaseItems.forEach(i => {
-    const sn = i.section_name || '(unsorted)';
-    if (!sections[sn]) { sections[sn] = []; sectionOrder.push(sn); }
-    sections[sn].push(i);
+    const sid = i.section_id;
+    const key = (sid && byId[sid]) ? sid : '__unsorted__';
+    if (!sections[key]) { sections[key] = []; sectionOrder.push(key); }
+    sections[key].push(i);
   });
   const ck = deployChecks[u.id] || [];
 
@@ -2801,8 +2852,10 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
         </div>
       </div>`;
 
-  sectionOrder.forEach((secName, secIdx) => {
-    const secItems = sections[secName];
+  sectionOrder.forEach((secSid, secIdx) => {
+    const secItems = sections[secSid];
+    const section = byId[secSid];
+    const secDisplayName = section ? sectionName(section, lang) : (lang === 'ja' ? 'その他' : '(unsorted)');
     const secKey = `${u.id}|${phase}|${secIdx}`;
     const collapsed = deployCollapsed[secKey];
     const secDone = secItems.filter(i => ck.some(c => c.item_id === i.id && c.phase === phase && c.checked)).length;
@@ -2810,7 +2863,7 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
       <div class="deploy-section ${collapsed?'collapsed':''}" data-sec-key="${esc(secKey)}">
         <div class="deploy-section-header" data-sec-toggle="${esc(secKey)}" onclick="toggleDeploySection(this.dataset.secToggle)">
           <span class="chev">▼</span>
-          <span>${esc(secName)}</span>
+          <span>${esc(secDisplayName)}</span>
           <span class="sec-stat" data-sec-stat="${esc(secKey)}">${secDone}/${secItems.length}</span>
         </div>
         <div class="deploy-section-body">`;
@@ -2893,14 +2946,20 @@ async function toggleDeployCheck(unitId, itemId, phase, checked, checkboxEl) {
       if (stat) {
         const phaseItems = deployUnitItems.filter(i => i.visible !== false && itemInPhase(i, phase))
                                           .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-        const sections = {}; const order = [];
+        // F.10: group by section_id, matching renderDeployPhaseBlock's
+        // ordering so the secKey idx into `order` resolves correctly.
+        const u = deployUnits.find(x => x.id === unitId);
+        const cache = sectionsCache[u?.model_id] || [];
+        const knownIds = new Set(cache.map(s => s.id));
+        const sectionMap = {}; const order = [];
         phaseItems.forEach(i => {
-          const sn = i.section_name || '(unsorted)';
-          if (!sections[sn]) { sections[sn] = []; order.push(sn); }
-          sections[sn].push(i);
+          const sid = i.section_id;
+          const key = (sid && knownIds.has(sid)) ? sid : '__unsorted__';
+          if (!sectionMap[key]) { sectionMap[key] = []; order.push(key); }
+          sectionMap[key].push(i);
         });
         const idxStr = sk.split('|')[2];
-        const secItems = sections[order[parseInt(idxStr)]] || [];
+        const secItems = sectionMap[order[parseInt(idxStr)]] || [];
         const secDone = secItems.filter(i => arr.some(c => c.item_id === i.id && c.phase === phase && c.checked)).length;
         stat.textContent = `${secDone}/${secItems.length}`;
       }
@@ -3428,6 +3487,13 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     }
   }
 
+  // F.10: ensure sectionsCache is hot. wsGroupBySection (worksheet PDFs)
+  // and genGroups (legacy Work Order / Filled Status templates) both
+  // read from it. Print can fire from Models-list cards or Deploy unit-
+  // detail, neither of which calls openModel(), so the cache may be cold
+  // here. Idempotent: no fetch when already populated.
+  if (!sectionsCache[modelId]) await loadSections(modelId);
+
   // unitName is pre-printed when invoked from Deploy (a unit is selected);
   // when invoked from Models tab unitId is null and the operator writes it by hand.
   let unitName = null;
@@ -3476,7 +3542,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
   const filtered = (phaseFilter ? items.filter(i => itemInPhase(i, phaseFilter)) : [...items])
     .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
   if (filtered.length === 0) { toast(phaseFilter ? 'No items in this phase to print' : 'No items to print', 'err'); return; }
-  const groups = genGroups(filtered, phaseFilter);
+  const groups = genGroups(filtered, phaseFilter, lang);
 
   // One section per page: minimal header (title + date + field strip), section block, page break.
   const renderOne = (g) => `
@@ -3525,7 +3591,7 @@ async function printFilledStatus(opts) {
     ? phaseLabel(phaseFilter, true, lang)
     : (plain ? tr(lang,'all') : tr(lang,'bothPhases'));
 
-  const groups = genGroups(filtered, phaseFilter);
+  const groups = genGroups(filtered, phaseFilter, lang);
   // Totals over the rendered groups so a multi-phase item is counted once per
   // phase it appears in, matching the per-phase check state.
   const total = groups.reduce((n, g) => n + g.items.length, 0);
@@ -3700,19 +3766,12 @@ function backToModels() { modelView = null; modelItems = []; inlineAddSection = 
 function setModelPhase(p) { modelPhase = p; inlineAddSection = null; currentEditorSection = null; renderModels(); }
 
 // Folder-view navigation. openSectionFolder drills into a section's items;
-// backToFolderGrid returns to the grid, cleaning up draft sections that
-// never received any items (mirrors closeInlineAdd's cleanup logic so the
-// grid doesn't accumulate phantom cards).
+// backToFolderGrid returns to the grid. (F.10: draft cleanup removed —
+// sections persist in deployops_sections from creation; there are no
+// transient drafts to clean up. Use the edit-section modal's Delete
+// button to remove an empty section.)
 function openSectionFolder(secName) { currentEditorSection = secName; renderModels(); }
 function backToFolderGrid() {
-  const m = modelById(modelView);
-  if (m && currentEditorSection) {
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey]?.includes(currentEditorSection)) {
-      const has = modelItems.some(i => itemInPhase(i, modelPhase) && i.section_name === currentEditorSection);
-      if (!has) draftSections[dkey] = draftSections[dkey].filter(s => s !== currentEditorSection);
-    }
-  }
   inlineAddSection = null;
   currentEditorSection = null;
   renderModels();
@@ -3790,10 +3849,6 @@ async function renderModelDetail(el) {
   const showDeployTab = depN > 0;
   if (modelPhase === 'pre_deploy' && !showDeployTab) modelPhase = 'pre_install_qc';
 
-  // F.9: legacy section_name-keyed grouping (built local `sections` / `sectionOrder`
-  // / `drafts` maps) removed — the new conditional below reads directly from
-  // sectionsCache + modelItems[section_id]. F.10 follow-up: also remove the
-  // dormant draftSections variable + closeInlineAdd cleanup branch.
   const lang = getUiLang();
   const mName = pickField(m, 'name', lang);
   let html = `
@@ -3967,16 +4022,9 @@ function inlineKey(e) {
 }
 function openInlineAdd(secName) { inlineAddSection = secName; renderModels(); }
 function closeInlineAdd() {
-  const m = modelById(modelView);
-  const sec = inlineAddSection;
+  // F.10: draft cleanup removed — sections persist on create, so there's
+  // nothing transient to clean up when the inline-add row closes.
   inlineAddSection = null;
-  if (m && sec) {
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey] && draftSections[dkey].includes(sec)) {
-      const has = modelItems.some(i => itemInPhase(i, modelPhase) && i.section_name === sec);
-      if (!has) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
-    }
-  }
   renderModels();
 }
 
@@ -4007,9 +4055,7 @@ async function saveInlineItem() {
     phase: modelPhase,            // transition: single col = phases[0]
     phases: [modelPhase],         // new items belong to exactly the current phase
     section_type: isKit ? 'screw' : 'check',  // legacy column kept consistent for old code paths
-    section_id: sectionRow.id,                       // F.9 canonical FK
-    section_name: sectionRow.name,                   // legacy fallback for worksheet pipeline
-    section_name_ja: sectionRow.name_ja || null,     // legacy JA fallback for worksheet pipeline
+    section_id: sectionRow.id,                  // F.10: section_id is the sole section reference
     sort_order: maxSort + 1,
     label
   };
@@ -4026,9 +4072,6 @@ async function saveInlineItem() {
     const { data, error } = await sb.from('deployops_checklist_items').insert(row).select().single();
     if (error) throw error;
     modelItems.push(data);
-    // Drop draft (now real)
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
     recountOpenModel();  // refresh list-view stats so back-nav shows accurate counts
     toast('Item added', 'ok');
     renderModels();
@@ -4135,28 +4178,18 @@ async function saveEditSection(sectionId) {
   const newNameJa = document.getElementById('sectionEditNameJa').value.trim() || null;
   const newIcon = _pendingIcon || null;
   try {
-    // 1. Update the section row.
+    // F.10: section row is the sole source of truth for section name /
+    // name_ja / icon. No item cascade needed — wsGroupBySection,
+    // genGroups, and renderDeployPhaseBlock all read from sectionsCache.
     const { error: secErr } = await sb.from('deployops_sections')
       .update({ name: newName, name_ja: newNameJa, icon: newIcon })
       .eq('id', sectionId);
     if (secErr) throw secErr;
-    // 2. Cascade fallback columns on items so the worksheet pipeline
-    // (still reading section_name / section_name_ja directly from items
-    // during the F.10 transition) stays in sync.
-    const { error: itemErr } = await sb.from('deployops_checklist_items')
-      .update({ section_name: newName, section_name_ja: newNameJa })
-      .eq('section_id', sectionId);
-    if (itemErr) throw itemErr;
-    // 3. Patch in-memory caches so the re-render reflects the change
-    // without a re-fetch.
+    // Patch sectionsCache so the re-render reflects the change without
+    // a re-fetch. Items don't need patching (they no longer carry the
+    // section name fields).
     const sec = (sectionsCache[m.id] || []).find(s => s.id === sectionId);
     if (sec) { sec.name = newName; sec.name_ja = newNameJa; sec.icon = newIcon; }
-    modelItems.forEach(i => {
-      if (i.section_id === sectionId) {
-        i.section_name = newName;
-        i.section_name_ja = newNameJa;
-      }
-    });
     closeModal();
     toast('Section updated', 'ok');
     renderModels();
@@ -4270,9 +4303,7 @@ async function applyBulkAdd() {
     const r = {
       model_id: m.id, phase: modelPhase, phases: [modelPhase],
       section_type: isKit ? 'screw' : 'check',
-      section_id: sectionRow.id,
-      section_name: sectionRow.name,
-      section_name_ja: sectionRow.name_ja || null,
+      section_id: sectionRow.id,  // F.10: section_id is the sole section reference
       sort_order: maxSort, label
     };
     if (isKit) {
@@ -4291,8 +4322,6 @@ async function applyBulkAdd() {
     const { data, error } = await sb.from('deployops_checklist_items').insert(rows).select();
     if (error) throw error;
     modelItems.push(...(data || []));
-    const dkey = m.id + ':' + modelPhase;
-    if (draftSections[dkey]) draftSections[dkey] = draftSections[dkey].filter(s => s !== secName);
     recountOpenModel();
     closeModal();
     toast(`Added ${rows.length} item${rows.length===1?'':'s'} to "${secName}"`, 'ok');
@@ -4402,9 +4431,7 @@ async function saveModelItemEdit(id, isKit) {
   const sectionRow = (sectionsCache[m?.id] || []).find(s => s.id === newSectionId);
   if (!sectionRow) { toast('Section not found', 'err'); return; }
   const upd = {
-    section_id: sectionRow.id,
-    section_name: sectionRow.name,
-    section_name_ja: sectionRow.name_ja || null,
+    section_id: sectionRow.id,  // F.10: section_id is the sole section reference
     label: document.getElementById('eiLabel').value.trim(),
     label_ja: document.getElementById('eiLabelJa').value.trim() || null,
     tier: document.querySelector('input[name="eiTier"]:checked')?.value || 'plain',
