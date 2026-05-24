@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>QC Checklist - Pillar Disassembly</title>
+<style>
+  @page { size: A4 portrait; margin: 18mm 16mm 16mm 18mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #d6d6d6;
+    font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+    color: #111;
+    font-size: 11pt;
+    line-height: 1.3;
+  }
+  .sheet {
+    width: 210mm; min-height: 297mm; margin: 16px auto;
+    background: #fdfcf7;
+    padding: 16mm 14mm 14mm 16mm;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    position: relative;
+  }
+  .sheet::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(0,0,0,0.018) 0 1px, transparent 2px),
+      radial-gradient(circle at 78% 22%, rgba(0,0,0,0.02) 0 1px, transparent 2px),
+      radial-gradient(circle at 33% 47%, rgba(0,0,0,0.015) 0 1px, transparent 2px),
+      radial-gradient(circle at 62% 71%, rgba(0,0,0,0.022) 0 1px, transparent 2px),
+      radial-gradient(circle at 18% 92%, rgba(0,0,0,0.014) 0 1px, transparent 2px);
+    background-size: 240px 240px; z-index: 0;
+  }
+  .sheet > * { position: relative; z-index: 1; }
+  @media print {
+    html, body { background: #fff; }
+    .sheet { margin: 0; box-shadow: none; padding: 0; width: auto; min-height: 0; background: #fff; }
+    .sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet::before { display: none; }
+  }
+
+  .hdr {
+    margin-bottom: 14pt; border-bottom: 1.5pt solid #111; padding-bottom: 8pt;
+  }
+  .hdr h1 {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 20pt; font-weight: 700; line-height: 1.15;
+    transform: rotate(-0.15deg); transform-origin: left center;
+  }
+  .hdr .meta {
+    margin-top: 8pt; font-size: 11pt;
+    display: flex; gap: 24pt; flex-wrap: wrap;
+  }
+  .hdr .meta .f { display: flex; align-items: baseline; gap: 6pt; }
+  .hdr .meta .k { font-weight: 700; }
+  .hdr .meta .ln {
+    display: inline-block; border-bottom: 0.75pt solid #111;
+    min-width: 110pt; height: 14pt;
+  }
+
+  .notes {
+    margin: 0 0 14pt;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+  .notes .nh {
+    font-weight: 700; text-decoration: underline;
+    margin-bottom: 4pt; font-size: 11pt;
+  }
+  .notes p { margin-bottom: 2pt; }
+  .notes b { font-weight: 700; }
+
+  /* 4-card emoji legend (replaces long prose notes) */
+  .legend {
+    margin: 0 0 14pt;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6pt;
+    font-size: 10pt;
+    line-height: 1.4;
+  }
+  .legend .lr {
+    padding: 7pt 9pt;
+    border: 0.75pt solid #333;
+    border-radius: 1pt;
+    display: flex;
+    flex-direction: column;
+    gap: 3pt;
+  }
+  .legend .lr.plain { background: #f1f1ec; }
+  .legend .lr.v     { background: #eaf2ff; border-color: #4a6da8; }
+  .legend .lr.r     { background: #fff2d0; border-color: #6b4a00; }
+  .legend .lr.w     { background: #ffe0db; border-color: #99201d; }
+  .legend .lr .tt {
+    font-weight: 700;
+    font-size: 11pt;
+  }
+  .legend .lr .em {
+    display: inline-block;
+    margin-right: 4pt;
+    font-size: 11pt;
+  }
+  .legend .lr .ld { color: #222; }
+
+
+  .table-head {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 13pt; font-style: italic; font-weight: 600;
+    margin: 12pt 0 5pt; color: #111;
+  }
+  .table-head.first { margin-top: 0; }
+
+  .tbl {
+    width: 100%; border-collapse: collapse;
+    margin-bottom: 8pt; font-size: 10.5pt;
+  }
+  .tbl th, .tbl td {
+    border: 0.75pt solid #333; padding: 5pt 6pt; vertical-align: top;
+  }
+  .tbl thead th {
+    background: #ececec; font-weight: 700; font-size: 10pt;
+    text-align: left; padding: 5pt 6pt 4pt; line-height: 1.2;
+  }
+  .tbl thead th.c-num,
+  .tbl thead th.c-op, .tbl thead th.c-qc { text-align: center; }
+
+  .tbl .c-num    { width: 22pt; text-align: center; font-weight: 700; }
+  .tbl .c-item   { width: 38%; }
+  .tbl .c-notes  { /* fluid */ }
+  .tbl .c-op     { width: 38pt; text-align: center; }
+  .tbl .c-qc     { width: 46pt; text-align: center; }
+
+  /* Row tinting — kept light enough to print cleanly on B&W,    */
+  /* clear enough to guide an operator across a busy bench.      */
+  .tbl tr.row-v td { background: #eaf2ff; }
+  .tbl tr.row-r td { background: #fff2d0; }
+  .tbl tr.row-w td { background: #ffe0db; }
+
+  .item .label { line-height: 1.3; font-size: 11.5pt; font-weight: 600; }
+  .item .stop-note {
+    margin-top: 2pt; font-weight: 700; font-size: 8.5pt;
+    letter-spacing: 0.02em;
+  }
+  .row-r .item .stop-note { color: #6b4a00; }
+  .row-w .item .stop-note { color: #99201d; }
+
+  .nt { font-size: 9.5pt; line-height: 1.4; color: #555; }
+  .nt .sub {
+    display: flex; align-items: baseline; gap: 6pt;
+    margin: 1pt 0;
+    font-size: 9pt;
+    color: #555;
+  }
+  .nt .sub::before { content: '- '; color: #444; }
+  .nt .scb {
+    display: inline-block; width: 11pt; height: 11pt;
+    border: 0.75pt solid #333; background: #fff;
+    vertical-align: -1.5pt; flex-shrink: 0;
+  }
+
+  .cb {
+    display: inline-block; width: 18pt; height: 18pt;
+    border: 1pt solid #111; background: #fff; vertical-align: middle;
+  }
+  .row-2 .cb { width: 18.5pt; height: 17.5pt; }
+  .row-3 .cb { width: 17.5pt; height: 18pt; }
+  .row-5 .cb { width: 19pt; height: 18.5pt; }
+  .row-7 .cb { width: 18pt; height: 19pt; }
+
+  .gate {
+    display: flex; flex-direction: column; align-items: center; gap: 1pt;
+  }
+  .gate .cb { width: 22pt; height: 22pt; border-width: 1.5pt; }
+  .gate .lbl { font-size: 8pt; font-weight: 700; line-height: 1; margin-top: 1pt; }
+  .row-r .gate .cb { border-color: #6b4a00; }
+  .row-r .gate .lbl { color: #6b4a00; }
+  .row-w .gate .cb { border-color: #99201d; border-width: 1.75pt; }
+  .row-w .gate .lbl { color: #99201d; }
+
+  .locked {
+    background: #d8d8d4 !important;
+    text-align: center;
+    vertical-align: middle !important;
+    font-family: 'Times New Roman', Times, serif;
+    font-style: italic; font-size: 10pt; color: #555;
+  }
+
+  .footer {
+    margin-top: 14pt; padding-top: 10pt; border-top: 1.25pt solid #111;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24pt; font-size: 10.5pt;
+  }
+  .footer .ff .k { font-weight: 700; margin-bottom: 14pt; }
+  .footer .ff .ln {
+    border-bottom: 0.75pt solid #111; height: 1pt; margin-bottom: 2pt;
+  }
+  .footer .ff .sub { font-size: 9pt; color: #444; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+  <div class="hdr">
+    <h1>QC Checklist - Pillar Disassembly</h1>
+    <div class="meta">
+      <div class="f"><span class="k">Unit:</span><span class="ln"></span></div>
+      <div class="f"><span class="k">Operator:</span><span class="ln"></span></div>
+      <div class="f"><span class="k">Date:</span><span class="ln"></span></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="lr plain">
+      <span class="tt"><span class="em">✅</span>Plain</span>
+      <span class="ld">Tick when done.</span>
+    </div>
+    <div class="lr v">
+      <span class="tt"><span class="em">🔍</span>Verify</span>
+      <span class="ld">Tick the main box AND the small sub-step box. Both required.</span>
+    </div>
+    <div class="lr r">
+      <span class="tt"><span class="em">⚠</span>Review</span>
+      <span class="ld">Stop. Operator does not tick anything. Supervisor ticks SUP and initials QC.</span>
+    </div>
+    <div class="lr w">
+      <span class="tt"><span class="em">⛔</span>Witness</span>
+      <span class="ld">Stop. Safety-critical. Operator does not tick anything. Witness ticks WIT before the action and initials QC after. Do not proceed alone.</span>
+    </div>
+  </div>
+
+  <!-- ─── Pre-install QC ─── -->
+  <div class="table-head first">Pre-install QC</div>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th class="c-num">#</th>
+        <th class="c-item">Item</th>
+        <th class="c-notes">Notes / Description</th>
+        <th class="c-op">OP</th>
+        <th class="c-qc">QC</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="row-1 plain">
+        <td class="c-num">1</td>
+        <td class="c-item item"><div class="label">Visual inspection of pillar.</div></td>
+        <td class="c-notes nt">Check for cracks, dents and corrosion on visible welds. No tools needed.</td>
+        <td class="c-op"><span class="cb"></span></td>
+        <td class="c-qc"><span class="cb"></span></td>
+      </tr>
+
+      <tr class="row-2 row-v">
+        <td class="c-num">2</td>
+        <td class="c-item item"><div class="label">Apply primer to base plate.</div></td>
+        <td class="c-notes nt">
+          <div class="sub"><span class="scb"></span>Primer mark applied to bolt heads after priming.</div>
+        </td>
+        <td class="c-op"><span class="cb"></span></td>
+        <td class="c-qc"><span class="cb"></span></td>
+      </tr>
+
+      <tr class="row-3 row-v">
+        <td class="c-num">3</td>
+        <td class="c-item item"><div class="label">Tighten 16 base bolts to 80 Nm.</div></td>
+        <td class="c-notes nt">
+          <div class="sub"><span class="scb"></span>Torque mark applied on each bolt head after tightening.</div>
+        </td>
+        <td class="c-op"><span class="cb"></span></td>
+        <td class="c-qc"><span class="cb"></span></td>
+      </tr>
+
+      <tr class="row-4 row-r">
+        <td class="c-num">4</td>
+        <td class="c-item item">
+          <div class="label">Verify GraboC coupling orientation.</div>
+          <div class="stop-note">STOP. Supervisor review required before proceeding.</div>
+        </td>
+        <td class="c-notes nt">Check the arrow on the coupling housing points toward the front of the pillar.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">SUP</span></span>
+        </td>
+      </tr>
+
+      <tr class="row-5 row-w">
+        <td class="c-num">5</td>
+        <td class="c-item item">
+          <div class="label">Secure pillar in forklift cradle.</div>
+          <div class="stop-note">STOP. Witness required. Do not proceed alone.</div>
+        </td>
+        <td class="c-notes nt">Cradle straps must be locked on both sides before any bolts come off.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">WIT</span></span>
+        </td>
+      </tr>
+
+      <tr class="row-6 row-w">
+        <td class="c-num">6</td>
+        <td class="c-item item">
+          <div class="label">Forklift operator in position.</div>
+          <div class="stop-note">STOP. Witness required. Do not proceed alone.</div>
+        </td>
+        <td class="c-notes nt">Forklift operator at the controls with hands on the wheel before the next step.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">WIT</span></span>
+        </td>
+      </tr>
+
+      <tr class="row-7 row-w">
+        <td class="c-num">7</td>
+        <td class="c-item item">
+          <div class="label">Remove 16 pillar mounting bolts.</div>
+          <div class="stop-note">STOP. Witness required. Do not proceed alone.</div>
+        </td>
+        <td class="c-notes nt">Remove diagonally opposite bolts in pairs. Last two only after the cradle is taking load.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">WIT</span></span>
+        </td>
+      </tr>
+
+      <tr class="row-8 row-w">
+        <td class="c-num">8</td>
+        <td class="c-item item">
+          <div class="label">Lower pillar into transit cradle.</div>
+          <div class="stop-note">STOP. Witness required. Do not proceed alone.</div>
+        </td>
+        <td class="c-notes nt">Lower slowly. Pillar must rest fully on the transit cradle before straps are released.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">WIT</span></span>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <!-- ─── Pre-test QC ─── -->
+  <div class="table-head">Pre-test QC</div>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th class="c-num">#</th>
+        <th class="c-item">Item</th>
+        <th class="c-notes">Notes / Description</th>
+        <th class="c-op">OP</th>
+        <th class="c-qc">QC</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="row-1 plain">
+        <td class="c-num">1</td>
+        <td class="c-item item"><div class="label">Power-on self test.</div></td>
+        <td class="c-notes nt">Confirm all status LEDs go green within 30 seconds of power on.</td>
+        <td class="c-op"><span class="cb"></span></td>
+        <td class="c-qc"><span class="cb"></span></td>
+      </tr>
+
+      <tr class="row-2 row-v">
+        <td class="c-num">2</td>
+        <td class="c-item item"><div class="label">Calibrate base joint encoder.</div></td>
+        <td class="c-notes nt">
+          <div class="sub"><span class="scb"></span>Calibration log saved to USB and unit serial recorded on log.</div>
+        </td>
+        <td class="c-op"><span class="cb"></span></td>
+        <td class="c-qc"><span class="cb"></span></td>
+      </tr>
+
+      <tr class="row-3 row-v">
+        <td class="c-num">3</td>
+        <td class="c-item item"><div class="label">Run end-effector home routine.</div></td>
+        <td class="c-notes nt">
+          <div class="sub"><span class="scb"></span>Home position within 0.2 mm of nominal on all axes.</div>
+        </td>
+        <td class="c-op"><span class="cb"></span></td>
+        <td class="c-qc"><span class="cb"></span></td>
+      </tr>
+
+      <tr class="row-4 row-r">
+        <td class="c-num">4</td>
+        <td class="c-item item">
+          <div class="label">Verify e-stop cuts power within 200 ms.</div>
+          <div class="stop-note">STOP. Supervisor review required before proceeding.</div>
+        </td>
+        <td class="c-notes nt">Press e-stop while arm is in slow-jog. Supervisor reads timer trace before clearing.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">SUP</span></span>
+        </td>
+      </tr>
+
+      <tr class="row-5 row-w">
+        <td class="c-num">5</td>
+        <td class="c-item item">
+          <div class="label">Run full-payload lift test (200 kg).</div>
+          <div class="stop-note">STOP. Witness required. Do not proceed alone.</div>
+        </td>
+        <td class="c-notes nt">Clear test cell of personnel. Witness watches from outside the cell, monitors load cell reading.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">WIT</span></span>
+        </td>
+      </tr>
+
+      <tr class="row-6 row-w">
+        <td class="c-num">6</td>
+        <td class="c-item item">
+          <div class="label">Hold-and-release test at full reach.</div>
+          <div class="stop-note">STOP. Witness required. Do not proceed alone.</div>
+        </td>
+        <td class="c-notes nt">Hold load for 60 s at full horizontal reach. Witness confirms no drift on dial gauge.</td>
+        <td class="c-op locked">N/A</td>
+        <td class="c-qc">
+          <span class="gate"><span class="cb"></span><span class="lbl">WIT</span></span>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="ff">
+      <div class="k">Completed by (operator):</div>
+      <div class="ln"></div>
+      <div class="sub">Print name and sign.</div>
+    </div>
+    <div class="ff">
+      <div class="k">Supervisor sign-off:</div>
+      <div class="ln"></div>
+      <div class="sub">Print name and sign.</div>
+    </div>
+    <div class="ff">
+      <div class="k">Date completed:</div>
+      <div class="ln"></div>
+      <div class="sub">dd / mm / yyyy</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

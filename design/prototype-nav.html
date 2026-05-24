@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phase C — Models Nav Prototype</title>
+<style>
+  :root{
+    --bg:#07090f; --surface:#0f1219; --surface2:#161c28; --surface3:#1e2538;
+    --border:#2a3350; --text:#e2e8f0; --text2:#94a3b8;
+    --accent:#60a5fa; --green:#34d399; --orange:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:'DM Sans','Inter','Segoe UI',sans-serif;line-height:1.45}
+  .page{max-width:900px;margin:0 auto;padding:24px 20px 80px}
+  h1{font-size:20px;margin:0 0 4px;color:var(--text)}
+  .lead{color:var(--text2);font-size:13px;margin:0 0 24px;max-width:640px}
+  .lead code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--accent)}
+
+  /* Each state shown in a labeled "screen" frame */
+  .frame{margin:0 0 40px;border:1px solid var(--border);border-radius:14px;overflow:hidden;
+    background:var(--bg);box-shadow:0 6px 24px rgba(0,0,0,.35)}
+  .frame-label{padding:8px 14px;background:var(--surface3);border-bottom:1px solid var(--border);
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;
+    color:var(--text2);letter-spacing:.5px;text-transform:uppercase}
+  .frame-label b{color:var(--accent);font-weight:700}
+  .frame-body{padding:18px 18px 22px;background:var(--bg)}
+
+  /* Breadcrumbs */
+  .crumbs{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);
+    margin-bottom:12px;font-family:'JetBrains Mono',ui-monospace,monospace}
+  .crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
+  .crumbs .sep{color:var(--border)}
+
+  .model-title{display:flex;align-items:baseline;gap:10px;margin:0 0 14px}
+  .model-title h2{font-size:18px;margin:0;color:var(--text)}
+  .model-title .ref{font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-size:11px;color:var(--text2)}
+
+  /* Top tabs — primary nav within model detail */
+  .top-tabs{display:flex;gap:2px;margin:0 0 10px;background:var(--surface);
+    border-radius:10px;padding:4px;border:1px solid var(--border);max-width:440px}
+  .top-tab{flex:1;padding:10px 16px;border-radius:8px;border:none;background:transparent;
+    color:var(--text2);font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+  .top-tab:hover{color:var(--text)}
+  .top-tab.active{background:var(--accent);color:#000}
+  .top-tab .count{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;opacity:.7}
+  .top-tab.active .count{opacity:1}
+
+  /* Sub-tabs — only visible when QC active */
+  .sub-tabs{display:flex;gap:6px;margin:0 0 16px;padding-left:6px}
+  .sub-tab{padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+    background:var(--surface2);color:var(--text2);font-size:12px;font-family:inherit;
+    cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+  .sub-tab:hover{color:var(--text);border-color:var(--accent)}
+  .sub-tab.active{background:var(--surface2);color:var(--accent);font-weight:600;border-color:var(--accent)}
+  .sub-tab .count{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;opacity:.8}
+
+  /* Action bar */
+  .action-bar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+  .btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);
+    background:var(--surface2);color:var(--text);font-size:13px;font-family:inherit;
+    cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:all .15s}
+  .btn:hover{border-color:var(--accent);background:var(--surface3)}
+  .btn-primary{background:var(--accent);color:#000;font-weight:600;border-color:var(--accent)}
+  .btn-primary:hover{opacity:.92;background:var(--accent)}
+
+  /* Section card — matches existing .cl-section look */
+  .cl-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+    margin-bottom:14px;overflow:hidden}
+  .cl-section-header{position:relative;padding:11px 14px 11px 28px;
+    background:linear-gradient(180deg,var(--surface2),var(--surface3));
+    border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .cl-section-header::before{content:'';position:absolute;left:12px;top:50%;
+    transform:translateY(-50%);width:8px;height:8px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 6px var(--accent),inset 0 0 1px rgba(255,255,255,.4)}
+  .cl-section-header::after{content:'';position:absolute;left:0;right:0;bottom:-1px;
+    height:1px;background:var(--accent);opacity:.25}
+  .cl-section-header h3{flex:1;font-size:12px;font-weight:700;text-transform:uppercase;
+    letter-spacing:1.2px;color:var(--text);margin:0}
+  .cl-section-header .badge{font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-size:11px;font-weight:600;color:var(--accent);padding:3px 7px;background:#000;
+    border:1px solid var(--surface3);border-radius:3px;letter-spacing:.5px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+
+  .cl-section-body{padding:6px 10px 8px}
+  .cl-item{display:flex;align-items:center;gap:10px;padding:8px 12px 8px 14px;
+    border-radius:6px;border:1px solid transparent;background:var(--surface);
+    margin:4px 0;position:relative;transition:background .15s,border-color .15s}
+  .cl-item::before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:3px;
+    border-radius:2px;background:var(--surface3);transition:background .15s,box-shadow .15s}
+  .cl-item:hover{background:var(--surface2);border-color:var(--accent)}
+  .cl-item:hover::before{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .cl-item .order{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;
+    font-weight:600;color:var(--accent);min-width:30px;padding:3px 7px;background:#000;
+    border:1px solid var(--surface3);border-radius:3px;text-align:center;letter-spacing:.5px}
+  .cl-item .label{flex:1;font-size:13px;color:var(--text)}
+  .cl-item .desc{font-size:11px;color:var(--text2);margin-top:2px}
+  .cl-item .meta{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;
+    color:var(--text2);padding:3px 7px;background:var(--bg);border:1px solid var(--border);
+    border-radius:4px;white-space:nowrap}
+
+  .add-item-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
+    padding:9px;background:transparent;border:1px dashed var(--border);border-radius:6px;
+    color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;
+    transition:all .15s;margin:6px 0 2px}
+  .add-item-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface2)}
+
+  /* Empty state */
+  .empty{text-align:center;padding:40px 20px;color:var(--text2);
+    background:var(--surface);border:1px dashed var(--border);border-radius:8px}
+  .empty .icon{font-size:40px;margin-bottom:10px;opacity:.85}
+  .empty p{font-size:13px;margin:6px 0}
+  .empty p.hint{font-size:12px;color:var(--text2);opacity:.85}
+
+  /* Annotations — only for the review document */
+  .annot{margin:10px 0 0;padding:8px 12px;background:rgba(96,165,250,.06);
+    border-left:3px solid var(--accent);border-radius:0 6px 6px 0;
+    font-size:12px;color:var(--text2)}
+  .annot b{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Phase C — Models Tab Navigation Prototype</h1>
+  <p class="lead">Three states stacked vertically. Pure static HTML — no JS, no real data.
+    Top-level tabs <code>[QC]</code> / <code>[Pre-Deploy]</code>; sub-tabs
+    <code>[Pre-Install]</code> / <code>[Pre-Test]</code> only when QC is active.</p>
+
+  <!-- ─────────────────────────────────────────────────────────────────
+       STATE A — QC active · Pre-Install sub-tab
+       ───────────────────────────────────────────────────────────── -->
+  <section class="frame">
+    <header class="frame-label">State A — <b>QC active · Pre-Install</b> sub-tab selected</header>
+    <div class="frame-body">
+
+      <div class="crumbs">
+        <a>← Models</a><span class="sep">/</span><span>Crawler v2</span>
+      </div>
+      <div class="model-title">
+        <h2>🤖 Crawler v2</h2>
+        <span class="ref">REF · CRW-002</span>
+      </div>
+
+      <div class="top-tabs">
+        <button class="top-tab active">🔍 QC <span class="count">(12)</span></button>
+        <button class="top-tab">📦 Pre-Deploy <span class="count">(9)</span></button>
+      </div>
+
+      <div class="sub-tabs">
+        <button class="sub-tab active">🛡️ Pre-Install <span class="count">(12)</span></button>
+        <button class="sub-tab">🧪 Pre-Test <span class="count">(0)</span></button>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn">🖨️ Print Blank Work Order</button>
+        <button class="btn">📋 Bulk add</button>
+        <button class="btn btn-primary">➕ New Section</button>
+      </div>
+
+      <article class="cl-section">
+        <header class="cl-section-header">
+          <h3>Mechanical Assembly</h3>
+          <span class="badge">5 ITEMS</span>
+        </header>
+        <div class="cl-section-body">
+          <div class="cl-item">
+            <span class="order">1</span>
+            <div class="label">Verify frame bolt torque
+              <div class="desc">All 8 chassis bolts to 18 Nm</div>
+            </div>
+            <span class="meta">M8×30 · ×8 · Torque wrench</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">2</span>
+            <div class="label">Inspect weld joints
+              <div class="desc">No visible cracks or porosity</div>
+            </div>
+          </div>
+          <div class="cl-item">
+            <span class="order">3</span>
+            <div class="label">Check chassis alignment</div>
+          </div>
+          <div class="cl-item">
+            <span class="order">4</span>
+            <div class="label">Install motor mounts
+              <div class="desc">Front and rear, 4× each side</div>
+            </div>
+            <span class="meta">BRK-MTR-01 · ×8</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">5</span>
+            <div class="label">Torque-stamp all critical fasteners</div>
+          </div>
+          <button class="add-item-btn">➕ Add item to this section</button>
+        </div>
+      </article>
+
+      <article class="cl-section">
+        <header class="cl-section-header">
+          <h3>Wiring &amp; Harness</h3>
+          <span class="badge">7 ITEMS</span>
+        </header>
+        <div class="cl-section-body">
+          <div class="cl-item">
+            <span class="order">1</span>
+            <div class="label">Route main power harness</div>
+          </div>
+          <div class="cl-item">
+            <span class="order">2</span>
+            <div class="label">Verify connector polarity at junction box</div>
+          </div>
+          <div class="cl-item">
+            <span class="order">3</span>
+            <div class="label">Strain-relief all entry points</div>
+          </div>
+          <button class="add-item-btn">➕ Add item to this section</button>
+        </div>
+      </article>
+
+      <div class="annot"><b>Note:</b> Action bar's "🖨️ Print Blank Work Order" is the
+        existing button. After Phase D, its modal radio drops Pre-Deploy and exposes
+        Pre-Install / Pre-Test instead.</div>
+      <div class="annot"><b>Count logic:</b> QC top-tab <code>(12)</code> = Pre-Install
+        <code>(12)</code> + Pre-Test <code>(0)</code>. The sum is the contract — current
+        equality with Pre-Install is coincidental because Pre-Test is empty today. When
+        Pre-Test items exist, the QC count must reflect the total of both sub-tabs.</div>
+    </div>
+  </section>
+
+
+  <!-- ─────────────────────────────────────────────────────────────────
+       STATE B — QC active · Pre-Test sub-tab (empty)
+       ───────────────────────────────────────────────────────────── -->
+  <section class="frame">
+    <header class="frame-label">State B — <b>QC active · Pre-Test</b> sub-tab (no items)</header>
+    <div class="frame-body">
+
+      <div class="crumbs">
+        <a>← Models</a><span class="sep">/</span><span>Crawler v2</span>
+      </div>
+      <div class="model-title">
+        <h2>🤖 Crawler v2</h2>
+        <span class="ref">REF · CRW-002</span>
+      </div>
+
+      <div class="top-tabs">
+        <button class="top-tab active">🔍 QC <span class="count">(12)</span></button>
+        <button class="top-tab">📦 Pre-Deploy <span class="count">(9)</span></button>
+      </div>
+
+      <div class="sub-tabs">
+        <button class="sub-tab">🛡️ Pre-Install <span class="count">(12)</span></button>
+        <button class="sub-tab active">🧪 Pre-Test <span class="count">(0)</span></button>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn">🖨️ Print Blank Work Order</button>
+        <button class="btn">📋 Bulk add</button>
+        <button class="btn btn-primary">➕ New Section</button>
+      </div>
+
+      <div class="empty">
+        <div class="icon">🧪</div>
+        <p>No Pre-Test items yet.</p>
+        <p class="hint">Use <b>➕ New Section</b> or <b>📋 Bulk add</b> to start the Pre-Test checklist.</p>
+      </div>
+
+      <div class="annot"><b>Note:</b> Empty state appears INSIDE the model detail view —
+        top tabs and sub-tabs stay visible so the user can switch back to Pre-Install
+        without losing context.</div>
+    </div>
+  </section>
+
+
+  <!-- ─────────────────────────────────────────────────────────────────
+       STATE C — Pre-Deploy active (no sub-tabs)
+       ───────────────────────────────────────────────────────────── -->
+  <section class="frame">
+    <header class="frame-label">State C — <b>Pre-Deploy active</b> (no sub-tabs)</header>
+    <div class="frame-body">
+
+      <div class="crumbs">
+        <a>← Models</a><span class="sep">/</span><span>Crawler v2</span>
+      </div>
+      <div class="model-title">
+        <h2>🤖 Crawler v2</h2>
+        <span class="ref">REF · CRW-002</span>
+      </div>
+
+      <div class="top-tabs">
+        <button class="top-tab">🔍 QC <span class="count">(12)</span></button>
+        <button class="top-tab active">📦 Pre-Deploy <span class="count">(9)</span></button>
+      </div>
+
+      <!-- No sub-tabs row when Pre-Deploy is active -->
+
+      <div class="action-bar">
+        <button class="btn">🖨️ Print Pre-Deploy Worksheet</button>
+        <button class="btn">📋 Bulk add</button>
+        <button class="btn btn-primary">➕ New Section</button>
+      </div>
+
+      <article class="cl-section">
+        <header class="cl-section-header">
+          <h3>Shipping Kit</h3>
+          <span class="badge">6 ITEMS</span>
+        </header>
+        <div class="cl-section-body">
+          <div class="cl-item">
+            <span class="order">1</span>
+            <div class="label">Main unit
+              <div class="desc">Foam-wrapped, in molded tray</div>
+            </div>
+            <span class="meta">×1</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">2</span>
+            <div class="label">Power adapter
+              <div class="desc">100–240 V universal, region-specific cord</div>
+            </div>
+            <span class="meta">PWR-2401 · ×1</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">3</span>
+            <div class="label">USB-C cable
+              <div class="desc">2 m, USB-IF certified</div>
+            </div>
+            <span class="meta">CBL-USB-2M · ×2</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">4</span>
+            <div class="label">Calibration jig
+              <div class="desc">Tucked in the lid foam</div>
+            </div>
+            <span class="meta">JIG-CAL-A · ×1</span>
+          </div>
+          <button class="add-item-btn">➕ Add item to this section</button>
+        </div>
+      </article>
+
+      <article class="cl-section">
+        <header class="cl-section-header">
+          <h3>Documentation</h3>
+          <span class="badge">3 ITEMS</span>
+        </header>
+        <div class="cl-section-body">
+          <div class="cl-item">
+            <span class="order">1</span>
+            <div class="label">Quick-start guide (printed)</div>
+            <span class="meta">DOC-QSG-01 · ×1</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">2</span>
+            <div class="label">Safety sticker pack</div>
+            <span class="meta">STK-SAF-01 · ×1</span>
+          </div>
+          <div class="cl-item">
+            <span class="order">3</span>
+            <div class="label">Warranty card</div>
+          </div>
+          <button class="add-item-btn">➕ Add item to this section</button>
+        </div>
+      </article>
+
+      <div class="annot"><b>Note:</b> The <b>🖨️ Print Pre-Deploy Worksheet</b> button
+        is exclusive to this view. It reuses the print modal but with the phase locked to
+        <code>pre_deploy</code> and the phase radio hidden.</div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
