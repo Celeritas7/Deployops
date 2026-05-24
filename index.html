@@ -110,6 +110,17 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .folder-card .edit-icon-btn{position:absolute;top:10px;right:48px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);width:24px;height:24px;border-radius:5px;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:11px;padding:0;transition:color .15s,border-color .15s}
 .folder-card:hover .edit-icon-btn{display:inline-flex}
 .folder-card .edit-icon-btn:hover{color:var(--orange);border-color:var(--orange)}
+.folder-card .delete-icon-btn{position:absolute;top:10px;right:86px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);width:24px;height:24px;border-radius:5px;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:11px;padding:0;transition:color .15s,border-color .15s}
+.folder-card:hover .delete-icon-btn{display:inline-flex}
+.folder-card .delete-icon-btn:hover:not(:disabled){color:var(--red);border-color:var(--red)}
+.folder-card .delete-icon-btn:disabled{opacity:.35;cursor:not-allowed}
+.folder-card .folder-drag-handle{position:absolute;top:10px;left:10px;background:transparent;border:none;color:var(--text2);width:24px;height:24px;border-radius:5px;cursor:grab;display:none;align-items:center;justify-content:center;font-size:14px;padding:0;user-select:none;line-height:1;font-weight:700}
+.folder-card:hover .folder-drag-handle{display:inline-flex}
+.folder-card .folder-drag-handle:hover{color:var(--accent)}
+.folder-card .folder-drag-handle:active{cursor:grabbing}
+.folder-card.dragging{opacity:.5}
+.folder-card.drop-before{box-shadow:inset 2px 0 0 0 var(--accent)}
+.folder-card.drop-after{box-shadow:inset -2px 0 0 0 var(--accent)}
 .cl-section-header .section-icon-display{font-size:18px;line-height:1;margin-right:4px;vertical-align:-2px}
 .icon-picker-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:12px}
 .icon-option{aspect-ratio:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:border-color .1s,background .1s;user-select:none}
@@ -516,6 +527,26 @@ function showModal(html) {
 }
 function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
 document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// G.1: localized destructive-confirm modal. Scoped to section deletion this
+// phase; deleteModel/deleteModelItem still use browser confirm().
+function showConfirm(msgEn, msgJa, onOk) {
+  const lang = getUiLang();
+  const title = lang === 'ja' ? '確認' : 'Confirm';
+  const msg = lang === 'ja' ? msgJa : msgEn;
+  const okLabel = lang === 'ja' ? '削除' : 'Delete';
+  const cancelLabel = lang === 'ja' ? 'キャンセル' : 'Cancel';
+  showModal(`
+    <h3>${esc(title)}</h3>
+    <p style="margin:12px 0;line-height:1.5">${esc(msg)}</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">${esc(cancelLabel)}</button>
+      <button class="btn btn-danger" id="confirmOkBtn">${esc(okLabel)}</button>
+    </div>
+  `);
+  const btn = document.getElementById('confirmOkBtn');
+  if (btn) btn.onclick = async () => { closeModal(); try { await onOk(); } catch(e) { console.error(e); } };
+}
 
 // ============================================================
 // DRAWINGS
@@ -3797,9 +3828,22 @@ async function loadModelItems(modelId) {
 async function loadSections(modelId) {
   try {
     const { data, error } = await sb.from('deployops_sections')
-      .select('*').eq('model_id', modelId).order('sort_order', { ascending: true });
+      .select('*').eq('model_id', modelId).order('sort_order', { ascending: true }).order('name', { ascending: true });
     if (error) throw error;
-    sectionsCache[modelId] = data || [];
+    let sections = data || [];
+    // G.1: eager sort_order seed. Legacy rows from F.9/earlier shipped with
+    // sort_order=0 across the board, leaving DnD with no stable baseline.
+    // When every row is zero/null we assign 10, 20, 30... in current
+    // (sort_order=0, name ASC) display order. Idempotent: once any row has
+    // a non-zero value, this branch is skipped forever.
+    if (sections.length > 1 && sections.every(s => !s.sort_order)) {
+      const updates = sections.map((s, i) => ({ ...s, sort_order: (i + 1) * 10 }));
+      const { error: upErr } = await sb.from('deployops_sections')
+        .upsert(updates, { onConflict: 'id' });
+      if (upErr) console.error('Section sort_order seed failed:', upErr);
+      else sections = updates;
+    }
+    sectionsCache[modelId] = sections;
     return sectionsCache[modelId];
   } catch(e) {
     console.error('Failed to load sections:', e);
@@ -3912,8 +3956,26 @@ async function renderModelDetail(el) {
         const count = countByPhase(section);
         const displayName = (lang === 'ja' && section.name_ja) ? section.name_ja : section.name;
         const icon = section.icon || '📁';
+        // G.1: model-wide item count for delete-guard tooltip. Card badge
+        // stays phase-scoped; the guard is model-wide because deleting a
+        // section removes it from all three phases.
+        const modelWideCount = modelItems.filter(i =>
+          i.section_id === section.id && i.visible !== false
+        ).length;
+        const blocked = modelWideCount > 0;
+        const blockedTip = lang === 'ja'
+          ? `先にアイテムを移動してください (全フェーズ計${modelWideCount}件)`
+          : `Move items first (${modelWideCount} item${modelWideCount===1?'':'s'} across all phases)`;
+        const deleteTip = blocked ? blockedTip : (lang === 'ja' ? 'セクションを削除' : 'Delete section');
+        const dragTip = lang === 'ja' ? 'ドラッグして並べ替え' : 'Drag to reorder';
         html += `
-          <div class="folder-card" data-sec="${esc(section.id)}" onclick="openSectionFolder(this.dataset.sec)">
+          <div class="folder-card" draggable="false" data-sec="${esc(section.id)}" onclick="openSectionFolder(this.dataset.sec)"
+               ondragover="onSectionDragOver(event)" ondragleave="onSectionDragLeave(event)" ondrop="onSectionDrop(event)">
+            <span class="folder-drag-handle admin-only" draggable="true"
+                  ondragstart="onSectionDragStart(event, '${esc(section.id)}')" ondragend="onSectionDragEnd(event)"
+                  title="${esc(dragTip)}">⠿</span>
+            <button class="delete-icon-btn admin-only" data-sec="${esc(section.id)}" ${blocked?'disabled':''}
+                    onclick="event.stopPropagation();deleteSection(this.dataset.sec)" title="${esc(deleteTip)}">🗑</button>
             <span class="folder-count">${count}</span>
             <button class="edit-icon-btn admin-only" data-sec="${esc(section.id)}" onclick="event.stopPropagation();showEditSection(this.dataset.sec)" title="Edit section">✏</button>
             <div class="folder-icon">${esc(icon)}</div>
@@ -4122,7 +4184,6 @@ function showEditSection(sectionId) {
   const section = (sectionsCache[m.id] || []).find(s => s.id === sectionId);
   if (!section) return;
   _pendingIcon = section.icon || '📁';
-  const itemCount = modelItems.filter(i => i.section_id === sectionId).length;
   showModal(`
     <h3>Edit section</h3>
     <label>Section name (EN)</label>
@@ -4136,7 +4197,7 @@ function showEditSection(sectionId) {
       <div class="custom-preview" id="customPreview">${esc(_pendingIcon)}</div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-danger" onclick="deleteSection('${section.id}', ${itemCount})">🗑️ Delete</button>
+      <button class="btn btn-danger" onclick="deleteSection('${section.id}')">🗑️ Delete</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEditSection('${section.id}')">Save</button>
     </div>
@@ -4199,33 +4260,126 @@ async function saveEditSection(sectionId) {
   }
 }
 
-async function deleteSection(sectionId, itemCount) {
+// G.1: guarded delete — refuses while the section contains items in any
+// phase. Reassignment path is the item-edit modal's section dropdown.
+// Replaces the F.9 cascade-delete behavior per the Phase G.1 design call.
+async function deleteSection(sectionId) {
   const m = modelById(modelView); if (!m) return;
   const section = (sectionsCache[m.id] || []).find(s => s.id === sectionId);
   if (!section) return;
-  const msg = itemCount > 0
-    ? `Delete section "${section.name}" and all ${itemCount} item${itemCount===1?'':'s'} inside?`
-    : `Delete empty section "${section.name}"?`;
-  if (!confirm(msg)) return;
-  try {
-    if (itemCount > 0) {
-      const { error: itemErr } = await sb.from('deployops_checklist_items')
-        .delete().eq('section_id', sectionId);
-      if (itemErr) throw itemErr;
+  const lang = getUiLang();
+  const modelWideCount = modelItems.filter(i =>
+    i.section_id === sectionId && i.visible !== false
+  ).length;
+  if (modelWideCount > 0) {
+    toast(
+      lang === 'ja'
+        ? `先にアイテムを移動してください (全フェーズ計${modelWideCount}件)`
+        : `Move items first (${modelWideCount} item${modelWideCount===1?'':'s'} across all phases)`,
+      'err'
+    );
+    return;
+  }
+  const nameForMsg = sectionName(section, lang);
+  showConfirm(
+    `Delete section "${nameForMsg}"?`,
+    `セクション「${nameForMsg}」を削除しますか？`,
+    async () => {
+      try {
+        const { error } = await sb.from('deployops_sections')
+          .delete().eq('id', sectionId);
+        if (error) throw error;
+        sectionsCache[m.id] = (sectionsCache[m.id] || []).filter(s => s.id !== sectionId);
+        if (currentEditorSection === sectionId) currentEditorSection = null;
+        recountOpenModel();
+        toast(lang === 'ja' ? 'セクションを削除しました' : 'Section deleted', 'ok');
+        renderModels();
+      } catch(e) {
+        console.error(e);
+        toast('Delete failed: ' + (e.message || e), 'err');
+      }
     }
-    const { error: secErr } = await sb.from('deployops_sections')
-      .delete().eq('id', sectionId);
-    if (secErr) throw secErr;
-    sectionsCache[m.id] = (sectionsCache[m.id] || []).filter(s => s.id !== sectionId);
-    modelItems = modelItems.filter(i => i.section_id !== sectionId);
-    if (currentEditorSection === sectionId) currentEditorSection = null;
-    closeModal();
-    recountOpenModel();
-    toast('Section deleted', 'info');
+  );
+}
+
+// ===== G.1: section drag-and-drop reordering =====
+// Desktop HTML5 DnD. Handle is the only draggable surface so card-body
+// clicks still open the folder. On drop we renormalize all sort_orders
+// in the model as multiples of 10 and persist via a single batch upsert.
+let _sectionDragSrcId = null;
+
+function onSectionDragStart(ev, sectionId) {
+  _sectionDragSrcId = sectionId;
+  const card = ev.target.closest('.folder-card');
+  if (card) card.classList.add('dragging');
+  if (ev.dataTransfer) {
+    ev.dataTransfer.effectAllowed = 'move';
+    // Firefox requires a data payload for dragstart to fire.
+    try { ev.dataTransfer.setData('text/plain', sectionId); } catch(e) {}
+  }
+}
+
+function onSectionDragOver(ev) {
+  if (!_sectionDragSrcId) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+  const card = ev.currentTarget;
+  if (card.dataset.sec === _sectionDragSrcId) return;
+  const rect = card.getBoundingClientRect();
+  const before = (ev.clientX - rect.left) < rect.width / 2;
+  card.classList.toggle('drop-before', before);
+  card.classList.toggle('drop-after', !before);
+}
+
+function onSectionDragLeave(ev) {
+  const card = ev.currentTarget;
+  // Only clear if the pointer actually left the card (not just crossed a child).
+  const r = card.getBoundingClientRect();
+  if (ev.clientX < r.left || ev.clientX >= r.right || ev.clientY < r.top || ev.clientY >= r.bottom) {
+    card.classList.remove('drop-before', 'drop-after');
+  }
+}
+
+function onSectionDragEnd(ev) {
+  const card = ev.target.closest('.folder-card');
+  if (card) card.classList.remove('dragging');
+  document.querySelectorAll('.folder-card.drop-before, .folder-card.drop-after')
+    .forEach(c => c.classList.remove('drop-before', 'drop-after'));
+  _sectionDragSrcId = null;
+}
+
+async function onSectionDrop(ev) {
+  ev.preventDefault();
+  const card = ev.currentTarget;
+  card.classList.remove('drop-before', 'drop-after');
+  const targetId = card.dataset.sec;
+  const srcId = _sectionDragSrcId;
+  _sectionDragSrcId = null;
+  if (!srcId || !targetId || srcId === targetId) return;
+  const rect = card.getBoundingClientRect();
+  const before = (ev.clientX - rect.left) < rect.width / 2;
+  await reorderSection(srcId, targetId, before);
+}
+
+async function reorderSection(srcId, targetId, before) {
+  const m = modelById(modelView); if (!m) return;
+  const cache = (sectionsCache[m.id] || []).slice();
+  const srcIdx = cache.findIndex(s => s.id === srcId);
+  if (srcIdx < 0) return;
+  const [moved] = cache.splice(srcIdx, 1);
+  const tgtIdx = cache.findIndex(s => s.id === targetId);
+  if (tgtIdx < 0) return;
+  cache.splice(before ? tgtIdx : tgtIdx + 1, 0, moved);
+  const updates = cache.map((s, i) => ({ ...s, sort_order: (i + 1) * 10 }));
+  try {
+    const { error } = await sb.from('deployops_sections')
+      .upsert(updates, { onConflict: 'id' });
+    if (error) throw error;
+    sectionsCache[m.id] = updates;
     renderModels();
   } catch(e) {
     console.error(e);
-    toast('Delete failed: ' + (e.message || e), 'err');
+    toast('Reorder failed: ' + (e.message || e), 'err');
   }
 }
 
