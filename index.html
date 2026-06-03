@@ -134,6 +134,19 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .phase-pills{display:flex;gap:4px;flex-shrink:0;align-items:center}
 .phase-pill{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;padding:2px 6px;border-radius:10px;border:1px solid var(--surface3);color:var(--text2);background:transparent;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
 .phase-pill.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* G.2 BRUSH MODE */
+.brush-rail{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+.brush-rail .brush-rail-icon{font-size:15px;line-height:1}
+.brush-chip{padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:all .15s}
+.brush-chip:hover{border-color:var(--accent);color:var(--text)}
+.brush-chip.on{background:var(--accent);color:#000;border-color:var(--accent)}
+.brush-banner{display:flex;align-items:center;gap:8px;margin:8px 0 12px;padding:8px 12px;border-radius:6px;background:rgba(96,165,250,.12);border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:600}
+.cl-item.brush{cursor:pointer}
+.cl-item.brush:hover{border-color:var(--accent);background:var(--surface2)}
+.cl-item.brush.tagged{border-color:var(--accent);background:rgba(96,165,250,.08)}
+.cl-item.brush:not(.tagged){opacity:.6}
+.cl-item .brush-tick{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;min-width:16px;text-align:center;color:var(--text2);flex-shrink:0}
+.cl-item.brush.tagged .brush-tick{color:var(--green)}
 .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace}
 .badge-blue{background:rgba(96,165,250,.12);color:var(--accent)}
 .badge-red{background:rgba(248,113,113,.12);color:var(--red)}
@@ -407,6 +420,7 @@ let modelUnitCount = {};            // model_id → count (for list view stats)
 let modelItemCount = {};            // model_id → { pre_install_qc, pre_test_qc, pre_deploy } (for list view stats)
 let inlineAddSection = null;        // section currently expanded for inline add
 let currentEditorSection = null;    // null = folder grid; UUID = open section id in editor (F.9: was section_name string in F.8)
+let brushPhase = null;              // G.2: active brush-tag phase (one of ALL_PHASES) or null = brush off. In-memory only; never persisted, cleared on any folder/phase nav.
 let sectionsCache = {};             // F.9: modelId → [{id, name, name_ja, icon, sort_order}, ...] loaded from deployops_sections
 let _pendingIcon = null;            // edit-section modal pending icon value (cleared on modal open/close)
 
@@ -1425,6 +1439,9 @@ const PRINT_I18N = {
     preInstallShort: 'Pre-Install', preTestShort: 'Pre-Test',
     deployChecklist: 'Deploy Checklist',
     complete: 'complete', all: 'All', bothPhases: 'Both Phases',
+    // G.2 brush-mode chrome ({phase} substituted with phaseLabel()).
+    brushTag: 'Tag', brushBanner: 'Tagging: {phase} — tap a row to toggle · Esc to exit',
+    brushLastPhase: 'An item must keep at least one phase',
     // QC worksheet (per-section PDF / printer mode). Distinct from the
     // legacy print labels above so the worksheet template can be tuned
     // independently. Legend descriptions and STOP lines contain raw <b>
@@ -1464,6 +1481,9 @@ const PRINT_I18N = {
     preInstallShort: '組立前', preTestShort: '試験前',
     deployChecklist: '出荷チェックリスト',
     complete: '完了', all: 'すべて', bothPhases: '両工程',
+    // G.2 ブラシモード用文言（{phase} は phaseLabel() で置換）。
+    brushTag: 'タグ', brushBanner: 'タグ付け中：{phase}（行をタップで切替・Escで終了）',
+    brushLastPhase: 'アイテムには最低1つのフェーズが必要です',
     // QC worksheet (per-section PDF / printer mode). See en block above.
     // Operator role is 作業者 throughout (field, legend, footer) — never
     // 担当者. 号機 (not ユニット) for Unit. preTestQC reuses the existing
@@ -3794,18 +3814,70 @@ async function openModel(id) {
   renderModels();
 }
 function backToModels() { modelView = null; modelItems = []; inlineAddSection = null; currentEditorSection = null; renderModels(); }
-function setModelPhase(p) { modelPhase = p; inlineAddSection = null; currentEditorSection = null; renderModels(); }
+function setModelPhase(p) { modelPhase = p; inlineAddSection = null; currentEditorSection = null; brushPhase = null; renderModels(); }
 
 // Folder-view navigation. openSectionFolder drills into a section's items;
 // backToFolderGrid returns to the grid. (F.10: draft cleanup removed —
 // sections persist in deployops_sections from creation; there are no
 // transient drafts to clean up. Use the edit-section modal's Delete
 // button to remove an empty section.)
-function openSectionFolder(secName) { currentEditorSection = secName; renderModels(); }
+function openSectionFolder(secName) { currentEditorSection = secName; brushPhase = null; renderModels(); }
 function backToFolderGrid() {
   inlineAddSection = null;
   currentEditorSection = null;
+  brushPhase = null;
   renderModels();
+}
+
+// G.2: brush-mode phase tagging. setBrushPhase toggles the active paint
+// phase (independent of modelPhase — does NOT touch currentEditorSection,
+// so it stays inside the open folder). setItemPhases is the shared write
+// helper (also the contract owner for keeping phase = phases[0] in sync,
+// :416-418). brushToggleItem flips the brush phase on a single item.
+function setBrushPhase(p) {
+  brushPhase = (brushPhase === p) ? null : p;
+  renderModels();
+}
+
+async function setItemPhases(itemId, nextPhases) {
+  const { error } = await sb.from('deployops_checklist_items')
+    .update({ phases: nextPhases, phase: nextPhases[0] }).eq('id', itemId);
+  if (error) throw error;
+  const it = modelItems.find(i => i.id === itemId);
+  if (it) { it.phases = nextPhases; it.phase = nextPhases[0]; }
+  return it;
+}
+
+async function brushToggleItem(itemId) {
+  if (!isAdmin || !brushPhase) return;
+  const it = modelItems.find(i => i.id === itemId);
+  if (!it) return;
+  const cur = itemPhases(it);
+  const has = cur.includes(brushPhase);
+  let next;
+  if (has) {
+    next = cur.filter(p => p !== brushPhase);
+    // Invariant: an item must keep ≥1 phase (brush-only guard; the edit
+    // modal keeps its own validation untouched).
+    if (next.length === 0) { toast(tr(getUiLang(), 'brushLastPhase'), 'err'); return; }
+  } else {
+    // Re-derive in canonical ALL_PHASES order so phases[0] stays deterministic.
+    next = ALL_PHASES.filter(p => cur.includes(p) || p === brushPhase);
+  }
+  const prevPhases = cur.slice();
+  const prevPhase = it.phase;
+  // Optimistic update + re-render, revert on failure.
+  it.phases = next; it.phase = next[0];
+  renderModels();
+  try {
+    await setItemPhases(itemId, next);
+    recountOpenModel();
+  } catch(e) {
+    console.error(e);
+    it.phases = prevPhases; it.phase = prevPhase;
+    renderModels();
+    toast('Save failed: ' + (e.message || e), 'err');
+  }
 }
 
 async function loadModelItems(modelId) {
@@ -3995,32 +4067,61 @@ async function renderModelDetail(el) {
     const secName = section.name;
     const displayName = (lang === 'ja' && section.name_ja) ? section.name_ja : section.name;
     const secIcon = section.icon || '📁';
+    // G.2: brush mode suspends the modelPhase filter so items lacking the
+    // brush phase are reachable (and never vanish on toggle). Normal mode
+    // keeps the phase-scoped view exactly as before.
     const secItems = modelItems.filter(i =>
-      i.visible !== false && itemInPhase(i, modelPhase) && i.section_id === section.id
+      i.visible !== false && i.section_id === section.id &&
+      (brushPhase ? true : itemInPhase(i, modelPhase))
     ).sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+    // G.2: admin-only brush chip rail — pick a phase to paint. Independent
+    // of the nav phase tabs; clicking the active chip turns the brush off.
+    const brushRail = `
+      <div class="brush-rail admin-only">
+        <span class="brush-rail-icon">🖌️</span>
+        ${ALL_PHASES.map(p =>
+          `<button class="brush-chip ${p===brushPhase?'on':''}" onclick="setBrushPhase('${p}')">${PHASE_META[p].icon} ${esc(phaseLabel(p, true, lang))}</button>`
+        ).join('')}
+      </div>`;
+    const brushBanner = brushPhase
+      ? `<div class="brush-banner">🖌️ ${esc(tr(lang,'brushBanner').replace('{phase}', phaseLabel(brushPhase, true, lang)))}</div>`
+      : '';
     html += `
       <button class="back-btn" onclick="backToFolderGrid()">← Back to sections</button>
+      ${brushRail}
       <div class="cl-section">
         <div class="cl-section-header">
           <h3><span class="section-icon-display">${esc(secIcon)}</span> ${esc(displayName)}</h3>
           <span class="badge badge-blue">${secItems.length}</span>
         </div>
-        <div class="cl-section-body">`;
+        <div class="cl-section-body">
+          ${brushBanner}`;
 
     if (secItems.length === 0) {
       html += `<div class="empty-section-hint">Empty section — add the first item below ↓</div>`;
     }
 
+    const inBrush = !!brushPhase;
     secItems.forEach((it, idx) => {
       const ph = itemPhases(it);
       const multi = ph.length > 1;
+      // In brush mode the brush phase is the highlighted (.on) badge; in
+      // normal mode it's the active nav phase. Labels via phaseLabel() so
+      // chips/badges localize (decision 4 — no short JA exists).
+      const activePhase = brushPhase || modelPhase;
       const pills = ALL_PHASES.filter(p => ph.includes(p)).map(p =>
-        `<span class="phase-pill ${p===modelPhase?'on':''}" title="${esc(PHASE_META[p].label)}">${esc(PHASE_META[p].short)}</span>`
+        `<span class="phase-pill ${p===activePhase?'on':''}" title="${esc(phaseLabel(p, true, lang))}">${esc(phaseLabel(p, true, lang))}</span>`
       ).join('');
       const tierBadge = (it.tier && it.tier !== 'plain')
         ? `<span class="badge badge-blue" title="${esc((WS_TIERS[it.tier]||{}).cls||it.tier)}">${esc((WS_TIERS[it.tier]||{}).letter||'')}</span>`
         : '';
-      html += `<div class="cl-item ${multi?'multi':''}">
+      const tagged = inBrush && ph.includes(brushPhase);
+      // Row body is tappable only in brush mode and only for admins. Action
+      // buttons below stopPropagation so edit/move/delete never toggle.
+      const tap = (inBrush && isAdmin) ? ` onclick="brushToggleItem('${it.id}')"` : '';
+      const tick = inBrush ? `<span class="brush-tick">${tagged?'✓':'○'}</span>` : '';
+      html += `<div class="cl-item ${multi?'multi':''}${inBrush?' brush':''}${tagged?' tagged':''}"${tap}>
+        ${tick}
         <span class="order">${idx+1}</span>
         <div style="flex:1;min-width:0">
           <div class="label">${esc(it.label)}</div>
@@ -4033,10 +4134,10 @@ async function renderModelDetail(el) {
           ${it.tool        ? `<span class="badge badge-green">${esc(it.tool)}</span>` : ''}
         </div>
         <div class="row-actions admin-only">
-          <button class="btn btn-sm" onclick="moveModelItem('${it.id}',-1)" title="Up">▲</button>
-          <button class="btn btn-sm" onclick="moveModelItem('${it.id}',1)"  title="Down">▼</button>
-          <button class="btn btn-sm" onclick="editModelItem('${it.id}')"    title="Edit">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteModelItem('${it.id}')" title="Delete">✕</button>
+          <button class="btn btn-sm" onclick="event.stopPropagation();moveModelItem('${it.id}',-1)" title="Up">▲</button>
+          <button class="btn btn-sm" onclick="event.stopPropagation();moveModelItem('${it.id}',1)"  title="Down">▼</button>
+          <button class="btn btn-sm" onclick="event.stopPropagation();editModelItem('${it.id}')"    title="Edit">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteModelItem('${it.id}')" title="Delete">✕</button>
         </div>
       </div>`;
     });
@@ -4527,7 +4628,7 @@ function editModelItem(id) {
     `<label class="${tier===v?'on':''}" data-tier="${v}"><input type="radio" name="eiTier" value="${v}" ${tier===v?'checked':''} onchange="eiPickTier('${v}')">${lbl}</label>`
   ).join('');
   const phaseCks = ALL_PHASES.map(p =>
-    `<label class="ck"><input type="checkbox" id="eiPh_${p}" ${phases.includes(p)?'checked':''} onchange="eiValidatePhases()"> ${PHASE_META[p].icon} ${PHASE_META[p].label}</label>`
+    `<label class="ck"><input type="checkbox" id="eiPh_${p}" ${phases.includes(p)?'checked':''} onchange="eiValidatePhases()"> ${PHASE_META[p].icon} ${esc(phaseLabel(p, true, lang))}</label>`
   ).join('');
   // F.9: section field is now a dropdown of existing sections (id-keyed),
   // sourced from sectionsCache. Free-text typo creating a phantom section
@@ -4752,6 +4853,7 @@ async function init() {
   setUiLangButton();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
+    else if (e.key === 'Escape' && brushPhase) { brushPhase = null; renderModels(); }  // G.2: Esc exits brush mode
   });
   document.body.dataset.tab = 'models';
   await Promise.all([loadDrawings(), loadModels()]);
