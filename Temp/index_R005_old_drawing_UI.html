@@ -59,8 +59,8 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .drawing-container svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 .drawing-container svg.interactive{pointer-events:all;touch-action:none}
 .balloon-g{cursor:pointer;pointer-events:all}
-.balloon-g:hover circle.b-main,.balloon-g:hover rect.b-main,.balloon-g:hover polygon.b-main{stroke-width:3}
-.balloon-g.selected circle.b-main,.balloon-g.selected rect.b-main,.balloon-g.selected polygon.b-main{stroke:var(--cyan);stroke-width:4;filter:drop-shadow(0 0 6px rgba(34,211,238,.5))}
+.balloon-g:hover circle.b-main,.balloon-g:hover rect.b-main{stroke-width:3}
+.balloon-g.selected circle.b-main,.balloon-g.selected rect.b-main{stroke:var(--cyan);stroke-width:4;filter:drop-shadow(0 0 6px rgba(34,211,238,.5))}
 .tip-handle{cursor:move;pointer-events:all}
 .tip-handle:hover circle{stroke-width:3}
 .tip-handle.selected circle{stroke:var(--cyan);stroke-width:3}
@@ -402,29 +402,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
-let currentMode = 'dismantling'; // active layer / tool
+let currentMode = 'balloon'; // 'dismantling' | 'cable' | 'balloon' — for new balloons + filter
 let currentArrowStyle = 'solid'; // 'solid' | 'dashed' | 'thick' | 'dot' | 'none'
 let isFullscreen = false;
 const MODES = {
-  dismantling: { label:'BOM',  icon:'①', color:'#60a5fa', desc:'BOM item — identifies the part (round)', kind:'balloon', shape:'circle' },
-  step:        { label:'Step', icon:'▢', color:'#2dd4bf', desc:'Assembly step — build order (square)', kind:'balloon', shape:'square' },
-  ref:         { label:'Ref',  icon:'△', color:'#fbbf24', desc:'Reference only — do not assemble at this stage (triangle)', kind:'balloon', shape:'triangle' },
-  note:        { label:'Note', icon:'◇', color:'#a78bfa', desc:'Note callout with label', kind:'tag', shape:'note' },
-  cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag', hidden:true },
-  balloon:     { label:'Balloon',     icon:'①', color:'#888',    desc:'Generic numbered balloon', kind:'balloon', shape:'circle', hidden:true }
+  dismantling: { label:'Dismantling', icon:'●', color:'#e74c3c', desc:'Disassembly sequence — follow numbers in order', kind:'balloon' },
+  cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag' },
+  balloon:     { label:'Balloon',     icon:'①', color:'#888',    desc:'Generic numbered balloon', kind:'balloon' }
 };
-// colour-by-number palettes (marker #1 → colour 1, #2 → colour 2, …)
-const BOM_PALETTE  = ['#60a5fa','#34d399','#fbbf24','#f472b6','#a78bfa','#22d3ee','#fb923c','#f87171'];
-const STEP_PALETTE = ['#2dd4bf','#f472b6','#fbbf24','#60a5fa','#a78bfa','#34d399','#fb923c','#22d3ee'];
-const NOTE_PALETTE = ['#34d399','#fbbf24','#fb923c','#60a5fa','#a78bfa','#f472b6','#22d3ee','#f87171'];
-function markerColor(mode, num){
-  const n = ((num||1)-1);
-  if (mode === 'dismantling') return BOM_PALETTE[n % BOM_PALETTE.length];
-  if (mode === 'step') return STEP_PALETTE[n % STEP_PALETTE.length];
-  if (mode === 'note') return NOTE_PALETTE[n % NOTE_PALETTE.length];
-  if (mode === 'ref') return '#fbbf24';
-  return (MODES[mode] && MODES[mode].color) || '#888';
-}
 const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
 // Models tab state (Phase 3)
 let models = [];                    // [{id,name,ref,description,icon,visible,...}]
@@ -707,7 +692,7 @@ function renderDrawing() {
   }
 
   const pageUrl = getPageURL(currentPage);
-  const modeKeys = Object.keys(MODES).filter(k => !MODES[k].hidden);
+  const modeKeys = Object.keys(MODES);
   el.innerHTML = `
     <div class="drawing-area ${isFullscreen?'fullscreen-mode':''}">
       <div class="drawing-toolbar">
@@ -857,7 +842,7 @@ async function handleDrawingClick(e) {
       drawing_id: currentDrawing.id, page: currentPage,
       number: nextNum,
       x_pct, y_pct, tip_x_pct: tip_x, tip_y_pct: tip_y,
-      label: '', color: markerColor(currentMode, nextNum), mode: currentMode,
+      label: '', color: MODES[currentMode].color, mode: currentMode,
       arrow_style: currentArrowStyle
     });
     if (error) { toast('Save failed: '+error.message,'err'); return; }
@@ -1008,10 +993,6 @@ function rectEdgePoint(cx, cy, w, h, tx, ty) {
   return [cx + dx * t, cy + dy * t];
 }
 
-function labelTag(x, y, label){
-  return `<text x="${x}" y="${y}" text-anchor="middle" fill="white" font-size="7" font-family="DM Sans,sans-serif" opacity="0.9" stroke="rgba(0,0,0,0.5)" stroke-width="2" paint-order="stroke">${label}</text>`;
-}
-
 function renderBalloonsSVG() {
   const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
@@ -1043,17 +1024,15 @@ function renderBalloonsSVG() {
     const cy = b.y_pct / 100 * vbH;
     const sel = b.id === selectedBalloonId ? ' selected' : '';
     const color = b.color || '#e74c3c';
-    const bmode = b.mode || 'balloon';
-    const isCable = bmode === 'cable';
-    const shape = (MODES[bmode] && MODES[bmode].shape) || (isCable ? 'note' : 'circle');
-    const isTag = isCable || shape === 'note';
+    const isCable = (b.mode||'balloon') === 'cable';
     const style = b.arrow_style || (b.tip_x_pct!=null?'solid':'none');
     const ahId = 'ah_' + color.replace('#','');
 
-    // Tag (cable / note) box dimensions (computed once, used for both leader trim and body)
+    // Cable-tag rectangle dimensions (computed once, used for both leader trim and body)
     let tagW = 0, tagH = 0;
-    if (isTag) {
-      const text = b.label || (shape === 'note' ? 'Note' : '?');
+    if (isCable) {
+      const text = b.label || '?';
+      // Approx: 6.2px/char at font-size 10 + horizontal padding + indicator square + gap
       tagW = Math.max(34, text.length * 6.2 + 26);
       tagH = 18;
     }
@@ -1064,7 +1043,7 @@ function renderBalloonsSVG() {
       const ty = b.tip_y_pct / 100 * vbH;
       // Compute line endpoint at edge of balloon shape (so arrow doesn't enter the body)
       let sx, sy;
-      if (isTag) {
+      if (isCable) {
         [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
       } else {
         const dx = tx - cx, dy = ty - cy;
@@ -1095,38 +1074,28 @@ function renderBalloonsSVG() {
 
     // Balloon body
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
-    if (isTag) {
-      // Box tag — white background, coloured border, chip on left (cable + note)
-      const text = b.label || (shape === 'note' ? 'Note' : '?');
+    if (isCable) {
+      // Rectangular tag — white background, colored border, green indicator on left
+      const text = b.label || '?';
       const x0 = cx - tagW/2, y0 = cy - tagH/2;
       const indPad = 3;
       const indSize = tagH - indPad*2;
       const indX = x0 + indPad;
       const indY = y0 + indPad;
       const textX = indX + indSize + 4;
-      const chip = shape === 'note' ? color : '#27ae60';
       html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="white" stroke="${color}" stroke-width="1.5"/>
-        <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="${chip}"/>
+        <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="#27ae60"/>
         <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111" font-size="10" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
-    } else if (shape === 'square') {
-      const s = r * 1.8, x0 = cx - s/2, y0 = cy - s/2;
-      html += `<rect x="${x0-3}" y="${y0-3}" width="${s+6}" height="${s+6}" rx="5" fill="white" opacity="0.9" class="b-halo"/>
-        <rect class="b-main" x="${x0}" y="${y0}" width="${s}" height="${s}" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
-        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
-      if (b.label) html += labelTag(cx, cy + r + 10, b.label);
-    } else if (shape === 'triangle') {
-      const h = r * 2.1, w = r * 2.3;
-      const p1 = `${cx},${cy - h*0.6}`, p2 = `${cx + w/2},${cy + h*0.4}`, p3 = `${cx - w/2},${cy + h*0.4}`;
-      html += `<polygon points="${cx},${cy-h*0.6-3} ${cx+w/2+3},${cy+h*0.4+3} ${cx-w/2-3},${cy+h*0.4+3}" fill="white" opacity="0.9" class="b-halo"/>
-        <polygon class="b-main" points="${p1} ${p2} ${p3}" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="${cx}" y="${cy + h*0.08}" text-anchor="middle" dominant-baseline="central" fill="#111" font-size="${r*0.95}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
-      if (b.label) html += labelTag(cx, cy + h*0.4 + 12, b.label);
     } else {
       html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
         <circle class="b-main" cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="1.5"/>
         <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white"
               font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
-      if (b.label) html += labelTag(cx, cy + r + 10, b.label);
+      if (b.label) {
+        html += `<text x="${cx}" y="${cy + r + 10}" text-anchor="middle" fill="white"
+                font-size="7" font-family="DM Sans,sans-serif" opacity="0.9"
+                stroke="rgba(0,0,0,0.5)" stroke-width="2" paint-order="stroke">${b.label}</text>`;
+      }
     }
     html += `</g>`;
   });
