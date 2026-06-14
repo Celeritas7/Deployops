@@ -121,6 +121,9 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .folder-card.dragging{opacity:.5}
 .folder-card.drop-before{box-shadow:inset 2px 0 0 0 var(--accent)}
 .folder-card.drop-after{box-shadow:inset -2px 0 0 0 var(--accent)}
+.folder-card.upload-card{border-style:dashed;align-items:center;justify-content:center;text-align:center;color:var(--accent)}
+.folder-card.upload-card .folder-icon{font-size:36px;color:var(--accent)}
+.folder-card.upload-card .folder-name{color:var(--accent)}
 .cl-section-header .section-icon-display{font-size:18px;line-height:1;margin-right:4px;vertical-align:-2px}
 .icon-picker-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:12px}
 .icon-option{aspect-ratio:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:border-color .1s,background .1s;user-select:none}
@@ -402,6 +405,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
 let drawingFolder = null; // folder-view state: null = folder grid; string = browsing that folder's drawings
+let pendingUploadFolder = null; // default folder injected into the next upload modal (null = no default, e.g. topbar)
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
 let currentMode = 'dismantling'; // active layer / tool
 let currentArrowStyle = 'solid'; // 'solid' | 'dashed' | 'thick' | 'dot' | 'none'
@@ -610,10 +614,16 @@ function drawingFolderName(d) {
   return (d.folder && d.folder.trim()) ? d.folder.trim() : DRAWING_UNCATEGORIZED;
 }
 
-// Distinct, real folder names (excludes Uncategorized) — used to populate
-// the folder datalists in the upload / edit dialogs.
-function existingDrawingFolders() {
-  return [...new Set(drawings.map(d => d.folder && d.folder.trim()).filter(Boolean))]
+// Folder autocomplete suggestions for the upload / edit dialogs: the union of
+// existing drawing-folder names and model names (English canonical — folders
+// align to models by a one-tap pick). Suggestion-only — the input stays free
+// text, so brand-new folder names still work. Trimmed, deduped, blanks and the
+// "Uncategorized" sentinel excluded, sorted.
+function folderSuggestions() {
+  const fromDrawings = drawings.map(d => d.folder && d.folder.trim()).filter(Boolean);
+  const fromModels = models.map(m => m.name && m.name.trim()).filter(Boolean);
+  return [...new Set([...fromDrawings, ...fromModels])]
+    .filter(n => n && n !== DRAWING_UNCATEGORIZED)
     .sort((a, b) => a.localeCompare(b));
 }
 
@@ -638,19 +648,25 @@ function renderDrawingFolderView(el) {
     let html = `<div class="cl-section-header" style="margin-bottom:16px">
         <h2 style="font-size:18px;flex:1">📐 Drawings</h2>
       </div>`;
+    html += `<div class="folder-grid">`;
+    folderNames.forEach(f => {
+      html += `
+        <div class="folder-card" data-folder="${esc(f)}" onclick="openDrawingFolder(this.dataset.folder)">
+          <span class="folder-count">${groups[f].length}</span>
+          <div class="folder-icon">📁</div>
+          <div class="folder-name">${esc(f)}</div>
+        </div>`;
+    });
+    // Admin-only contextual upload entry point — reuses the topbar upload flow
+    // (no default folder). Hidden for non-admins via .admin-only (RLS also gates).
+    html += `
+        <div class="folder-card upload-card admin-only" onclick="triggerPDFFilePicker()" title="${esc(tr(lang, 'dwUploadPdf'))}">
+          <div class="folder-icon">＋</div>
+          <div class="folder-name">${esc(tr(lang, 'dwUploadPdf'))}</div>
+        </div>`;
+    html += `</div>`;
     if (folderNames.length === 0) {
-      html += `<div class="empty"><div class="icon">📐</div><p>No drawings yet.<br>Use <b>📤 Upload PDF</b> above to add one.</p></div>`;
-    } else {
-      html += `<div class="folder-grid">`;
-      folderNames.forEach(f => {
-        html += `
-          <div class="folder-card" data-folder="${esc(f)}" onclick="openDrawingFolder(this.dataset.folder)">
-            <span class="folder-count">${groups[f].length}</span>
-            <div class="folder-icon">📁</div>
-            <div class="folder-name">${esc(f)}</div>
-          </div>`;
-      });
-      html += `</div>`;
+      html += `<p style="color:var(--text2);font-size:13px;margin-top:14px">No drawings yet. Use <b>📤 Upload PDF</b> to add one.</p>`;
     }
     el.innerHTML = html;
     return;
@@ -661,6 +677,7 @@ function renderDrawingFolderView(el) {
   let html = `<button class="back-btn" onclick="backToDrawingFolders()">← Folders</button>
     <div class="cl-section-header" style="margin-bottom:16px">
       <h2 style="font-size:18px;flex:1">📁 ${esc(drawingFolder)}</h2>
+      <button class="btn btn-primary btn-sm admin-only" onclick="uploadToCurrentFolder()" title="${esc(tr(lang, 'dwUploadToFolder'))}">＋ ${esc(tr(lang, 'dwUploadToFolder'))}</button>
       <span class="badge badge-blue">${list.length}</span>
     </div>`;
   if (list.length === 0) {
@@ -693,7 +710,7 @@ function backFromDrawing() { currentDrawing = null; renderDrawing(); }
 function showEditDrawing(id) {
   const d = drawings.find(x => x.id === id);
   if (!d) return;
-  const folders = existingDrawingFolders();
+  const folders = folderSuggestions();
   showModal(`
     <h3>✏️ Edit Drawing</h3>
     <p style="color:var(--muted);font-size:12px;margin:0 0 10px">Ref: ${esc(d.drawing_ref)}</p>
@@ -729,11 +746,19 @@ async function saveEditDrawing(id) {
   }
 }
 
-function triggerPDFFilePicker() {
+function triggerPDFFilePicker(defaultFolder = null) {
+  // Carry an optional default folder through the native file-picker dialog to
+  // handlePDFUpload. The "Uncategorized" sentinel is not a real folder, so it
+  // never becomes a default.
+  pendingUploadFolder = (defaultFolder && defaultFolder !== DRAWING_UNCATEGORIZED) ? defaultFolder : null;
   const input = document.getElementById('pdfInput');
   input.value = '';
   input.click();
 }
+
+// "Upload to this folder" — opens the upload modal pre-filled to the folder
+// currently being browsed (still editable in the modal).
+function uploadToCurrentFolder() { triggerPDFFilePicker(drawingFolder); }
 
 function handlePDFUpload(event) {
   const file = event.target.files[0];
@@ -754,7 +779,7 @@ function handlePDFUpload(event) {
     <input id="upName">
     <label>Folder (optional — leave blank for Uncategorized)</label>
     <input id="upFolder" list="upFolderOptions" placeholder="Uncategorized">
-    <datalist id="upFolderOptions">${existingDrawingFolders().map(f => `<option value="${esc(f)}">`).join('')}</datalist>
+    <datalist id="upFolderOptions">${folderSuggestions().map(f => `<option value="${esc(f)}">`).join('')}</datalist>
     <div class="modal-actions">
       <button class="btn" onclick="cancelPDFUpload()">Cancel</button>
       <button class="btn btn-primary" onclick="confirmPDFUpload()">Confirm Upload</button>
@@ -763,7 +788,9 @@ function handlePDFUpload(event) {
   document.getElementById('upFilename').textContent = file.name;
   document.getElementById('upRef').value = ref;
   document.getElementById('upName').value = name;
-  if (drawingFolder && drawingFolder !== DRAWING_UNCATEGORIZED) document.getElementById('upFolder').value = drawingFolder;
+  // Pre-fill from the explicit per-invocation default (set by triggerPDFFilePicker).
+  // Topbar upload passes none, so it never defaults a folder.
+  if (pendingUploadFolder) document.getElementById('upFolder').value = pendingUploadFolder;
 }
 
 function cancelPDFUpload() {
@@ -1633,7 +1660,10 @@ const PRINT_I18N = {
     ws_footer_supervisor: 'Supervisor sign-off',
     ws_footer_date_completed: 'Date completed',
     ws_footer_print_sign: 'Print name & sign',
-    ws_footer_date_placeholder: 'YYYY · MM · DD'
+    ws_footer_date_placeholder: 'YYYY · MM · DD',
+    // Drawings folder view — contextual upload affordances.
+    dwUploadPdf: 'Upload PDF',
+    dwUploadToFolder: 'Upload to this folder'
   },
   ja: {
     qcPrefix: '品質チェックリスト :',
@@ -1675,7 +1705,10 @@ const PRINT_I18N = {
     ws_footer_supervisor: '監督者承認',
     ws_footer_date_completed: '完了日',
     ws_footer_print_sign: '氏名記入・署名',
-    ws_footer_date_placeholder: 'YYYY · MM · DD'
+    ws_footer_date_placeholder: 'YYYY · MM · DD',
+    // 図面フォルダ表示 — アップロード導線。
+    dwUploadPdf: 'PDFアップロード',
+    dwUploadToFolder: 'このフォルダにアップロード'
   }
 };
 function tr(lang, key) { return (PRINT_I18N[lang] || PRINT_I18N.en)[key] ?? PRINT_I18N.en[key] ?? ''; }
