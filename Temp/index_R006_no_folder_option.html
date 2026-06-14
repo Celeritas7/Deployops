@@ -401,7 +401,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 // ============================================================
 let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
-let drawingFolder = null; // folder-view state: null = folder grid; string = browsing that folder's drawings
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
 let currentMode = 'dismantling'; // active layer / tool
 let currentArrowStyle = 'solid'; // 'solid' | 'dashed' | 'thick' | 'dot' | 'none'
@@ -585,8 +584,8 @@ async function loadDrawings() {
   const { data } = await sb.from('deployops_drawings').select('*').order('created_at', { ascending: false });
   drawings = data || [];
   renderDrawingsSelect();
-  // Folder grid is the landing view for the Drawings tab — don't auto-open a
-  // drawing here. The topbar #drawingSelect still works as a quick-jump.
+  const sel = document.getElementById('drawingSelect');
+  if (drawings.length === 1) { sel.value = drawings[0].id; selectDrawing(drawings[0].id); }
 }
 
 async function selectDrawing(id) {
@@ -598,135 +597,6 @@ async function selectDrawing(id) {
     balloons = [];
   }
   renderDrawing();
-}
-
-// ============================================================
-// DRAWING FOLDER VIEW
-// ============================================================
-const DRAWING_UNCATEGORIZED = 'Uncategorized';
-
-// Display label for a drawing's folder (NULL/blank → "Uncategorized").
-function drawingFolderName(d) {
-  return (d.folder && d.folder.trim()) ? d.folder.trim() : DRAWING_UNCATEGORIZED;
-}
-
-// Distinct, real folder names (excludes Uncategorized) — used to populate
-// the folder datalists in the upload / edit dialogs.
-function existingDrawingFolders() {
-  return [...new Set(drawings.map(d => d.folder && d.folder.trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
-}
-
-// Renders either the folder grid (drawingFolder === null) or the list of
-// drawings inside one folder. Mirrors the checklist-section folder grid so
-// it looks native and works on mobile.
-function renderDrawingFolderView(el) {
-  const lang = getUiLang();
-  const groups = {};
-  drawings.forEach(d => {
-    const f = drawingFolderName(d);
-    (groups[f] = groups[f] || []).push(d);
-  });
-  // Real folders first (alpha), Uncategorized last.
-  const folderNames = Object.keys(groups).sort((a, b) => {
-    if (a === DRAWING_UNCATEGORIZED) return 1;
-    if (b === DRAWING_UNCATEGORIZED) return -1;
-    return a.localeCompare(b);
-  });
-
-  if (drawingFolder === null) {
-    let html = `<div class="cl-section-header" style="margin-bottom:16px">
-        <h2 style="font-size:18px;flex:1">📐 Drawings</h2>
-      </div>`;
-    if (folderNames.length === 0) {
-      html += `<div class="empty"><div class="icon">📐</div><p>No drawings yet.<br>Use <b>📤 Upload PDF</b> above to add one.</p></div>`;
-    } else {
-      html += `<div class="folder-grid">`;
-      folderNames.forEach(f => {
-        html += `
-          <div class="folder-card" data-folder="${esc(f)}" onclick="openDrawingFolder(this.dataset.folder)">
-            <span class="folder-count">${groups[f].length}</span>
-            <div class="folder-icon">📁</div>
-            <div class="folder-name">${esc(f)}</div>
-          </div>`;
-      });
-      html += `</div>`;
-    }
-    el.innerHTML = html;
-    return;
-  }
-
-  // Inside a folder: list its drawings as cards.
-  const list = groups[drawingFolder] || [];
-  let html = `<button class="back-btn" onclick="backToDrawingFolders()">← Folders</button>
-    <div class="cl-section-header" style="margin-bottom:16px">
-      <h2 style="font-size:18px;flex:1">📁 ${esc(drawingFolder)}</h2>
-      <span class="badge badge-blue">${list.length}</span>
-    </div>`;
-  if (list.length === 0) {
-    html += `<div class="empty"><div class="icon">📐</div><p>This folder is empty.</p></div>`;
-  } else {
-    html += `<div class="folder-grid">`;
-    list.forEach(d => {
-      const pc = d.page_count || 0;
-      html += `
-        <div class="folder-card" data-id="${esc(d.id)}" onclick="selectDrawing(this.dataset.id)">
-          <span class="folder-count">${pc}p</span>
-          <button class="edit-icon-btn admin-only" data-id="${esc(d.id)}" onclick="event.stopPropagation();showEditDrawing(this.dataset.id)" title="Edit drawing">✏</button>
-          <div class="folder-icon">📄</div>
-          <div class="folder-name">${esc(d.drawing_ref)}</div>
-          <div style="font-size:11px;color:var(--text2);text-transform:none;letter-spacing:0;font-weight:400">${esc(pickField(d, 'name', lang))}</div>
-        </div>`;
-    });
-    html += `</div>`;
-  }
-  el.innerHTML = html;
-}
-
-function openDrawingFolder(name) { drawingFolder = name; renderDrawing(); }
-function backToDrawingFolders() { drawingFolder = null; currentDrawing = null; renderDrawing(); }
-// Viewer "← Folders" button: close the drawing and return to the folder it was
-// opened from (or the top-level grid if opened via the quick-jump select).
-function backFromDrawing() { currentDrawing = null; renderDrawing(); }
-
-// Admin-only rename + move-to-folder. RLS gates the actual write.
-function showEditDrawing(id) {
-  const d = drawings.find(x => x.id === id);
-  if (!d) return;
-  const folders = existingDrawingFolders();
-  showModal(`
-    <h3>✏️ Edit Drawing</h3>
-    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">Ref: ${esc(d.drawing_ref)}</p>
-    <label>Drawing Name</label>
-    <input id="edDrawingName" value="${esc(d.name || '')}">
-    <label>Folder (leave blank for Uncategorized)</label>
-    <input id="edDrawingFolder" list="edDrawingFolderOptions" value="${esc(d.folder || '')}" placeholder="${DRAWING_UNCATEGORIZED}">
-    <datalist id="edDrawingFolderOptions">${folders.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditDrawing(this.dataset.id)" data-id="${esc(d.id)}">Save</button>
-    </div>
-  `);
-}
-
-async function saveEditDrawing(id) {
-  const name = document.getElementById('edDrawingName').value.trim();
-  const folderRaw = document.getElementById('edDrawingFolder').value.trim();
-  if (!name) { toast('Drawing name is required', 'err'); return; }
-  const folder = folderRaw || null;
-  try {
-    const { error } = await sb.from('deployops_drawings').update({ name, folder }).eq('id', id);
-    if (error) throw error;
-    closeModal();
-    toast('Drawing updated', 'ok');
-    await loadDrawings();
-    // Keep the open viewer / current folder in sync with the edit.
-    if (currentDrawing && currentDrawing.id === id) currentDrawing = drawings.find(d => d.id === id) || null;
-    renderDrawing();
-  } catch (e) {
-    console.error(e);
-    toast('Update failed: ' + (e.message || e.statusText || JSON.stringify(e)), 'err');
-  }
 }
 
 function triggerPDFFilePicker() {
@@ -752,9 +622,6 @@ function handlePDFUpload(event) {
     <input id="upRef">
     <label>Drawing Name</label>
     <input id="upName">
-    <label>Folder (optional — leave blank for Uncategorized)</label>
-    <input id="upFolder" list="upFolderOptions" placeholder="Uncategorized">
-    <datalist id="upFolderOptions">${existingDrawingFolders().map(f => `<option value="${esc(f)}">`).join('')}</datalist>
     <div class="modal-actions">
       <button class="btn" onclick="cancelPDFUpload()">Cancel</button>
       <button class="btn btn-primary" onclick="confirmPDFUpload()">Confirm Upload</button>
@@ -763,7 +630,6 @@ function handlePDFUpload(event) {
   document.getElementById('upFilename').textContent = file.name;
   document.getElementById('upRef').value = ref;
   document.getElementById('upName').value = name;
-  if (drawingFolder && drawingFolder !== DRAWING_UNCATEGORIZED) document.getElementById('upFolder').value = drawingFolder;
 }
 
 function cancelPDFUpload() {
@@ -774,7 +640,6 @@ function cancelPDFUpload() {
 async function confirmPDFUpload() {
   const ref = document.getElementById('upRef').value.trim();
   const name = document.getElementById('upName').value.trim();
-  const folder = document.getElementById('upFolder').value.trim() || null;
   if (!ref || !name) { toast('Fill in both fields','err'); return; }
   const file = window._pendingPDF;
   if (!file) { toast('No file selected','err'); return; }
@@ -790,7 +655,7 @@ async function confirmPDFUpload() {
 
     // Create drawing record
     const { data: drawingRow, error: dbErr } = await sb.from('deployops_drawings').insert({
-      drawing_ref: ref, name, page_count: pageCount, folder,
+      drawing_ref: ref, name, page_count: pageCount,
       uploaded_by: currentUser?.email || 'unknown'
     }).select().single();
     if (dbErr) throw dbErr;
@@ -812,7 +677,7 @@ async function confirmPDFUpload() {
     toast(`Drawing "${ref}" uploaded (${pageCount} pages)`,'ok');
     await loadDrawings();
     document.getElementById('drawingSelect').value = drawingRow.id;
-    selectDrawing(drawingRow.id); // open the freshly uploaded drawing in the viewer
+    selectDrawing(drawingRow.id);
   } catch(e) {
     console.error(e);
     toast('Upload failed: ' + (e.message || e.statusText || JSON.stringify(e)),'err');
@@ -837,7 +702,7 @@ const drawingCacheBust = {};
 function renderDrawing() {
   const el = document.getElementById('drawingContent');
   if (!currentDrawing) {
-    renderDrawingFolderView(el);
+    el.innerHTML = `<div class="empty"><div class="icon">📐</div><p>Select or upload a drawing to begin</p></div>`;
     return;
   }
 
@@ -846,7 +711,6 @@ function renderDrawing() {
   el.innerHTML = `
     <div class="drawing-area ${isFullscreen?'fullscreen-mode':''}">
       <div class="drawing-toolbar">
-        <button class="btn btn-sm no-print" onclick="backFromDrawing()" title="Back to drawing folders">← Folders</button>
         <div class="page-nav">
           <button class="btn btn-sm" onclick="changePage(-1)" ${currentPage<=1?'disabled':''}>◀</button>
           <span>Page ${currentPage} / ${currentDrawing.page_count}</span>
@@ -5025,8 +4889,11 @@ async function init() {
   document.body.dataset.tab = 'models';
   await Promise.all([loadDrawings(), loadModels()]);
   window._modelsLoaded = true;
-  // Drawings tab opens on its folder grid (currentDrawing stays null); no
-  // auto-select. Deploy is model-based and no longer depends on currentDrawing.
+  // Auto-select first drawing so Deploy/Drawings tabs work when user switches
+  if (drawings.length > 0) {
+    document.getElementById('drawingSelect').value = drawings[0].id;
+    await selectDrawing(drawings[0].id);
+  }
   renderModels();
 }
 
