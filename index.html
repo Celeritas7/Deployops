@@ -55,9 +55,15 @@ body[data-tab="deploy"] #uploadPdfBtn{display:none!important}
 body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .drawing-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .drawing-container{position:relative;overflow:auto;max-height:calc(100vh - 220px)}
+/* Zoom/pan wrapper — img + svg transform together so balloons stay anchored. */
+.dwg-zoom-wrap{position:relative;width:100%;transform-origin:0 0;will-change:transform}
+.drawing-container.pan-ready{cursor:grab}
+.drawing-container.panning{cursor:grabbing}
 .drawing-container img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
 .drawing-container svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 .drawing-container svg.interactive{pointer-events:all;touch-action:none}
+.dwg-zoom-ctrls{display:flex;align-items:center;gap:4px}
+.dwg-zoom-ctrls .zoom-level{font-size:11px;color:var(--text2);min-width:38px;text-align:center;font-family:'JetBrains Mono',monospace}
 .balloon-g{cursor:pointer;pointer-events:all}
 .balloon-g:hover circle.b-main,.balloon-g:hover rect.b-main,.balloon-g:hover polygon.b-main{stroke-width:3}
 .balloon-g.selected circle.b-main,.balloon-g.selected rect.b-main,.balloon-g.selected polygon.b-main{stroke:var(--cyan);stroke-width:4;filter:drop-shadow(0 0 6px rgba(34,211,238,.5))}
@@ -354,6 +360,11 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
     width:auto;height:auto;
     max-width:100%;max-height:100%;
     /* aspect-ratio is set inline via JS once the image loads (see print handler) */
+  }
+  /* Neutralise any on-screen zoom/pan so print always renders the full drawing. */
+  #drawingTab.active .dwg-zoom-wrap{
+    transform:none!important;
+    width:100%;height:100%;
   }
   #drawingTab.active .drawing-container img{
     display:block;
@@ -982,6 +993,12 @@ function renderDrawing() {
           <div class="mode-indicator admin-only ${balloonMode==='add'?'add-mode':'select-mode'}">
             ${balloonMode==='add'?'CLICK TO PLACE':'SELECT MODE'}
           </div>
+        <div class="dwg-zoom-ctrls no-print" title="Wheel to zoom at cursor · hold Space or middle-mouse to pan">
+          <button class="btn btn-sm" onclick="zoomBy(1/1.25)" title="Zoom out">−</button>
+          <span class="zoom-level" id="zoomLevel">100%</span>
+          <button class="btn btn-sm" onclick="zoomBy(1.25)" title="Zoom in">+</button>
+          <button class="btn btn-sm" onclick="resetZoom()" title="Reset to fit">Reset</button>
+        </div>
         <button class="btn btn-sm no-print" onclick="exportAnnotatedPNG()">📷 Export PNG</button>
         <button class="btn btn-sm no-print" id="fullscreenBtn" onclick="toggleFullscreen()">${isFullscreen?'✕ Exit Fullscreen':'⛶ Fullscreen'}</button>
         <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
@@ -991,8 +1008,10 @@ function renderDrawing() {
         📌 Armed note: <b>${esc(armedNote||'')}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>
       </div>
       <div class="drawing-container" id="drawingContainer">
-        <img id="drawingImg" src="${pageUrl}" crossorigin="anonymous" onload="onDrawingLoad()">
-        <svg id="balloonSvg" class="${isAdmin?'interactive':''}"></svg>
+        <div class="dwg-zoom-wrap" id="dwgZoomWrap">
+          <img id="drawingImg" src="${pageUrl}" crossorigin="anonymous" onload="onDrawingLoad()">
+          <svg id="balloonSvg" class="${isAdmin?'interactive':''}"></svg>
+        </div>
       </div>
     </div>
     <aside class="drawing-sidebar no-print">${renderDrawingSidebar()}</aside>
@@ -1208,7 +1227,138 @@ function onDrawingLoad() {
   if (img && container && img.naturalWidth) {
     container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
   }
+  initDrawingZoom();
 }
+
+// ============================================================
+// ZOOM + PAN  (CSS transform on the wrapper holding img + svg, so balloons
+// stay anchored. getBoundingClientRect on the img already reflects the
+// transform, so click-to-place math needs no change — see handleDrawingClick.)
+// ============================================================
+let dwgZoom = 1, dwgPanX = 0, dwgPanY = 0;
+let dwgSpaceHeld = false, dwgPanning = false;
+const DWG_ZOOM_MIN = 1, DWG_ZOOM_MAX = 8;
+
+function dwgEls() {
+  return {
+    wrap: document.getElementById('dwgZoomWrap'),
+    container: document.getElementById('drawingContainer'),
+  };
+}
+
+function applyDwgTransform() {
+  const { wrap, container } = dwgEls();
+  if (!wrap || !container) return;
+  const identity = dwgZoom === 1 && dwgPanX === 0 && dwgPanY === 0;
+  // At identity, keep native scrolling (overflow:auto) so tall images still scroll
+  // exactly as before. Once zoomed/panned, switch to transform-driven view.
+  container.style.overflow = identity ? 'auto' : 'hidden';
+  wrap.style.transform = `translate(${dwgPanX}px, ${dwgPanY}px) scale(${dwgZoom})`;
+  container.classList.toggle('pan-ready', dwgSpaceHeld && !dwgPanning);
+  const lvl = document.getElementById('zoomLevel');
+  if (lvl) lvl.textContent = Math.round(dwgZoom * 100) + '%';
+}
+
+function clampDwgPan() {
+  const { wrap, container } = dwgEls();
+  if (!wrap || !container) return;
+  const contW = container.clientWidth, contH = container.clientHeight;
+  const dispW = wrap.offsetWidth * dwgZoom, dispH = wrap.offsetHeight * dwgZoom;
+  dwgPanX = dispW <= contW ? (contW - dispW) / 2 : Math.min(0, Math.max(contW - dispW, dwgPanX));
+  dwgPanY = dispH <= contH ? (contH - dispH) / 2 : Math.min(0, Math.max(contH - dispH, dwgPanY));
+}
+
+// Zoom toward a point given in viewport client coords, keeping that point fixed.
+function dwgZoomAt(clientX, clientY, factor) {
+  const { container } = dwgEls();
+  if (!container) return;
+  const newZoom = Math.min(DWG_ZOOM_MAX, Math.max(DWG_ZOOM_MIN, dwgZoom * factor));
+  if (newZoom === dwgZoom) return;
+  const rect = container.getBoundingClientRect();
+  const cx = clientX - rect.left, cy = clientY - rect.top;
+  const f = newZoom / dwgZoom;
+  dwgPanX = cx - f * (cx - dwgPanX);
+  dwgPanY = cy - f * (cy - dwgPanY);
+  dwgZoom = newZoom;
+  clampDwgPan();
+  applyDwgTransform();
+}
+
+// Toolbar +/− : zoom about the container centre.
+function zoomBy(factor) {
+  const { container } = dwgEls();
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  dwgZoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+}
+
+function resetZoom() {
+  dwgZoom = 1; dwgPanX = 0; dwgPanY = 0;
+  applyDwgTransform();
+}
+
+function initDrawingZoom() {
+  dwgZoom = 1; dwgPanX = 0; dwgPanY = 0; dwgPanning = false;
+  const { wrap, container } = dwgEls();
+  if (!container || !wrap) return;
+  applyDwgTransform();
+
+  // Wheel = zoom at cursor. At min zoom, let a downward wheel scroll the
+  // container natively (so tall images still scroll as before).
+  container.onwheel = (e) => {
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    if (factor < 1 && dwgZoom <= DWG_ZOOM_MIN) return;
+    e.preventDefault();
+    dwgZoomAt(e.clientX, e.clientY, factor);
+  };
+
+  // Pan with middle-mouse, or Space + left-drag, so a normal click still places/selects.
+  container.onpointerdown = (e) => {
+    const panBtn = e.button === 1 || (e.button === 0 && dwgSpaceHeld);
+    if (!panBtn) return;
+    e.preventDefault();
+    dwgPanning = true;
+    container.classList.add('panning');
+    let lastX = e.clientX, lastY = e.clientY;
+    const onMove = (ev) => {
+      ev.preventDefault();
+      dwgPanX += ev.clientX - lastX;
+      dwgPanY += ev.clientY - lastY;
+      lastX = ev.clientX; lastY = ev.clientY;
+      clampDwgPan();
+      applyDwgTransform();
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      container.classList.remove('panning');
+      // Defer clearing so the synthetic click after a Space-drag doesn't place a marker.
+      setTimeout(() => { dwgPanning = false; }, 0);
+      applyDwgTransform();
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+}
+
+// Space toggles pan-ready (global, bound once). Ignored while typing in a field.
+function dwgKeyHandler() {
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || dwgSpaceHeld) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (!document.getElementById('dwgZoomWrap')) return;
+    dwgSpaceHeld = true;
+    e.preventDefault(); // stop page scroll while arming pan
+    applyDwgTransform();
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.code !== 'Space') return;
+    dwgSpaceHeld = false;
+    applyDwgTransform();
+  });
+}
+dwgKeyHandler();
 
 function changePage(delta) {
   const np = currentPage + delta;
@@ -1233,13 +1383,14 @@ function toggleFullscreen() {
 }
 
 async function handleDrawingClick(e) {
-  if (isDragging) return;
+  if (isDragging || dwgPanning) return;
   const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
   if (!img || !svg) return;
 
   // Check if click was on a balloon or its tip
   if (e.target.closest('.tip-handle')) return; // tip handles its own drag
+  if (e.target.closest('.add-leader')) return; // "+" affordance handles its own click
   if (e.target.closest('.dwg-table-g')) return; // table cards drag / button themselves
   if (e.target.closest('.balloon-g')) {
     const g = e.target.closest('.balloon-g');
@@ -1254,19 +1405,13 @@ async function handleDrawingClick(e) {
 
   if (balloonMode !== 'add') { selectedBalloonId = null; renderBalloonsSVG(); return; }
 
+  // Marker lands exactly where the user clicks. No auto-margin callout and no
+  // leader by default — a leader is opt-in afterward (the "+" affordance on the
+  // selected marker seeds a tip, then it's dragged into place). getBoundingClientRect
+  // already reflects any zoom/pan transform, so this stays accurate at every zoom.
   const rect = img.getBoundingClientRect();
-  const tip_x = ((e.clientX - rect.left) / rect.width) * 100;
-  const tip_y = ((e.clientY - rect.top) / rect.height) * 100;
-
-  // Auto-place balloon in nearest margin (clear of drawing)
-  const margin = 5; // % from edge
-  const dxL = tip_x, dxR = 100 - tip_x, dyT = tip_y, dyB = 100 - tip_y;
-  const minD = Math.min(dxL, dxR, dyT, dyB);
-  let x_pct, y_pct;
-  if (minD === dxL)      { x_pct = margin;     y_pct = tip_y; }
-  else if (minD === dxR) { x_pct = 100-margin; y_pct = tip_y; }
-  else if (minD === dyT) { x_pct = tip_x;      y_pct = margin; }
-  else                   { x_pct = tip_x;      y_pct = 100-margin; }
+  const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
+  const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
 
   const isCable = MODES[currentMode].kind === 'tag';
   // Each mode gets independent numbering, scoped to the current page
@@ -1280,8 +1425,8 @@ async function handleDrawingClick(e) {
     armedNote = null;
     const { error } = await sb.from('deployops_balloons').insert({
       drawing_id: currentDrawing.id, page: currentPage, number: nextNum,
-      x_pct, y_pct, tip_x_pct: tip_x, tip_y_pct: tip_y,
-      label: text, color: markerColor('note', nextNum), mode: 'note', arrow_style: currentArrowStyle
+      x_pct, y_pct,
+      label: text, color: markerColor('note', nextNum), mode: 'note', arrow_style: 'none'
     });
     if (error) { toast('Save failed: '+error.message,'err'); armedNote = text; return; }
     toast('Note placed','ok');
@@ -1296,9 +1441,9 @@ async function handleDrawingClick(e) {
     const { error } = await sb.from('deployops_balloons').insert({
       drawing_id: currentDrawing.id, page: currentPage,
       number: nextNum,
-      x_pct, y_pct, tip_x_pct: tip_x, tip_y_pct: tip_y,
+      x_pct, y_pct,
       label: '', color: markerColor(currentMode, nextNum), mode: currentMode,
-      arrow_style: currentArrowStyle
+      arrow_style: 'none'
     });
     if (error) { toast('Save failed: '+error.message,'err'); return; }
     toast(`${MODES[currentMode].label} placed`,'ok');
@@ -1325,18 +1470,14 @@ async function handleDrawingClick(e) {
       <option value="#22d3ee">🔷 Cyan</option>
       <option value="#111">⚫ Black</option>
     </select>
-    <label>Arrow Style</label>
-    <div class="arrow-style-row" id="arrowStyleRow">
-      ${ARROW_STYLES.map(s => `<button type="button" class="arrow-style-btn ${s===currentArrowStyle?'active':''}" data-style="${s}" onclick="document.querySelectorAll('#arrowStyleRow .arrow-style-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');">${s}</button>`).join('')}
-    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveBalloon(${x_pct},${y_pct},${tip_x},${tip_y})">Place</button>
+      <button class="btn btn-primary" onclick="saveBalloon(${x_pct},${y_pct})">Place</button>
     </div>
   `);
 }
 
-async function saveBalloon(x, y, tip_x, tip_y) {
+async function saveBalloon(x, y) {
   const isCable = MODES[currentMode].kind === 'tag';
   let num;
   if (isCable) {
@@ -1348,18 +1489,15 @@ async function saveBalloon(x, y, tip_x, tip_y) {
   }
   const label = document.getElementById('bLabel').value.trim();
   const color = document.getElementById('bColor').value;
-  const arrowStyleEl = document.querySelector('#arrowStyleRow .arrow-style-btn.active');
-  const arrow_style = arrowStyleEl ? arrowStyleEl.dataset.style : 'solid';
-  currentArrowStyle = arrow_style;
   if (!isCable && isNaN(num)) { toast('Enter a number','err'); return; }
   if (isCable && !label) { toast('Enter tag text','err'); return; }
   closeModal();
 
+  // No leader by default — added on demand afterward via the "+" affordance.
   const { error } = await sb.from('deployops_balloons').insert({
     drawing_id: currentDrawing.id, page: currentPage,
     number: num, x_pct: x, y_pct: y,
-    tip_x_pct: tip_x, tip_y_pct: tip_y,
-    label, color, mode: currentMode, arrow_style
+    label, color, mode: currentMode, arrow_style: 'none'
   });
   if (error) { toast('Save failed: '+error.message,'err'); return; }
   toast(`${MODES[currentMode].label} placed`,'ok');
@@ -1389,10 +1527,13 @@ function showBalloonActions(bid) {
       <option value="#22d3ee" ${b.color==='#22d3ee'?'selected':''}>🔷 Cyan</option>
       <option value="#111" ${b.color==='#111'?'selected':''}>⚫ Black</option>
     </select>
-    <label>Arrow Style</label>
+    ${(b.tip_x_pct != null && b.tip_y_pct != null) ? `
+    <label>Leader Arrow <span style="text-transform:none;letter-spacing:0;color:var(--text2);font-weight:400">(pick “none” to remove)</span></label>
     <div class="arrow-style-row" id="arrowStyleRowEdit">
       ${ARROW_STYLES.map(s=>`<button type="button" class="arrow-style-btn ${s===curStyle?'active':''}" data-style="${s}" onclick="document.querySelectorAll('#arrowStyleRowEdit .arrow-style-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');">${s}</button>`).join('')}
-    </div>
+    </div>` : `
+    <label>Leader Arrow</label>
+    <button type="button" class="btn btn-sm" onclick="closeModal();addLeader('${bid}')">➕ Add leader arrow</button>`}
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="deleteBalloon('${bid}')">🗑️ Delete</button>
       ${(b.mode==='note'||b.mode==='caution') ? `<button class="btn btn-sm" onclick="saveLabelAsTemplate(document.getElementById('ebLabel').value)" title="Save this text as a reusable note template">⭐ Save as template</button>` : ''}
@@ -1414,9 +1555,12 @@ async function updateBalloon(bid, isCable) {
   const label = document.getElementById('ebLabel').value.trim();
   const color = document.getElementById('ebColor').value;
   const styleEl = document.querySelector('#arrowStyleRowEdit .arrow-style-btn.active');
-  const arrow_style = styleEl ? styleEl.dataset.style : 'solid';
+  const arrow_style = styleEl ? styleEl.dataset.style : 'none';
   closeModal();
-  await sb.from('deployops_balloons').update({ number: num, label, color, arrow_style }).eq('id', bid);
+  const patch = { number: num, label, color, arrow_style };
+  // Removing the leader (style → none) also clears the tip so no orphan coords linger.
+  if (arrow_style === 'none') { patch.tip_x_pct = null; patch.tip_y_pct = null; }
+  await sb.from('deployops_balloons').update(patch).eq('id', bid);
   toast('Updated','ok');
   await loadBalloons();
   renderBalloonsSVG();
@@ -1671,6 +1815,21 @@ function renderBalloonsSVG() {
       if (b.label) html += labelTag(cx, cy + r + 10, b.label);
     }
     html += `</g>`;
+
+    // "Add leader" affordance — only on the selected marker when it has no leader yet.
+    // Clicking it seeds a tip (rendered as the draggable handle) so a leader can be
+    // dragged out on demand. Tables are excluded.
+    if (isAdmin && b.id === selectedBalloonId && bmode !== 'table' &&
+        (b.tip_x_pct == null || b.tip_y_pct == null)) {
+      const off = (isTag ? tagW/2 : r) + 22;
+      const ax = Math.min(vbW - 12, cx + off);
+      const ay = Math.max(12, cy - off);
+      html += `<g class="add-leader" data-id="${b.id}" data-role="add-leader" style="cursor:pointer">
+        <circle cx="${ax}" cy="${ay}" r="9" fill="#2563eb" stroke="white" stroke-width="2"/>
+        <text x="${ax}" y="${ay}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="13" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">+</text>
+        <title>Add leader arrow</title>
+      </g>`;
+    }
   });
   svg.innerHTML = html;
 
@@ -1682,6 +1841,9 @@ function renderBalloonsSVG() {
     svg.querySelectorAll('.tip-handle').forEach(g => {
       g.addEventListener('pointerdown', startTipDrag);
     });
+    svg.querySelectorAll('.add-leader').forEach(g => {
+      g.addEventListener('click', (e) => { e.stopPropagation(); addLeader(g.dataset.id); });
+    });
     svg.querySelectorAll('.table-drag').forEach(g => {
       g.addEventListener('pointerdown', startTableDrag);
     });
@@ -1691,6 +1853,7 @@ function renderBalloonsSVG() {
 // Drag a placed reference table by its header bar (top-left tracks the pointer,
 // preserving the grab offset so the card doesn't jump).
 function startTableDrag(e) {
+  if (e.button !== 0 || dwgSpaceHeld) return; // let middle-mouse / Space-drag pan instead
   e.preventDefault(); e.stopPropagation();
   isDragging = false;
   const bid = e.currentTarget.dataset.id;
@@ -1722,7 +1885,23 @@ function startTableDrag(e) {
   document.addEventListener('pointerup', onUp);
 }
 
+// Seed a leader on the selected marker: drop a tip a short offset from the body and
+// give it a default style. The tip handle then renders so it can be dragged into place.
+async function addLeader(bid) {
+  const b = balloons.find(x => x.id === bid);
+  if (!b) return;
+  const tx = Math.min(100, Math.max(0, (b.x_pct || 0) + 8));
+  const ty = Math.min(100, Math.max(0, (b.y_pct || 0) - 8));
+  const { error } = await sb.from('deployops_balloons')
+    .update({ tip_x_pct: tx, tip_y_pct: ty, arrow_style: 'solid' }).eq('id', bid);
+  if (error) { toast('Could not add leader: ' + error.message, 'err'); return; }
+  await loadBalloons();
+  renderBalloonsSVG();
+  toast('Leader added — drag the handle to position it', 'ok');
+}
+
 function startTipDrag(e) {
+  if (e.button !== 0 || dwgSpaceHeld) return; // let middle-mouse / Space-drag pan instead
   e.preventDefault(); e.stopPropagation();
   isDragging = false;
   const g = e.currentTarget;
@@ -1768,6 +1947,7 @@ let isDragging = false;
 
 function startBalloonDrag(e) {
   if (balloonMode === 'add') return;
+  if (e.button !== 0 || dwgSpaceHeld) return; // let middle-mouse / Space-drag pan instead
   e.preventDefault();
   e.stopPropagation();
   isDragging = false;
