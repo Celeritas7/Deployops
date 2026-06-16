@@ -82,6 +82,46 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .mode-indicator.select-mode{background:rgba(96,165,250,.1);color:var(--accent)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
+/* DRAWING SIDEBAR (layers · marker size · note templates · torque ref) */
+.drawing-layout{display:flex;gap:14px;align-items:flex-start;margin-top:10px}
+.drawing-layout .drawing-area{flex:1;min-width:0;margin-top:0}
+.drawing-sidebar{width:264px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+.armed-hint{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;background:rgba(96,165,250,.12);border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
+.dwg-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px}
+.is-admin .dwg-card.admin-only{display:block}
+.dwg-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+.dwg-empty{color:var(--text2);font-size:12px}
+.dwg-card input{background:var(--surface);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:6px;font-size:12px;font-family:inherit;width:100%}
+/* layers */
+.layer-list{display:flex;flex-direction:column;gap:2px}
+.layer-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px}
+.layer-row.focused{background:var(--surface3)}
+.layer-row .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.eye{border:none;background:transparent;cursor:pointer;font-size:14px;padding:0;line-height:1;width:20px;text-align:center}
+.eye.off{opacity:.5;filter:grayscale(1)}
+.layer-name{border:none;background:transparent;color:var(--text);font-family:inherit;font-size:13px;cursor:pointer;padding:0;text-align:left;flex:1}
+.layer-name:hover{color:var(--accent)}
+.layer-count{color:var(--text2);font-size:11px;font-family:'JetBrains Mono',monospace}
+/* marker size */
+.marker-size-slider{width:100%;accent-color:var(--accent);cursor:pointer}
+.marker-size-val{color:var(--text2);font-size:11px;font-family:'JetBrains Mono',monospace}
+/* note templates */
+.tpl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tpl-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface3);border:1px solid var(--border);border-radius:999px;padding:3px 4px 3px 10px;font-size:11px}
+.tpl-chip.armed{border-color:var(--accent);background:rgba(96,165,250,.18)}
+.tpl-chip-text{border:none;background:transparent;color:var(--text);font-family:inherit;font-size:11px;cursor:pointer;padding:0}
+.tpl-chip-del{border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:11px;padding:0 2px;line-height:1}
+.tpl-chip-del:hover{color:var(--red)}
+.tpl-add{display:flex;gap:6px}
+.tpl-add input{flex:1}
+/* torque reference */
+.torque-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.torque-tbl th,.torque-tbl td{border:1px solid var(--border);padding:4px 6px;text-align:left}
+.torque-tbl thead th{background:var(--surface3);color:var(--text);font-weight:700;font-size:10px}
+.torque-tbl tbody tr{cursor:pointer}
+.torque-tbl tbody tr:hover{background:var(--surface3)}
+.torque-tbl td.t-num,.torque-tbl th:last-child{text-align:right;font-family:'JetBrains Mono',monospace}
+
 /* CHECKLIST BUILDER */
 .cl-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden}
 .cl-section-header{position:relative;padding:11px 14px 11px 28px;background:linear-gradient(180deg,var(--surface2),var(--surface3));border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
@@ -304,7 +344,9 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
     display:flex;align-items:center;justify-content:center;
     overflow:visible!important;
   }
+  #drawingTab.active .drawing-layout{display:block;width:100%;height:100%;margin:0}
   #drawingTab.active .drawing-toolbar{display:none!important}
+  #drawingTab.active .armed-hint{display:none!important}
   /* Container takes the natural aspect ratio of the image and scales to fit */
   #drawingTab.active .drawing-container{
     max-height:none!important;overflow:visible!important;
@@ -331,6 +373,8 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
   .topbar-right{margin-left:0;justify-content:flex-end}
   .tabbar{overflow-x:auto}
   .tab-panel{padding:12px}
+  .drawing-layout{flex-direction:column}
+  .drawing-sidebar{width:100%}
 }
 </style>
 </head>
@@ -415,6 +459,8 @@ const MODES = {
   step:        { label:'Step', icon:'▢', color:'#2dd4bf', desc:'Assembly step — build order (square)', kind:'balloon', shape:'square' },
   ref:         { label:'Ref',  icon:'△', color:'#fbbf24', desc:'Reference only — do not assemble at this stage (triangle)', kind:'balloon', shape:'triangle' },
   note:        { label:'Note', icon:'◇', color:'#a78bfa', desc:'Note callout with label', kind:'tag', shape:'note' },
+  x:           { label:'No-install', icon:'✕', color:'#f87171', desc:'DO NOT install this part (red ✕)', kind:'balloon', shape:'x' },
+  caution:     { label:'Caution', icon:'⚠', color:'#fb923c', desc:'Caution / precaution callout (amber)', kind:'tag', shape:'caution' },
   cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag', hidden:true },
   balloon:     { label:'Balloon',     icon:'①', color:'#888',    desc:'Generic numbered balloon', kind:'balloon', shape:'circle', hidden:true }
 };
@@ -428,9 +474,46 @@ function markerColor(mode, num){
   if (mode === 'step') return STEP_PALETTE[n % STEP_PALETTE.length];
   if (mode === 'note') return NOTE_PALETTE[n % NOTE_PALETTE.length];
   if (mode === 'ref') return '#fbbf24';
+  if (mode === 'x') return '#f87171';        // fixed — No-install marker
+  if (mode === 'caution') return '#fb923c';  // fixed — Caution callout
   return (MODES[mode] && MODES[mode].color) || '#888';
 }
 const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
+
+// ── Drawing annotation client state (localStorage-backed, never in DB) ──────
+// Layers that appear in the toolbar pills + layers panel (in display order).
+const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution'];
+// Focusing one layer also reveals its companion(s): Do-not-install travels with Steps.
+const COMPANION = { step:['x'], x:['step'] };
+// Per-drawing independent visibility set ({mode: bool}); default all visible.
+let layerVis = {};
+// Balloon size multiplier (display + export), persisted globally.
+let markerSize = parseFloat(localStorage.getItem('deployops_balloon_size')) || 1;
+// Armed note-template text — next drawing click drops a note prefilled with it.
+let armedNote = null;
+
+// Seed note templates (reusable torque specs / callouts).
+const DEFAULT_NOTE_TEMPLATES = ['M5 × 40 · 6 N·m','M6 × 20 · 10 N·m','Torque to spec','Apply threadlocker','Do not over-torque','⚠ Stressed joint'];
+// Ready-made torque reference (Hex bit | CBE (1.8 T) → Screw | Torque N·m).
+const TORQUE_TABLE = { title:'CBE (1.8 T)', rows:[["2 mm","M2.5","0.65"],["2.5 mm","M3","1.14"],["3 mm","M4","2.7"],["4 mm","M5","5.4"],["5 mm","M6","9.2"],["6 mm","M8","22"],["8 mm","M10","44"]] };
+
+function defaultLayerVis() { const d = {}; VISIBLE_LAYERS.forEach(m => d[m] = true); return d; }
+function loadLayerVis() {
+  const def = defaultLayerVis();
+  if (!currentDrawing) { layerVis = def; return; }
+  try {
+    const raw = localStorage.getItem('deployops_layervis_' + currentDrawing.id);
+    layerVis = raw ? Object.assign(def, JSON.parse(raw)) : def;
+  } catch { layerVis = def; }
+}
+function saveLayerVis() {
+  if (currentDrawing) localStorage.setItem('deployops_layervis_' + currentDrawing.id, JSON.stringify(layerVis));
+}
+function loadNoteTemplates() {
+  try { const raw = localStorage.getItem('deployops_note_templates'); if (raw) return JSON.parse(raw); } catch {}
+  return DEFAULT_NOTE_TEMPLATES.slice();
+}
+function saveNoteTemplates(list) { localStorage.setItem('deployops_note_templates', JSON.stringify(list)); }
 // Models tab state (Phase 3)
 let models = [];                    // [{id,name,ref,description,icon,visible,...}]
 let modelView = null;               // currently open model id (null = list view)
@@ -596,6 +679,8 @@ async function loadDrawings() {
 async function selectDrawing(id) {
   currentDrawing = drawings.find(d => d.id === id) || null;
   currentPage = 1;
+  armedNote = null;
+  loadLayerVis();
   if (currentDrawing) {
     await loadBalloons();
   } else {
@@ -868,9 +953,11 @@ function renderDrawing() {
     return;
   }
 
+  if (!Object.keys(layerVis).length) loadLayerVis();
   const pageUrl = getPageURL(currentPage);
   const modeKeys = Object.keys(MODES).filter(k => !MODES[k].hidden);
   el.innerHTML = `
+    <div class="drawing-layout">
     <div class="drawing-area ${isFullscreen?'fullscreen-mode':''}">
       <div class="drawing-toolbar">
         <button class="btn btn-sm no-print" onclick="backFromDrawing()" title="Back to drawing folders">← Folders</button>
@@ -900,25 +987,198 @@ function renderDrawing() {
         <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
         <button class="btn btn-sm btn-danger admin-only no-print" onclick="deleteCurrentPage()" ${currentDrawing.page_count<=1?'disabled':''} title="${currentDrawing.page_count<=1?'Cannot delete last page':'Delete this page'}">🗑️ Delete Page</button>
       </div>
+      <div class="armed-hint no-print" id="armedHint" style="${armedNote?'':'display:none'}">
+        📌 Armed note: <b>${esc(armedNote||'')}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>
+      </div>
       <div class="drawing-container" id="drawingContainer">
         <img id="drawingImg" src="${pageUrl}" crossorigin="anonymous" onload="onDrawingLoad()">
         <svg id="balloonSvg" class="${isAdmin?'interactive':''}"></svg>
       </div>
     </div>
+    <aside class="drawing-sidebar no-print">${renderDrawingSidebar()}</aside>
+    </div>
   `;
 }
 
-function setCurrentMode(m) {
+// ── Sidebar: layers panel + note templates + torque reference + marker size ──
+function renderDrawingSidebar() {
+  return `
+    ${renderLayersCard()}
+    ${renderMarkerSizeCard()}
+    ${renderNoteTemplatesCard()}
+    ${renderTorqueCard()}
+  `;
+}
+
+function renderLayersCard() {
+  const rows = VISIBLE_LAYERS.map(m => {
+    const cnt = balloons.filter(b => b.page === currentPage && (b.mode||'balloon') === m).length;
+    const on = layerVis[m] !== false;
+    const focused = currentMode === m;
+    return `<div class="layer-row ${focused?'focused':''}">
+      <button class="eye ${on?'on':'off'}" onclick="toggleLayer('${m}')" title="${on?'Hide layer':'Show layer'}">${on?'👁':'🚫'}</button>
+      <span class="dot" style="background:${MODES[m].color}"></span>
+      <button class="layer-name" onclick="focusLayer('${m}')" title="Isolate &amp; place on this layer">${MODES[m].label}</button>
+      <span class="layer-count">${cnt}</span>
+    </div>`;
+  }).join('');
+  return `<div class="dwg-card">
+    <div class="dwg-card-head"><span>Layers</span>
+      <button class="btn btn-sm" onclick="showAllLayers()">Show all</button>
+    </div>
+    <div class="layer-list">${rows}</div>
+  </div>`;
+}
+
+function renderMarkerSizeCard() {
+  const pct = Math.round(markerSize * 100);
+  return `<div class="dwg-card">
+    <div class="dwg-card-head"><span>Marker size</span><span class="marker-size-val" id="markerSizeVal">${pct}%</span></div>
+    <input type="range" class="marker-size-slider" min="0.5" max="2.5" step="0.1" value="${markerSize}"
+      oninput="setMarkerSize(this.value)">
+  </div>`;
+}
+
+function renderNoteTemplatesCard() {
+  const tpls = loadNoteTemplates();
+  const chips = tpls.map((t,i) => `<span class="tpl-chip ${armedNote===t?'armed':''}">
+      <button class="tpl-chip-text" onclick="armNoteTemplate(${i})" title="Arm — next click drops this note">${esc(t)}</button>
+      <button class="tpl-chip-del admin-only" onclick="deleteNoteTemplate(${i})" title="Delete template">✕</button>
+    </span>`).join('');
+  return `<div class="dwg-card admin-only">
+    <div class="dwg-card-head"><span>Note templates</span></div>
+    <div class="tpl-chips">${chips || '<span class="dwg-empty">No templates</span>'}</div>
+    <div class="tpl-add">
+      <input id="tplInput" placeholder="New template text…">
+      <button class="btn btn-sm btn-primary" onclick="addNoteTemplate()">Save</button>
+    </div>
+  </div>`;
+}
+
+function renderTorqueCard() {
+  const rows = TORQUE_TABLE.rows.map(r =>
+    `<tr onclick="armTorqueRow('${esc(r[1])}','${esc(r[2])}')" title="Arm note: ${esc(r[1])} · ${esc(r[2])} N·m">
+       <td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="t-num">${esc(r[2])}</td>
+     </tr>`).join('');
+  return `<div class="dwg-card">
+    <div class="dwg-card-head"><span>Torque reference</span>
+      <button class="btn btn-sm admin-only" onclick="placeTorqueTable()" title="Place whole table on drawing">＋ Drawing</button>
+    </div>
+    <table class="torque-tbl">
+      <thead>
+        <tr><th>Hex bit</th><th colspan="2">${esc(TORQUE_TABLE.title)}</th></tr>
+        <tr><th></th><th>Screw</th><th>Torque N·m</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+// Toolbar pill / layer name → focus: make this the active tool AND isolate the
+// visible-set to just this layer (+ its companions) for clean placing.
+function setCurrentMode(m) { focusLayer(m); }
+
+function focusLayer(m) {
   currentMode = m;
-  // Update toolbar without full re-render to preserve image state
-  document.querySelectorAll('.mode-pill').forEach(p => {
-    p.classList.toggle('active', p.dataset.mode === m);
-  });
-  const btn = document.getElementById('balloonModeBtn');
-  if (btn && balloonMode !== 'add') btn.innerHTML = '➕ Add ' + MODES[m].label;
-  // Selection may point to a now-hidden balloon — clear it
+  const show = new Set([m, ...(COMPANION[m] || [])]);
+  VISIBLE_LAYERS.forEach(k => { layerVis[k] = show.has(k); });
+  saveLayerVis();
   selectedBalloonId = null;
+  refreshDrawingChrome();
+}
+
+// Independent eye toggle — flips one layer without changing the active tool.
+function toggleLayer(m) {
+  layerVis[m] = layerVis[m] === false ? true : false;
+  saveLayerVis();
+  refreshDrawingChrome();
+}
+
+function showAllLayers() {
+  VISIBLE_LAYERS.forEach(m => { layerVis[m] = true; });
+  saveLayerVis();
+  refreshDrawingChrome();
+}
+
+// Re-paint toolbar/sidebar/SVG in place (preserves the loaded drawing image).
+function refreshDrawingChrome() {
+  document.querySelectorAll('.mode-pill').forEach(p => p.classList.toggle('active', p.dataset.mode === currentMode));
+  const btn = document.getElementById('balloonModeBtn');
+  if (btn && balloonMode !== 'add') btn.innerHTML = '➕ Add ' + MODES[currentMode].label;
+  const hint = document.getElementById('armedHint');
+  if (hint) {
+    if (armedNote) { hint.style.display = ''; hint.innerHTML = `📌 Armed note: <b>${esc(armedNote)}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>`; }
+    else hint.style.display = 'none';
+  }
+  const side = document.querySelector('.drawing-sidebar');
+  if (side) side.innerHTML = renderDrawingSidebar();
   renderBalloonsSVG();
+}
+
+function setMarkerSize(v) {
+  markerSize = parseFloat(v) || 1;
+  localStorage.setItem('deployops_balloon_size', String(markerSize));
+  const val = document.getElementById('markerSizeVal');
+  if (val) val.textContent = Math.round(markerSize * 100) + '%';
+  renderBalloonsSVG();
+}
+
+// ── Note templates ──
+function armNoteText(t) {
+  if (!isAdmin) return; // arming only matters for placement (admin)
+  armedNote = t;
+  currentMode = 'note';
+  balloonMode = 'add';
+  if (layerVis.note === false) { layerVis.note = true; saveLayerVis(); }
+  toast('Note armed — click the drawing to place','info');
+  renderDrawing(); // balloonMode changed → rebuild toolbar chrome
+}
+function armNoteTemplate(i) {
+  const tpls = loadNoteTemplates();
+  if (tpls[i] != null) armNoteText(tpls[i]);
+}
+function disarmNote() { armedNote = null; renderDrawing(); }
+function addNoteTemplate() {
+  const inp = document.getElementById('tplInput');
+  const t = (inp && inp.value || '').trim();
+  if (!t) { toast('Enter template text','err'); return; }
+  const tpls = loadNoteTemplates();
+  if (!tpls.includes(t)) tpls.push(t);
+  saveNoteTemplates(tpls);
+  refreshDrawingChrome();
+  toast('Template saved','ok');
+}
+function deleteNoteTemplate(i) {
+  const tpls = loadNoteTemplates();
+  const removed = tpls[i];
+  tpls.splice(i, 1);
+  saveNoteTemplates(tpls);
+  if (armedNote === removed) armedNote = null;
+  refreshDrawingChrome();
+}
+function saveLabelAsTemplate(text) {
+  const t = (text || '').trim();
+  if (!t) { toast('Nothing to save','err'); return; }
+  const tpls = loadNoteTemplates();
+  if (!tpls.includes(t)) { tpls.push(t); saveNoteTemplates(tpls); toast('Saved as template','ok'); }
+  else toast('Already a template','info');
+}
+
+// ── Torque reference ──
+function armTorqueRow(screw, torque) { armNoteText(`${screw} · ${torque} N·m`); }
+async function placeTorqueTable() {
+  if (!currentDrawing) return;
+  const label = JSON.stringify({ title: TORQUE_TABLE.title, rows: TORQUE_TABLE.rows, scale: 1 });
+  try {
+    const { error } = await sb.from('deployops_balloons').insert({
+      drawing_id: currentDrawing.id, page: currentPage,
+      number: 0, x_pct: 6, y_pct: 10, label, color: '#94a3b8', mode: 'table', arrow_style: 'none'
+    });
+    if (error) throw error;
+    toast('Torque table placed','ok');
+    await loadBalloons();
+    renderBalloonsSVG();
+  } catch(e) { console.error(e); toast('Place failed: ' + (e.message || e),'err'); }
 }
 
 function updateModePillCounts() {
@@ -980,6 +1240,7 @@ async function handleDrawingClick(e) {
 
   // Check if click was on a balloon or its tip
   if (e.target.closest('.tip-handle')) return; // tip handles its own drag
+  if (e.target.closest('.dwg-table-g')) return; // table cards drag / button themselves
   if (e.target.closest('.balloon-g')) {
     const g = e.target.closest('.balloon-g');
     const bid = g.dataset.id;
@@ -1012,6 +1273,22 @@ async function handleDrawingClick(e) {
   const sameModeOnPage = balloons.filter(b => b.page === currentPage && (b.mode||'balloon') === currentMode);
   const nextNum = sameModeOnPage.length > 0
     ? Math.max(...sameModeOnPage.map(b => b.number||0)) + 1 : 1;
+
+  // Armed note template — drop a note prefilled with the armed text, no modal.
+  if (armedNote != null) {
+    const text = armedNote;
+    armedNote = null;
+    const { error } = await sb.from('deployops_balloons').insert({
+      drawing_id: currentDrawing.id, page: currentPage, number: nextNum,
+      x_pct, y_pct, tip_x_pct: tip_x, tip_y_pct: tip_y,
+      label: text, color: markerColor('note', nextNum), mode: 'note', arrow_style: currentArrowStyle
+    });
+    if (error) { toast('Save failed: '+error.message,'err'); armedNote = text; return; }
+    toast('Note placed','ok');
+    await loadBalloons();
+    renderDrawing(); // refresh the armed-hint + sidebar chip state
+    return;
+  }
 
   // Non-cable balloons: place directly without a modal. Number/label/color/arrow can be tweaked
   // afterward by clicking the balloon to open the edit modal.
@@ -1118,6 +1395,7 @@ function showBalloonActions(bid) {
     </div>
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="deleteBalloon('${bid}')">🗑️ Delete</button>
+      ${(b.mode==='note'||b.mode==='caution') ? `<button class="btn btn-sm" onclick="saveLabelAsTemplate(document.getElementById('ebLabel').value)" title="Save this text as a reusable note template">⭐ Save as template</button>` : ''}
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="updateBalloon('${bid}',${isCable})">Save</button>
     </div>
@@ -1175,15 +1453,96 @@ function labelTag(x, y, label){
   return `<text x="${x}" y="${y}" text-anchor="middle" fill="white" font-size="7" font-family="DM Sans,sans-serif" opacity="0.9" stroke="rgba(0,0,0,0.5)" stroke-width="2" paint-order="stroke">${label}</text>`;
 }
 
+// Render a placed reference table as a draggable SVG card. (x0,y0) = top-left.
+function renderTableCardSVG(b, x0, y0, vbW) {
+  let meta = {};
+  try { meta = JSON.parse(b.label || '{}'); } catch {}
+  const title = esc(meta.title || 'Table');
+  const rows = Array.isArray(meta.rows) ? meta.rows : [];
+  const scale = (+meta.scale) || 1;
+  const colW = [70 * scale, 55 * scale, 70 * scale]; // Hex bit | Screw | Torque
+  const W = colW[0] + colW[1] + colW[2];
+  const rh = 15 * scale, barH = 16 * scale, fs = 9 * scale;
+  const x1 = x0 + colW[0], x2 = x1 + colW[1];
+  const hA = y0 + barH;          // header row A top
+  const hB = hA + rh;            // header row B top
+  const dataTop = hB + rh;       // data rows top
+  const H = barH + rh * 2 + rows.length * rh;
+  let s = `<g class="dwg-table-g" data-id="${b.id}">`;
+  // card + outer border
+  s += `<rect x="${x0}" y="${y0}" width="${W}" height="${H}" rx="${3*scale}" fill="white" stroke="#94a3b8" stroke-width="${1*scale}"/>`;
+  // drag bar
+  s += `<g class="table-drag" data-id="${b.id}"><rect x="${x0}" y="${y0}" width="${W}" height="${barH}" rx="${3*scale}" fill="#e2e8f0"/>
+    <text x="${x0 + 5*scale}" y="${y0 + barH/2}" dominant-baseline="central" font-size="${fs}" fill="#475569" font-family="DM Sans,sans-serif">⠿ ${title}</text></g>`;
+  // admin controls (scale − / ＋ / delete) on the bar's right
+  if (isAdmin) {
+    const bw = barH; // square buttons
+    const bx3 = x0 + W - bw, bx2 = bx3 - bw, bx1 = bx2 - bw;
+    const tcy = y0 + barH/2;
+    s += `<g class="table-btn" onclick="scaleTable('${b.id}',-1)"><rect x="${bx1}" y="${y0}" width="${bw}" height="${barH}" fill="transparent"/><text x="${bx1+bw/2}" y="${tcy}" text-anchor="middle" dominant-baseline="central" font-size="${fs*1.2}" fill="#475569" font-weight="700">−</text></g>`;
+    s += `<g class="table-btn" onclick="scaleTable('${b.id}',1)"><rect x="${bx2}" y="${y0}" width="${bw}" height="${barH}" fill="transparent"/><text x="${bx2+bw/2}" y="${tcy}" text-anchor="middle" dominant-baseline="central" font-size="${fs*1.2}" fill="#475569" font-weight="700">＋</text></g>`;
+    s += `<g class="table-btn" onclick="deleteTable('${b.id}')"><rect x="${bx3}" y="${y0}" width="${bw}" height="${barH}" fill="transparent"/><text x="${bx3+bw/2}" y="${tcy}" text-anchor="middle" dominant-baseline="central" font-size="${fs*1.1}" fill="#dc2626" font-weight="700">✕</text></g>`;
+  }
+  const cellTxt = (x, y, w, t, opt={}) => {
+    const anchor = opt.center ? 'middle' : 'start';
+    const px = opt.center ? x + w/2 : x + 4*scale;
+    return `<text x="${px}" y="${y}" text-anchor="${anchor}" dominant-baseline="central" font-size="${fs}" fill="${opt.fill||'#111'}" font-weight="${opt.bold?700:400}" font-family="DM Sans,sans-serif">${t}</text>`;
+  };
+  const border = (x,y,w,h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${'none'}" stroke="#cbd5e1" stroke-width="${0.8*scale}"/>`;
+  // two-level header
+  s += `<rect x="${x0}" y="${hA}" width="${W}" height="${rh*2}" fill="#f1f5f9"/>`;
+  s += border(x0, hA, colW[0], rh*2) + cellTxt(x0, hA + rh, colW[0], 'Hex bit', {center:true, bold:true});
+  s += border(x1, hA, colW[1]+colW[2], rh) + cellTxt(x1, hA + rh/2, colW[1]+colW[2], title, {center:true, bold:true});
+  s += border(x1, hB, colW[1], rh) + cellTxt(x1, hB + rh/2, colW[1], 'Screw', {center:true, bold:true});
+  s += border(x2, hB, colW[2], rh) + cellTxt(x2, hB + rh/2, colW[2], 'Torque N·m', {center:true, bold:true});
+  // data rows
+  rows.forEach((r, i) => {
+    const ry = dataTop + i*rh, rcy = ry + rh/2;
+    s += border(x0, ry, colW[0], rh) + cellTxt(x0, rcy, colW[0], esc(r[0]||''));
+    s += border(x1, ry, colW[1], rh) + cellTxt(x1, rcy, colW[1], esc(r[1]||''));
+    s += border(x2, ry, colW[2], rh) + cellTxt(x2, rcy, colW[2], esc(r[2]||''), {center:true, bold:true});
+  });
+  s += `</g>`;
+  return s;
+}
+
+async function scaleTable(bid, dir) {
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  let meta = {}; try { meta = JSON.parse(b.label || '{}'); } catch {}
+  const cur = (+meta.scale) || 1;
+  meta.scale = Math.max(0.5, Math.min(3, +(cur + dir*0.2).toFixed(2)));
+  b.label = JSON.stringify(meta);
+  renderBalloonsSVG();
+  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+  catch(e) { console.error(e); toast('Resize failed','err'); }
+}
+
+async function deleteTable(bid) {
+  if (!confirm('Remove this reference table from the drawing?')) return;
+  try {
+    await sb.from('deployops_balloons').delete().eq('id', bid);
+    toast('Table removed','ok');
+    await loadBalloons();
+    renderBalloonsSVG();
+  } catch(e) { console.error(e); toast('Delete failed','err'); }
+}
+
 function renderBalloonsSVG() {
   const svg = document.getElementById('balloonSvg');
   const img = document.getElementById('drawingImg');
   if (!svg || !img) return;
 
-  // Mode acts as a filter — only balloons of the active mode are shown
-  const pageBalloons = balloons.filter(b => b.page === currentPage && (b.mode || 'balloon') === currentMode);
+  // Multi-layer visibility: show every layer whose eye is on. Tables always
+  // show; legacy hidden modes (cable/balloon) stay hidden (no toggle for them).
+  const pageBalloons = balloons.filter(b => {
+    if (b.page !== currentPage) return false;
+    const m = b.mode || 'balloon';
+    if (m === 'table') return true;
+    if (MODES[m] && MODES[m].hidden) return false;
+    return layerVis[m] !== false;
+  });
   updateModePillCounts();
-  const r = 18; // balloon radius in SVG coords
+  const r = 18 * markerSize; // balloon radius in SVG coords (× user size)
   const imgW = img.naturalWidth || img.width;
   const imgH = img.naturalHeight || img.height;
   const vbW = 1000;
@@ -1204,21 +1563,27 @@ function renderBalloonsSVG() {
   pageBalloons.forEach(b => {
     const cx = b.x_pct / 100 * vbW;
     const cy = b.y_pct / 100 * vbH;
+    const bmode = b.mode || 'balloon';
+
+    // Placed reference table — drawn as a draggable card, independent of layers.
+    if (bmode === 'table') { html += renderTableCardSVG(b, cx, cy, vbW); return; }
+
     const sel = b.id === selectedBalloonId ? ' selected' : '';
     const color = b.color || '#e74c3c';
-    const bmode = b.mode || 'balloon';
     const isCable = bmode === 'cable';
     const shape = (MODES[bmode] && MODES[bmode].shape) || (isCable ? 'note' : 'circle');
-    const isTag = isCable || shape === 'note';
+    const isTag = isCable || shape === 'note' || shape === 'caution';
+    const isCaution = shape === 'caution';
     const style = b.arrow_style || (b.tip_x_pct!=null?'solid':'none');
     const ahId = 'ah_' + color.replace('#','');
 
-    // Tag (cable / note) box dimensions (computed once, used for both leader trim and body)
+    // Tag (cable / note / caution) box dimensions (used for both leader trim and body)
     let tagW = 0, tagH = 0;
     if (isTag) {
-      const text = b.label || (shape === 'note' ? 'Note' : '?');
-      tagW = Math.max(34, text.length * 6.2 + 26);
-      tagH = 18;
+      const text = b.label || (shape === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
+      const glyphPad = isCaution ? 10 : 0; // room for ⚠ glyph
+      tagW = Math.max(34 * markerSize, (text.length * 6.2 + 26 + glyphPad) * markerSize);
+      tagH = 18 * markerSize;
     }
 
     // Leader arrow (only if tip exists & style != none)
@@ -1259,18 +1624,32 @@ function renderBalloonsSVG() {
     // Balloon body
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
     if (isTag) {
-      // Box tag — white background, coloured border, chip on left (cable + note)
-      const text = b.label || (shape === 'note' ? 'Note' : '?');
+      // Box tag — white background, coloured border. Cable/note show a chip on
+      // the left; caution shows a ⚠ glyph before amber-bordered text.
+      const text = esc(b.label || (shape === 'note' ? 'Note' : isCaution ? 'Caution' : '?'));
       const x0 = cx - tagW/2, y0 = cy - tagH/2;
-      const indPad = 3;
+      const indPad = 3 * markerSize;
       const indSize = tagH - indPad*2;
       const indX = x0 + indPad;
       const indY = y0 + indPad;
-      const textX = indX + indSize + 4;
-      const chip = shape === 'note' ? color : '#27ae60';
-      html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="white" stroke="${color}" stroke-width="1.5"/>
-        <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="${chip}"/>
-        <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111" font-size="10" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
+      const textX = indX + indSize + 4*markerSize;
+      const fs = 10 * markerSize;
+      if (isCaution) {
+        html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="#fff7ed" stroke="${color}" stroke-width="${1.5*markerSize}"/>
+          <text x="${indX}" y="${cy}" text-anchor="start" dominant-baseline="central" font-size="${fs}" font-family="DM Sans,sans-serif">⚠</text>
+          <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#7c2d12" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
+      } else {
+        const chip = shape === 'note' ? color : '#27ae60';
+        html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="white" stroke="${color}" stroke-width="${1.5*markerSize}"/>
+          <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="${chip}"/>
+          <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
+      }
+    } else if (shape === 'x') {
+      // No-install — filled red circle, white ✕, no number.
+      html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
+        <circle class="b-main" cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="1.5"/>
+        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${r*1.3}" font-weight="700" font-family="DM Sans,sans-serif">✕</text>`;
+      if (b.label) html += labelTag(cx, cy + r + 10*markerSize, esc(b.label));
     } else if (shape === 'square') {
       const s = r * 1.8, x0 = cx - s/2, y0 = cy - s/2;
       html += `<rect x="${x0-3}" y="${y0-3}" width="${s+6}" height="${s+6}" rx="5" fill="white" opacity="0.9" class="b-halo"/>
@@ -1303,7 +1682,44 @@ function renderBalloonsSVG() {
     svg.querySelectorAll('.tip-handle').forEach(g => {
       g.addEventListener('pointerdown', startTipDrag);
     });
+    svg.querySelectorAll('.table-drag').forEach(g => {
+      g.addEventListener('pointerdown', startTableDrag);
+    });
   }
+}
+
+// Drag a placed reference table by its header bar (top-left tracks the pointer,
+// preserving the grab offset so the card doesn't jump).
+function startTableDrag(e) {
+  e.preventDefault(); e.stopPropagation();
+  isDragging = false;
+  const bid = e.currentTarget.dataset.id;
+  const b = balloons.find(x => x.id === bid);
+  const img = document.getElementById('drawingImg');
+  if (!b || !img) return;
+  const rect0 = img.getBoundingClientRect();
+  const grabX = ((e.clientX - rect0.left) / rect0.width) * 100 - b.x_pct;
+  const grabY = ((e.clientY - rect0.top) / rect0.height) * 100 - b.y_pct;
+
+  const onMove = (ev) => {
+    ev.preventDefault();
+    isDragging = true;
+    const rect = img.getBoundingClientRect();
+    b.x_pct = Math.max(0, Math.min(98, ((ev.clientX - rect.left) / rect.width) * 100 - grabX));
+    b.y_pct = Math.max(0, Math.min(98, ((ev.clientY - rect.top) / rect.height) * 100 - grabY));
+    renderBalloonsSVG();
+  };
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (isDragging) {
+      try { await sb.from('deployops_balloons').update({ x_pct: b.x_pct, y_pct: b.y_pct }).eq('id', bid); }
+      catch(err) { console.error(err); }
+    }
+    setTimeout(() => { isDragging = false; }, 100);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
 }
 
 function startTipDrag(e) {
@@ -1435,6 +1851,54 @@ async function deleteCurrentPage() {
   }
 }
 
+// Draw a placed reference table onto the export canvas. (x0,y0) = top-left px.
+function drawTableCanvas(ctx, b, x0, y0, canvas) {
+  let meta = {};
+  try { meta = JSON.parse(b.label || '{}'); } catch {}
+  const title = meta.title || 'Table';
+  const rows = Array.isArray(meta.rows) ? meta.rows : [];
+  const scale = (+meta.scale) || 1;
+  const u = (canvas.width / 1000) * scale; // viewBox→px unit, × table scale
+  const colW = [70*u, 55*u, 70*u];
+  const W = colW[0]+colW[1]+colW[2];
+  const rh = 15*u, barH = 16*u, fs = 9*u;
+  const x1 = x0 + colW[0], x2 = x1 + colW[1];
+  const hA = y0 + barH, hB = hA + rh, dataTop = hB + rh;
+  const H = barH + rh*2 + rows.length*rh;
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  // card
+  ctx.fillStyle = 'white'; ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = Math.max(1, u);
+  ctx.beginPath(); ctx.roundRect(x0, y0, W, H, 3*u); ctx.fill(); ctx.stroke();
+  // drag/title bar
+  ctx.fillStyle = '#e2e8f0';
+  ctx.beginPath(); ctx.roundRect(x0, y0, W, barH, [3*u,3*u,0,0]); ctx.fill();
+  ctx.fillStyle = '#475569'; ctx.font = `${fs}px DM Sans, sans-serif`; ctx.textAlign = 'left';
+  ctx.fillText(title, x0 + 5*u, y0 + barH/2);
+  // header fill
+  ctx.fillStyle = '#f1f5f9'; ctx.fillRect(x0, hA, W, rh*2);
+  const cell = (x,y,w,h,t,opt={}) => {
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = Math.max(0.6, 0.8*u);
+    ctx.strokeRect(x, y, w, h);
+    if (t == null || t === '') return;
+    ctx.fillStyle = opt.fill || '#111';
+    ctx.font = `${opt.bold?'bold ':''}${fs}px DM Sans, sans-serif`;
+    if (opt.center) { ctx.textAlign = 'center'; ctx.fillText(t, x + w/2, y + h/2); }
+    else { ctx.textAlign = 'left'; ctx.fillText(t, x + 4*u, y + h/2); }
+  };
+  cell(x0, hA, colW[0], rh*2, 'Hex bit', {center:true, bold:true});
+  cell(x1, hA, colW[1]+colW[2], rh, title, {center:true, bold:true});
+  cell(x1, hB, colW[1], rh, 'Screw', {center:true, bold:true});
+  cell(x2, hB, colW[2], rh, 'Torque N·m', {center:true, bold:true});
+  rows.forEach((row, i) => {
+    const ry = dataTop + i*rh;
+    cell(x0, ry, colW[0], rh, String(row[0]||''));
+    cell(x1, ry, colW[1], rh, String(row[1]||''));
+    cell(x2, ry, colW[2], rh, String(row[2]||''), {center:true, bold:true});
+  });
+  ctx.restore();
+}
+
 async function exportAnnotatedPNG() {
   const img = document.getElementById('drawingImg');
   if (!img) return;
@@ -1446,13 +1910,25 @@ async function exportAnnotatedPNG() {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0);
 
-  // Export only the balloons of the currently active mode
-  const pageBalloons = balloons.filter(b => b.page === currentPage && (b.mode || 'balloon') === currentMode);
-  const r = Math.min(canvas.width, canvas.height) * 0.018;
+  // Export every visible layer (matches the on-screen multi-layer view).
+  const pageBalloons = balloons.filter(b => {
+    if (b.page !== currentPage) return false;
+    const m = b.mode || 'balloon';
+    if (m === 'table') return true;
+    if (MODES[m] && MODES[m].hidden) return false;
+    return layerVis[m] !== false;
+  });
+  const r = Math.min(canvas.width, canvas.height) * 0.018 * markerSize;
+  const shapeOf = (b) => {
+    const m = b.mode || 'balloon';
+    return (MODES[m] && MODES[m].shape) || (m === 'cable' ? 'note' : 'circle');
+  };
+  const isTagShape = (sh) => sh === 'note' || sh === 'caution';
 
   // First pass: leader arrows (under balloons)
   pageBalloons.forEach(b => {
     if (b.tip_x_pct == null || b.tip_y_pct == null) return;
+    if ((b.mode||'') === 'table') return;
     const style = b.arrow_style || 'solid';
     if (style === 'none') return;
     const cx = b.x_pct/100 * canvas.width;
@@ -1460,12 +1936,14 @@ async function exportAnnotatedPNG() {
     const tx = b.tip_x_pct/100 * canvas.width;
     const ty = b.tip_y_pct/100 * canvas.height;
     const color = b.color || '#e74c3c';
+    const sh = shapeOf(b);
     const isCable = (b.mode||'balloon') === 'cable';
+    const isTag = isCable || isTagShape(sh);
 
-    // Trim line to start at edge of balloon body (rect for cable, circle otherwise)
+    // Trim line to start at edge of balloon body (rect for tags, circle otherwise)
     const dx = tx-cx, dy = ty-cy;
     let sx, sy;
-    if (isCable) {
+    if (isTag) {
       const text = b.label || '?';
       ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
       const tw = ctx.measureText(text).width;
@@ -1506,39 +1984,58 @@ async function exportAnnotatedPNG() {
     ctx.restore();
   });
 
-  // Second pass: balloons / cable tags
+  // Second pass: balloons / tags / no-install / tables
   pageBalloons.forEach(b => {
     const cx = b.x_pct/100 * canvas.width;
     const cy = b.y_pct/100 * canvas.height;
-    const isCable = (b.mode||'balloon') === 'cable';
     const color = b.color || '#e74c3c';
+    const bmode = b.mode || 'balloon';
+    const sh = shapeOf(b);
+    const isCable = bmode === 'cable';
+    const isCaution = sh === 'caution';
 
-    if (isCable) {
-      const text = b.label || '?';
+    if (bmode === 'table') {
+      drawTableCanvas(ctx, b, cx, cy, canvas);
+    } else if (isCable || sh === 'note' || isCaution) {
+      const text = b.label || (sh === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
       ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
-      const tw = ctx.measureText(text).width;
+      const glyph = isCaution ? '⚠ ' : '';
+      const tw = ctx.measureText(glyph + text).width;
       const indSize = r*0.9;
       const padX = r*0.35, indGap = r*0.3;
-      const w = padX + indSize + indGap + tw + padX, h = r*1.5;
-      const rad = r*0.25;
+      // caution has no chip square — just glyph + text
+      const w = isCaution ? (padX + tw + padX) : (padX + indSize + indGap + tw + padX);
+      const h = r*1.5, rad = r*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
-      // White rectangle with colored border
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = isCaution ? '#fff7ed' : 'white';
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(1.5, r*0.08);
-      ctx.beginPath();
-      ctx.roundRect(x0, y0, w, h, rad);
-      ctx.fill(); ctx.stroke();
-      // Green indicator square on left
-      ctx.fillStyle = '#27ae60';
-      const indX = x0 + padX, indY = cy - indSize/2;
-      ctx.beginPath();
-      ctx.roundRect(indX, indY, indSize, indSize, r*0.1);
-      ctx.fill();
-      // Label text — left-aligned, after indicator
-      ctx.fillStyle = '#111';
+      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); ctx.fill(); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(text, indX + indSize + indGap, cy);
+      if (isCaution) {
+        ctx.fillStyle = '#7c2d12';
+        ctx.fillText(glyph + text, x0 + padX, cy);
+      } else {
+        ctx.fillStyle = sh === 'note' ? color : '#27ae60';
+        const indX = x0 + padX, indY = cy - indSize/2;
+        ctx.beginPath(); ctx.roundRect(indX, indY, indSize, indSize, r*0.1); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.fillText(text, indX + indSize + indGap, cy);
+      }
+    } else if (sh === 'x') {
+      // No-install — red circle with white ✕, no number
+      ctx.beginPath(); ctx.arc(cx, cy, r+4, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = 'white'; ctx.font = `bold ${r*1.5}px DM Sans, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✕', cx, cy + r*0.05);
+      if (b.label) {
+        ctx.font = `${r*0.6}px DM Sans, sans-serif`;
+        ctx.fillStyle = 'white'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
+        ctx.strokeText(b.label, cx, cy + r + r*0.7);
+        ctx.fillText(b.label, cx, cy + r + r*0.7);
+      }
     } else {
       // White halo
       ctx.beginPath(); ctx.arc(cx, cy, r+4, 0, Math.PI*2);
