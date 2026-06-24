@@ -578,7 +578,11 @@ function initAuth() {
   if (stored) {
     try {
       const cred = JSON.parse(stored);
-      setUser(cred);
+      if (!cred.expMs || cred.expMs <= Date.now()) {
+        localStorage.removeItem('deployops_token');
+      } else {
+        setUser(cred);
+      }
     } catch(e) { localStorage.removeItem('deployops_token'); }
   }
 }
@@ -589,7 +593,9 @@ function handleLogin() {
     client_id: GIS_CLIENT_ID,
     callback: (resp) => {
       const payload = JSON.parse(atob(resp.credential.split('.')[1]));
-      const cred = { email: payload.email, name: payload.name, picture: payload.picture };
+      const SESSION_HOURS = 12;
+      const cred = { email: payload.email, name: payload.name, picture: payload.picture,
+                     expMs: Date.now() + SESSION_HOURS * 3600 * 1000 };
       localStorage.setItem('deployops_token', JSON.stringify(cred));
       setUser(cred);
       toast('Signed in as ' + cred.name, 'ok');
