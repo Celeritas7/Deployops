@@ -451,6 +451,9 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
     top:0;left:0;
     width:100%;height:100%;
   }
+  /* Single-page guard: clip sub-pixel frame bleed that would otherwise spawn a blank page 2 */
+  html,body{overflow:hidden!important}
+  #drawingTab.active{overflow:hidden!important}
 }
 @page{size:A3 landscape;margin:8mm}
 @media(max-width:768px){
@@ -1608,6 +1611,42 @@ function onDrawingLoad() {
 }
 
 // ============================================================
+// PRINT — overlay proportional scale
+// On screen the HTML annotations (lt-callout / step-table) are tuned in fixed
+// px against the on-screen drawing width. In print the drawing is scaled up to
+// fill the A3 box, so fixed-px annotations look shrunk. Their transforms are set
+// inline (so print CSS can't touch them) — scale each one by printWidth/screenWidth
+// at beforeprint, restore at afterprint. SVG leaders are viewBox-driven and need no fix.
+// ============================================================
+let _printOvSaved = null;
+function applyPrintOverlayScale() {
+  const container = document.getElementById('drawingContainer');
+  const img = document.getElementById('drawingImg');
+  if (!container || !img || !img.naturalWidth) return;
+  const screenW = container.clientWidth;
+  if (!screenW) return;
+  // A3 landscape content box at 96 CSS px/in, minus the @page 8mm margins both sides.
+  const pxPerMm = 96 / 25.4;
+  const boxW = (420 - 16) * pxPerMm, boxH = (297 - 16) * pxPerMm;
+  const aspect = img.naturalWidth / img.naturalHeight;
+  const printW = Math.min(boxW, boxH * aspect); // width- or height-constrained fit
+  const factor = printW / screenW;
+  if (!isFinite(factor) || factor <= 0) return;
+  _printOvSaved = [];
+  document.querySelectorAll('#dwgOverlay .lt-callout, #dwgOverlay .step-table').forEach(el => {
+    _printOvSaved.push([el, el.style.transform]);
+    el.style.transform = (el.style.transform || '') + ' scale(' + factor + ')';
+  });
+}
+function restorePrintOverlayScale() {
+  if (!_printOvSaved) return;
+  _printOvSaved.forEach(([el, t]) => { el.style.transform = t; });
+  _printOvSaved = null;
+}
+window.addEventListener('beforeprint', applyPrintOverlayScale);
+window.addEventListener('afterprint', restorePrintOverlayScale);
+
+// ============================================================
 // ZOOM + PAN  (CSS transform on the wrapper holding img + svg, so balloons
 // stay anchored. getBoundingClientRect on the img already reflects the
 // transform, so click-to-place math needs no change — see handleDrawingClick.)
@@ -2147,7 +2186,7 @@ function loctorqueHTML(b){
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade" style="color:'+c+'"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
-    + '<div class="lt-torque"><span class="lt-ico">⛓</span>'+(sel?'<input class="lt-tq" type="text" inputmode="decimal" value="'+esc(m.torque)+'" placeholder="—" data-id="'+b.id+'" style="width:40px;text-align:right;background:rgba(255,255,255,.1);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:1px 4px">':'<span class="lt-tq">'+(m.torque?esc(m.torque):'—')+'</span>')+'<span class="lt-unit">N·m</span></div>'
+    + '<div class="lt-torque">'+(sel?'<input class="lt-tq" type="text" inputmode="decimal" value="'+esc(m.torque)+'" placeholder="—" data-id="'+b.id+'" style="width:40px;text-align:right;background:rgba(255,255,255,.1);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:1px 4px">':'<span class="lt-tq">'+(m.torque?esc(m.torque):'—')+'</span>')+'<span class="lt-unit">N·m</span></div>'
     + '</div>' + tools + '</div>';
 }
 
@@ -2717,7 +2756,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const fs=u*0.013, pad=fs*0.7, grade=badgeFor(m.loctite), torque='⛓ '+((m.torque||'—')+' N·m');
+  const fs=u*0.013, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
