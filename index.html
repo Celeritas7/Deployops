@@ -1810,6 +1810,7 @@ async function handleDrawingClick(e) {
   if (e.target.closest('.tip-handle')) return; // tip handles its own drag
   if (e.target.closest('.add-leader')) return; // "+" affordance handles its own click
   if (e.target.closest('.dwg-table-g')) return; // table cards drag / button themselves
+  if (e.target.closest('.caution-btn')) return; // caution size buttons handle their own click
   if (e.target.closest('.balloon-g')) {
     const g = e.target.closest('.balloon-g');
     const bid = g.dataset.id;
@@ -2108,6 +2109,18 @@ async function toggleTableRow(bid, i) {
   renderBalloonsSVG();
   try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
   catch(e) { console.error(e); toast('Highlight save failed','err'); }
+}
+
+// Independent caution size — stored per-caution in the label's extra (_extra.s).
+async function scaleCaution(bid, dir) {
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const m = balloonMeta(b);
+  const cur = (+m._extra.s) || 1;
+  const s = Math.max(0.6, Math.min(3, +(cur + dir*0.2).toFixed(2)));
+  b.label = serializeBalloonLabel(m.text, m.curve, m.waypoints, Object.assign({}, m._extra, { s }));
+  renderBalloonsSVG();
+  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+  catch(e) { console.error(e); toast('Resize failed','err'); }
 }
 
 async function deleteTable(bid) {
@@ -2416,16 +2429,17 @@ function renderBalloonsSVG() {
     const shape = (MODES[bmode] && MODES[bmode].shape) || (isCable ? 'note' : 'circle');
     const isTag = isCable || shape === 'note' || shape === 'caution';
     const isCaution = shape === 'caution';
+    const cautionScale = isCaution ? ((+balloonMeta(b)._extra.s) || 1) : 1;
     const style = b.arrow_style || (b.tip_x_pct!=null?'solid':'none');
     const ahId = 'ah_' + color.replace('#','');
 
     // Tag (cable / note / caution) box dimensions (used for both leader trim and body)
     let tagW = 0, tagH = 0;
     if (isTag) {
-      const text = balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
+      const text = balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? '注意' : '?');
       const glyphPad = isCaution ? 10 : 0; // room for ⚠ glyph
-      tagW = Math.max(34 * markerSize, (text.length * 6.2 + 26 + glyphPad) * markerSize);
-      tagH = 18 * markerSize;
+      tagW = Math.max(34 * markerSize, (text.length * 6.2 + 26 + glyphPad) * markerSize) * cautionScale;
+      tagH = 18 * markerSize * cautionScale;
     }
 
     // Leader (only if tip exists & style != none). Straight legacy leaders keep
@@ -2479,14 +2493,14 @@ function renderBalloonsSVG() {
     if (isTag) {
       // Box tag — white background, coloured border. Cable/note show a chip on
       // the left; caution shows a ⚠ glyph before amber-bordered text.
-      const text = esc(balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? 'Caution' : '?'));
+      const text = esc(balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? '注意' : '?'));
       const x0 = cx - tagW/2, y0 = cy - tagH/2;
-      const indPad = 3 * markerSize;
+      const indPad = 3 * markerSize * cautionScale;
       const indSize = tagH - indPad*2;
       const indX = x0 + indPad;
       const indY = y0 + indPad;
-      const textX = indX + indSize + 4*markerSize;
-      const fs = 10 * markerSize;
+      const textX = indX + indSize + 4*markerSize*cautionScale;
+      const fs = 10 * markerSize * cautionScale;
       if (isCaution) {
         html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="#fef9c3" stroke="#f59e0b" stroke-width="${1.5*markerSize}"/>
           <polygon points="${indX+indSize/2},${indY} ${indX+indSize},${indY+indSize} ${indX},${indY+indSize}" fill="#facc15" stroke="#111827" stroke-width="${1.2*markerSize}" stroke-linejoin="round"/><text x="${indX+indSize/2}" y="${indY+indSize*0.66}" text-anchor="middle" dominant-baseline="central" fill="#111827" font-size="${indSize*0.58}" font-weight="800" font-family="DM Sans,sans-serif">!</text>
@@ -2524,6 +2538,14 @@ function renderBalloonsSVG() {
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + r + 10, esc(_c)); }
     }
     html += `</g>`;
+
+    // Caution size — independent − / ＋ above a selected caution (admin only).
+    if (isAdmin && isCaution && b.id === selectedBalloonId) {
+      const bw = 13 * markerSize, gap = 2 * markerSize;
+      const byy = (cy - tagH/2) - bw - 3*markerSize;
+      const mkBtn = (bx, lbl, dir) => `<g class="caution-btn" onclick="scaleCaution('${b.id}',${dir})" style="cursor:pointer"><rect x="${bx}" y="${byy}" width="${bw}" height="${bw}" rx="3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/><text x="${bx+bw/2}" y="${byy+bw/2}" text-anchor="middle" dominant-baseline="central" font-size="${bw*0.85}" font-weight="700" fill="#475569">${lbl}</text></g>`;
+      html += mkBtn(cx - bw - gap, '−', -1) + mkBtn(cx + gap, '＋', 1);
+    }
 
     // Per-leader routing controls (admin + selected + has leader): curve toggle,
     // add-bend badge on the longest segment, and draggable bend handles (shared).
@@ -2992,7 +3014,7 @@ async function exportAnnotatedPNG() {
     } else if (bmode === 'steptable') {
       drawStepTableCanvas(ctx, b, canvas);
     } else if (isCable || sh === 'note' || isCaution) {
-      const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
+      const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? '注意' : '?');
       ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
       const glyph = '';
       const tw = ctx.measureText(glyph + text).width;
