@@ -661,6 +661,7 @@ async function runAnnotationSelfTest(){
   if (!isAdmin){ console.warn('Self-test is admin-only.'); return; }
   if (!currentDrawing){ toast('Open a drawing first','err'); return; }
   const results=[], made=[];
+  let testTableId=null;
   const ok=(name,cond)=>results.push((cond?'✓ ':'✗ ')+name);
   const rowKey=(b,tid,ri)=>{ try{ const o=JSON.parse(b.label||'{}'); return o.ft===tid&&o.fr===ri; }catch{ return false; } };
   try {
@@ -671,7 +672,7 @@ async function runAnnotationSelfTest(){
     const back=r1.data?ltMeta(r1.data):{}; ok('Loctite payload round-trips', back.loctite==='243' && back.torque==='8' && back.curve===true && (back.waypoints||[]).length===1);
     // 2) place a steps table
     const r2=await sb.from('deployops_balloons').insert({ drawing_id:currentDrawing.id, page:currentPage, number:0, x_pct:20, y_pct:20, label:JSON.stringify({title:'Self-test',scale:0.9,rows:DEFAULT_STEP_ROWS}), color:'#0e7490', mode:'steptable', arrow_style:'none' }).select().single();
-    ok('place steps table', !r2.error && r2.data); if (r2.data) made.push(r2.data.id);
+    ok('place steps table', !r2.error && r2.data); if (r2.data){ made.push(r2.data.id); testTableId=r2.data.id; }
     const sm=r2.data?stMeta(r2.data):{rows:[]}; ok('steps payload round-trips', sm.rows.length===DEFAULT_STEP_ROWS.length);
     // 3) spawn a balloon from a step row
     if (r2.data){
@@ -691,9 +692,24 @@ async function runAnnotationSelfTest(){
   // cleanup everything created
   let cleaned=0;
   for (const id of made){ try { await sb.from('deployops_balloons').delete().eq('id', id); cleaned++; } catch(e){} }
+  // belt-and-suspenders: sweep any balloon that still points at THIS run's
+  // test steps-table — an uncaptured orphan a dedupe regression could leak.
+  // Scoped to the current drawing and matched ONLY on testTableId (this run's
+  // server-generated UUID), so it can hit nothing but balloons this test
+  // spawned: real annotations and the Safety-net canary carry other ft ids.
+  let swept=0;
+  if (testTableId){
+    try {
+      const { data:rest } = await sb.from('deployops_balloons').select('id,label').eq('drawing_id', currentDrawing.id);
+      for (const b of (rest||[])){
+        let hit=false; try { hit = JSON.parse(b.label||'{}').ft === testTableId; } catch {}
+        if (hit){ try { await sb.from('deployops_balloons').delete().eq('id', b.id); swept++; } catch(e){} }
+      }
+    } catch(e){}
+  }
   await loadBalloons(); paintAnnotations();
   const pass=results.every(r=>r[0]==='✓');
-  console.log('%cDeployOps annotation self-test — '+(pass?'ALL PASS':'FAILURES')+'\n'+results.join('\n')+'\nCleaned up '+cleaned+' test row(s).', 'font-family:monospace;font-size:12px');
+  console.log('%cDeployOps annotation self-test — '+(pass?'ALL PASS':'FAILURES')+'\n'+results.join('\n')+'\nCleaned up '+cleaned+' captured + swept '+swept+' orphan(s).', 'font-family:monospace;font-size:12px');
   toast(pass?('Self-test passed ✓ ('+results.length+' checks)'):'Self-test FAILED — see console', pass?'ok':'err');
   return { pass, results };
 }
