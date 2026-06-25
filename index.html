@@ -2939,12 +2939,14 @@ async function exportAnnotatedPNG() {
     let sx, sy;
     if (isTag) {
       const text = balloonText(b) || '?';
-      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+      const cs = (sh === 'caution') ? ((+balloonMeta(b)._extra.s) || 1) : 1;
+      const rr = r * cs;
+      ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
       const tw = ctx.measureText(text).width;
-      const indSize = r*0.9;
-      const padX = r*0.35, indGap = r*0.3;
+      const indSize = rr*0.9;
+      const padX = rr*0.35, indGap = rr*0.3;
       const tagW = padX + indSize + indGap + tw + padX;
-      const tagH = r*1.5;
+      const tagH = rr*1.5;
       [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
     } else {
       const dist = Math.sqrt(dx*dx+dy*dy)||1;
@@ -3015,18 +3017,20 @@ async function exportAnnotatedPNG() {
       drawStepTableCanvas(ctx, b, canvas);
     } else if (isCable || sh === 'note' || isCaution) {
       const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? '注意' : '?');
-      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+      const cs = isCaution ? ((+balloonMeta(b)._extra.s) || 1) : 1;
+      const rr = r * cs;
+      ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
       const glyph = '';
       const tw = ctx.measureText(glyph + text).width;
-      const indSize = r*0.9;
-      const padX = r*0.35, indGap = r*0.3;
+      const indSize = rr*0.9;
+      const padX = rr*0.35, indGap = rr*0.3;
       // caution has no chip square — just glyph + text
       const w = padX + indSize + indGap + tw + padX;
-      const h = r*1.5, rad = r*0.25;
+      const h = rr*1.5, rad = rr*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
       ctx.fillStyle = isCaution ? '#fef9c3' : 'white';
       ctx.strokeStyle = isCaution ? '#f59e0b' : color;
-      ctx.lineWidth = Math.max(1.5, r*0.08);
+      ctx.lineWidth = Math.max(1.5, rr*0.08);
       ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); ctx.fill(); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       if (isCaution) {
@@ -3042,12 +3046,12 @@ async function exportAnnotatedPNG() {
         ctx.font = `800 ${indSize*0.58}px DM Sans, sans-serif`;
         ctx.fillText('!', indX + indSize/2, cy + indSize*0.14);
         ctx.fillStyle = '#111827'; ctx.textAlign = 'left';
-        ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+        ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
         ctx.fillText(text, indX + indSize + indGap, cy);
       } else {
         ctx.fillStyle = sh === 'note' ? color : '#27ae60';
         const indX = x0 + padX, indY = cy - indSize/2;
-        ctx.beginPath(); ctx.roundRect(indX, indY, indSize, indSize, r*0.1); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(indX, indY, indSize, indSize, rr*0.1); ctx.fill();
         ctx.fillStyle = '#111';
         ctx.fillText(text, indX + indSize + indGap, cy);
       }
