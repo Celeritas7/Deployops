@@ -114,7 +114,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .lt-grade select{background:#000;color:var(--text);border:1px solid var(--border);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:2px 4px;cursor:pointer}
 .lt-torque{display:flex;align-items:center;gap:5px;padding:4px 10px 6px;font-size:12px;color:var(--text)}
 .lt-torque .lt-ico{color:var(--text2)}
-.lt-torque .lt-tq{min-width:14px;outline:none;font-weight:700;font-family:'JetBrains Mono',monospace}
+.lt-torque .lt-tq{display:inline-block;min-width:22px;cursor:text;outline:none;font-weight:700;font-family:'JetBrains Mono',monospace}
 .lt-torque .lt-tq[contenteditable]:empty::before{content:'—';color:var(--text2)}
 .lt-torque .lt-unit{color:var(--text2);font-size:11px}
 .lt-tools{display:flex;align-items:center;gap:2px;padding:3px 4px;background:rgba(255,255,255,.05);border-left:1px solid var(--border)}
@@ -1516,7 +1516,7 @@ function setMarkerSize(v) {
   localStorage.setItem('deployops_balloon_size', String(markerSize));
   const val = document.getElementById('markerSizeVal');
   if (val) val.textContent = Math.round(markerSize * 100) + '%';
-  renderBalloonsSVG();
+  paintAnnotations();
 }
 
 // ── Note templates ──
@@ -2143,7 +2143,7 @@ function loctorqueHTML(b){
       + '<button class="lt-del" data-id="'+b.id+'" title="Delete">×</button>'
       + '</div>';
   }
-  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+'">'
+  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale('+markerSize+')">'
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade" style="color:'+c+'"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
@@ -2216,7 +2216,7 @@ async function dupLT(id){
 function stSerialize(m){ return JSON.stringify({ title:m.title, scale:m.scale, rows:m.rows }); }
 async function stUpdate(b, m){ b.label = stSerialize(m); renderOverlay(); try { await sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id); } catch(e){ console.error(e); } }
 function stCommit(id, ri, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(!m.rows[ri]||(m.rows[ri].text||'')===val)return; m.rows[ri].text=val; stUpdate(b,m); }
-function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.6,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
+function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.4,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
 function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(kind==='skip') m.rows.push({skip:true,text:''}); else { const n=m.rows.filter(x=>!x.skip).length+1; m.rows.push({n,text:''}); } stUpdate(b,m); }
 
 async function deleteAnnotation(id){
