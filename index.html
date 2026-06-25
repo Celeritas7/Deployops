@@ -2147,14 +2147,14 @@ function loctorqueHTML(b){
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade" style="color:'+c+'"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
-    + '<div class="lt-torque"><span class="lt-ico">⛓</span><span class="lt-tq" '+(sel?'contenteditable':'')+' data-id="'+b.id+'">'+esc(m.torque)+'</span><span class="lt-unit">N·m</span></div>'
+    + '<div class="lt-torque"><span class="lt-ico">⛓</span>'+(sel?'<input class="lt-tq" type="text" inputmode="decimal" value="'+esc(m.torque)+'" placeholder="—" data-id="'+b.id+'" style="width:40px;text-align:right;background:rgba(255,255,255,.1);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:1px 4px">':'<span class="lt-tq">'+(m.torque?esc(m.torque):'—')+'</span>')+'<span class="lt-unit">N·m</span></div>'
     + '</div>' + tools + '</div>';
 }
 
 function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
-  const rows = m.rows.map((r, ri) => {
+  const _ord = m.rows.map((r,i)=>i).sort((a,bi)=>((m.rows[a].skip?1:0)-(m.rows[bi].skip?1:0))||(a-bi)); const rows = _ord.map((ri) => { const r = m.rows[ri];
     const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+'">'+r.n+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
     return '<tr><td class="st-num">'+chip+'</td>'
@@ -2182,7 +2182,7 @@ function bindOverlay(ov){
   ov.querySelectorAll('.lt-grip').forEach(g => g.addEventListener('pointerdown', startLTBoxDrag));
   ov.querySelectorAll('.dt-bar').forEach(g => g.addEventListener('pointerdown', startStepTableDrag));
   ov.querySelectorAll('.lt-grade-sel').forEach(el => el.addEventListener('change', (e)=>{ stop(e); ltSetGrade(el.dataset.id, el.value); }));
-  ov.querySelectorAll('.lt-tq').forEach(el => el.addEventListener('blur', ()=> ltSetTorque(el.dataset.id, el.textContent.trim())));
+  ov.querySelectorAll('input.lt-tq').forEach(el => { const commit=()=>ltSetTorque(el.dataset.id, el.value.trim()); el.addEventListener('change', commit); el.addEventListener('blur', commit); el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } }); });
   ov.querySelectorAll('.lt-swatch').forEach(el => el.addEventListener('input', (e)=>{ stop(e); ltSetColor(el.dataset.id, el.value); }));
   ov.querySelectorAll('.lt-curve').forEach(el => el.addEventListener('click', (e)=>{ stop(e); toggleLeaderCurve(el.dataset.id); }));
   ov.querySelectorAll('.lt-arrow').forEach(el => el.addEventListener('click', (e)=>{ stop(e); ltToggleArrow(el.dataset.id); }));
@@ -2739,7 +2739,7 @@ function drawStepTableCanvas(ctx, b, canvas){
   ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
   ctx.fillText('⠿ '+m.title, x0+fs*0.5, y0+barH/2);
   let yy=y0+barH;
-  m.rows.forEach(r=>{
+  m.rows.map((r,i)=>[r,i]).sort((a,bi)=>((a[0].skip?1:0)-(bi[0].skip?1:0))||(a[1]-bi[1])).map(p=>p[0]).forEach(r=>{
     ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1;
     ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,rh);
     ctx.strokeRect(x0,yy,numW,rh); ctx.strokeRect(x0+numW,yy,insW,rh);
