@@ -2488,8 +2488,8 @@ function renderBalloonsSVG() {
       const textX = indX + indSize + 4*markerSize;
       const fs = 10 * markerSize;
       if (isCaution) {
-        html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="#fde047" stroke="#111827" stroke-width="${2*markerSize}"/>
-          <polygon points="${indX+indSize/2},${indY} ${indX+indSize},${indY+indSize} ${indX},${indY+indSize}" fill="#111827" stroke="#111827" stroke-width="${0.5*markerSize}" stroke-linejoin="round"/><text x="${indX+indSize/2}" y="${indY+indSize*0.64}" text-anchor="middle" dominant-baseline="central" fill="#fde047" font-size="${indSize*0.8}" font-weight="800" font-family="DM Sans,sans-serif">!</text>
+        html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="#fef9c3" stroke="#f59e0b" stroke-width="${1.5*markerSize}"/>
+          <polygon points="${indX+indSize/2},${indY} ${indX+indSize},${indY+indSize} ${indX},${indY+indSize}" fill="#facc15" stroke="#111827" stroke-width="${1.2*markerSize}" stroke-linejoin="round"/><text x="${indX+indSize/2}" y="${indY+indSize*0.66}" text-anchor="middle" dominant-baseline="central" fill="#111827" font-size="${indSize*0.58}" font-weight="800" font-family="DM Sans,sans-serif">!</text>
           <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111827" font-size="${fs}" font-weight="800" font-family="DM Sans,sans-serif">${text}</text>`;
       } else {
         const chip = shape === 'note' ? color : '#27ae60';
@@ -3002,22 +3002,23 @@ async function exportAnnotatedPNG() {
       const w = padX + indSize + indGap + tw + padX;
       const h = r*1.5, rad = r*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
-      ctx.fillStyle = isCaution ? '#fde047' : 'white';
-      ctx.strokeStyle = isCaution ? '#111827' : color;
+      ctx.fillStyle = isCaution ? '#fef9c3' : 'white';
+      ctx.strokeStyle = isCaution ? '#f59e0b' : color;
       ctx.lineWidth = Math.max(1.5, r*0.08);
       ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); ctx.fill(); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       if (isCaution) {
         const indX = x0 + padX, indY = cy - indSize/2;
-        ctx.fillStyle = '#111827';
         ctx.beginPath();
         ctx.moveTo(indX + indSize/2, indY);
         ctx.lineTo(indX + indSize, indY + indSize);
         ctx.lineTo(indX, indY + indSize);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#fde047'; ctx.textAlign = 'center';
-        ctx.font = `800 ${indSize*0.8}px DM Sans, sans-serif`;
-        ctx.fillText('!', indX + indSize/2, cy + indSize*0.12);
+        ctx.closePath();
+        ctx.fillStyle = '#facc15'; ctx.fill();
+        ctx.strokeStyle = '#111827'; ctx.lineWidth = Math.max(1, indSize*0.09); ctx.lineJoin = 'round'; ctx.stroke();
+        ctx.fillStyle = '#111827'; ctx.textAlign = 'center';
+        ctx.font = `800 ${indSize*0.58}px DM Sans, sans-serif`;
+        ctx.fillText('!', indX + indSize/2, cy + indSize*0.14);
         ctx.fillStyle = '#111827'; ctx.textAlign = 'left';
         ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
         ctx.fillText(text, indX + indSize + indGap, cy);
