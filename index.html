@@ -2132,7 +2132,7 @@ function loctorqueHTML(b){
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
-    + '<div class="lt-torque"><span class="lt-ico">⛓</span><span class="lt-tq" '+(sel?'contenteditable':'')+' data-id="'+b.id+'">'+esc(m.torque)+'</span><span class="lt-unit">N·m</span></div>'
+    + '<div class="lt-torque"><span class="lt-tq" '+(sel?'contenteditable':'')+' data-id="'+b.id+'">'+esc(m.torque)+'</span><span class="lt-unit">N·m</span></div>'
     + '</div>' + tools + '</div>';
 }
 
@@ -2702,7 +2702,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const fs=u*0.013, pad=fs*0.7, grade=badgeFor(m.loctite), torque='⛓ '+((m.torque||'—')+' N·m');
+  const fs=u*0.013, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
