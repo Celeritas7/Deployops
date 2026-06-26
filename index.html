@@ -2139,7 +2139,7 @@ function loctorqueHTML(b){
 function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
-  const rows = m.rows.map((r, ri) => {
+  const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
     const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+'">'+r.n+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
     return '<tr><td class="st-num">'+chip+'</td>'
@@ -2726,7 +2726,7 @@ function drawStepTableCanvas(ctx, b, canvas){
   ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
   ctx.fillText('⠿ '+m.title, x0+fs*0.5, y0+barH/2);
   let yy=y0+barH;
-  m.rows.forEach(r=>{
+  [...m.rows].sort((a,z)=>(a.skip?1:0)-(z.skip?1:0)).forEach(r=>{
     ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1;
     ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,rh);
     ctx.strokeRect(x0,yy,numW,rh); ctx.strokeRect(x0+numW,yy,insW,rh);
