@@ -578,7 +578,7 @@ function setLtGradeColor(g, c){ ltColors[g]=c; saveLtColors(); refreshDrawingChr
 function addGrade(raw){ const g=(raw||'').trim().replace(/[^0-9a-zA-Z]/g,''); if(!g||ltGrades.includes(g))return; ltColors[g]=ltColors[g]||NEW_GRADE_COLORS[ltGrades.length%NEW_GRADE_COLORS.length]; ltGrades.push(g); saveLtGrades(); saveLtColors(); refreshDrawingChrome(); }
 function delGrade(g){ if(g==='none')return; ltGrades=ltGrades.filter(x=>x!==g); saveLtGrades(); refreshDrawingChrome(); }
 function resetGrades(){ ltGrades=LOCTITE_DEFAULT_GRADES.slice(); ltColors=Object.assign({},LOCTITE_DEFAULT_COLORS); saveLtGrades(); saveLtColors(); refreshDrawingChrome(); }
-function ltMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { loctite:o.loctite||'none', torque:o.torque||'', color:o.color, leader:o.leader||'arrow', curve:!!o.curve, waypoints:Array.isArray(o.waypoints)?o.waypoints:[], bx:o.bx, by:o.by }; } catch { return { loctite:'none', torque:'', leader:'arrow', curve:false, waypoints:[] }; } }
+function ltMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { loctite:o.loctite||'none', torque:o.torque||'', color:o.color, leader:o.leader||'arrow', curve:!!o.curve, waypoints:Array.isArray(o.waypoints)?o.waypoints:[], bx:o.bx, by:o.by, scale:(+o.scale)||0.8 }; } catch { return { loctite:'none', torque:'', leader:'arrow', curve:false, waypoints:[], scale:0.8 }; } }
 function ltSerialize(m){ return JSON.stringify(m); }
 
 // ── §8 Assembly-steps table (on-drawing) ──
@@ -2121,6 +2121,8 @@ function loctorqueHTML(b){
   let tools = '';
   if (sel){
     tools = '<div class="lt-tools admin-only">'
+      + '<button class="lt-scale" data-id="'+b.id+'" data-d="-0.1" title="Smaller">−</button>'
+      + '<button class="lt-scale" data-id="'+b.id+'" data-d="0.1" title="Bigger">＋</button>'
       + '<button class="lt-dup" data-id="'+b.id+'" title="Duplicate">⧉</button>'
       + (arrowOn ? '<button class="lt-curve'+(m.curve?' on':'')+'" data-id="'+b.id+'" title="Curve / straight">'+(m.curve?'↝':'→')+'</button>' : '')
       + '<button class="lt-arrow'+(arrowOn?'':' off')+'" data-id="'+b.id+'" title="Arrow on / off">➤</button>'
@@ -2128,7 +2130,7 @@ function loctorqueHTML(b){
       + '<button class="lt-del" data-id="'+b.id+'" title="Delete">×</button>'
       + '</div>';
   }
-  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+'">'
+  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale('+(m.scale||0.8)+')">'
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
@@ -2172,6 +2174,7 @@ function bindOverlay(ov){
   ov.querySelectorAll('.lt-curve').forEach(el => el.addEventListener('click', (e)=>{ stop(e); toggleLeaderCurve(el.dataset.id); }));
   ov.querySelectorAll('.lt-arrow').forEach(el => el.addEventListener('click', (e)=>{ stop(e); ltToggleArrow(el.dataset.id); }));
   ov.querySelectorAll('.lt-dup').forEach(el => el.addEventListener('click', (e)=>{ stop(e); dupLT(el.dataset.id); }));
+  ov.querySelectorAll('.lt-scale').forEach(el => el.addEventListener('click', (e)=>{ stop(e); ltScale(el.dataset.id, +el.dataset.d); }));
   ov.querySelectorAll('.lt-del, .st-tdel').forEach(el => el.addEventListener('click', (e)=>{ stop(e); deleteAnnotation(el.dataset.id); }));
   ov.querySelectorAll('.st-ic').forEach(el => el.addEventListener('blur', ()=> stCommit(el.dataset.id, +el.dataset.ri, el.textContent.trim())));
   ov.querySelectorAll('.st-arrow-btn').forEach(el => el.addEventListener('click', (e)=>{ stop(e); spawnFromStep(el.dataset.id, +el.dataset.ri); }));
@@ -2188,6 +2191,7 @@ async function ltUpdate(b, m){
 function ltSetGrade(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.loctite=val; delete m.color; ltUpdate(b,m); }
 function ltSetColor(id, c){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.color=c; ltUpdate(b,m); }
 function ltSetTorque(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); if((m.torque||'')===val)return; m.torque=val; ltUpdate(b,m); }
+function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.scale=Math.max(0.6,Math.min(1.6,+(((m.scale||0.8)+d)).toFixed(2))); ltUpdate(b,m); }
 function ltToggleArrow(id){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.leader=(m.leader||'arrow')==='none'?'arrow':'none'; ltUpdate(b,m); }
 async function dupLT(id){
   const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b);
@@ -2702,7 +2706,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const fs=u*0.013, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
+  const sc=m.scale||0.8, fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
