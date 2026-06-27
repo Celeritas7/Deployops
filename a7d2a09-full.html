@@ -104,26 +104,25 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 /* ===== §7/§8 on-drawing widgets (HTML overlay above the SVG) ===== */
 .dwg-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
 .dwg-overlay>*{pointer-events:auto}
-/* Loctite chip — Option C: paper / inverted light (flat, see-through, print-safe) */
-.lt-callout{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:stretch;background:rgba(255,255,255,.88);border:1px solid rgba(20,30,45,.38);border-radius:6px;overflow:hidden;box-shadow:none;font-family:'DM Sans',sans-serif;user-select:none}
-.lt-callout.sel{box-shadow:0 0 0 2px #0e7490}
-.lt-grip{width:15px;flex-shrink:0;cursor:grab;background:rgba(20,30,45,.06);display:grid;place-items:center;color:#64748b;font-size:10px;touch-action:none}
+.lt-callout{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:stretch;background:rgba(11,14,22,.96);border:1.5px solid var(--border);border-radius:9px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.5);font-family:'DM Sans',sans-serif;user-select:none}
+.lt-callout.sel{box-shadow:0 0 0 2px #22d3ee,0 4px 14px rgba(0,0,0,.55)}
+.lt-grip{width:16px;flex-shrink:0;cursor:grab;background:rgba(255,255,255,.06);display:grid;place-items:center;color:var(--text2);font-size:10px;touch-action:none}
 .lt-grip:active{cursor:grabbing}
 .lt-body{display:flex;flex-direction:column;min-width:0}
-.lt-grade{display:flex;align-items:center;gap:6px;padding:5px 10px 4px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;color:#1d2733;border-bottom:1px solid rgba(20,30,45,.16);white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,.95)}
-.lt-grade .lt-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px rgba(20,30,45,.5)}
-.lt-grade select{background:#fff;color:#1d2733;border:1px solid rgba(20,30,45,.3);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:2px 4px;cursor:pointer}
-.lt-torque{display:flex;align-items:center;gap:5px;padding:4px 10px 6px;font-size:12px;color:#0b0e16;text-shadow:0 0 2px rgba(255,255,255,.95)}
-.lt-torque .lt-ico{color:#64748b}
-.lt-torque .lt-tq{min-width:14px;outline:none;font-weight:800;font-family:'JetBrains Mono',monospace;color:#0b0e16}
-.lt-torque .lt-tq[contenteditable]:empty::before{content:'—';color:#94a3b8}
-.lt-torque .lt-unit{color:#5b6b7e;font-size:11px}
-.lt-tools{display:flex;align-items:center;gap:2px;padding:3px 4px;background:rgba(20,30,45,.05);border-left:1px solid rgba(20,30,45,.16)}
-.lt-tools button,.lt-tools .lt-swatch-wrap{width:20px;height:20px;border:none;border-radius:5px;background:rgba(20,30,45,.06);color:#1d2733;font-size:12px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;position:relative;overflow:hidden}
-.lt-tools button:hover{background:rgba(20,30,45,.14)}
-.lt-tools .lt-curve.on{color:#0e7490}
-.lt-tools .lt-arrow.off{color:#94a3b8;text-decoration:line-through}
-.lt-tools .lt-del{color:#dc2626}
+.lt-grade{display:flex;align-items:center;gap:6px;padding:5px 10px 4px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap}
+.lt-grade .lt-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.lt-grade select{background:#000;color:var(--text);border:1px solid var(--border);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:2px 4px;cursor:pointer}
+.lt-torque{display:flex;align-items:center;gap:5px;padding:4px 10px 6px;font-size:12px;color:var(--text)}
+.lt-torque .lt-ico{color:var(--text2)}
+.lt-torque .lt-tq{display:inline-block;min-width:22px;cursor:text;outline:none;font-weight:700;font-family:'JetBrains Mono',monospace}
+.lt-torque .lt-tq[contenteditable]:empty::before{content:'—';color:var(--text2)}
+.lt-torque .lt-unit{color:var(--text2);font-size:11px}
+.lt-tools{display:flex;align-items:center;gap:2px;padding:3px 4px;background:rgba(255,255,255,.05);border-left:1px solid var(--border)}
+.lt-tools button,.lt-tools .lt-swatch-wrap{width:20px;height:20px;border:none;border-radius:5px;background:rgba(255,255,255,.06);color:var(--text);font-size:12px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;position:relative;overflow:hidden}
+.lt-tools button:hover{background:rgba(255,255,255,.16)}
+.lt-tools .lt-curve.on{color:#22d3ee}
+.lt-tools .lt-arrow.off{color:var(--text2);text-decoration:line-through}
+.lt-tools .lt-del{color:#f87171}
 .lt-tools .lt-swatch{position:absolute;inset:0;opacity:0;cursor:pointer}
 .dwg-table{position:absolute;transform-origin:top left;background:#fff;border:1px solid #b9c2d0;border-radius:6px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.5);user-select:none;font-family:'DM Sans',sans-serif}
 .dwg-table.sel{box-shadow:0 0 0 2px #22d3ee,0 6px 22px rgba(0,0,0,.55)}
@@ -452,6 +451,11 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
     top:0;left:0;
     width:100%;height:100%;
   }
+  /* Single-page guard: clip sub-pixel frame bleed that would otherwise spawn a blank page 2 */
+  html,body{overflow:hidden!important}
+  #drawingTab.active{overflow:hidden!important}
+  /* Editor-only affordances (drag grips, scale/delete buttons) stay out of the printed sheet */
+  .lt-grip,.step-table .dt-grip-ico,.table-btn,.tbl-grip{display:none!important}
 }
 @page{size:A3 landscape;margin:8mm}
 @media(max-width:768px){
@@ -534,7 +538,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 // ============================================================
 let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
-let drawingPath = []; // folder-view state: [] = root grid; ['Crawler v2','CRW-FRAME-ASSY'] = browsing that nested path
+let drawingFolder = null; // folder-view state: null = folder grid; string = browsing that folder's drawings
 let pendingUploadFolder = null; // default folder injected into the next upload modal (null = no default, e.g. topbar)
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
 let currentMode = 'dismantling'; // active layer / tool
@@ -578,7 +582,7 @@ function setLtGradeColor(g, c){ ltColors[g]=c; saveLtColors(); refreshDrawingChr
 function addGrade(raw){ const g=(raw||'').trim().replace(/[^0-9a-zA-Z]/g,''); if(!g||ltGrades.includes(g))return; ltColors[g]=ltColors[g]||NEW_GRADE_COLORS[ltGrades.length%NEW_GRADE_COLORS.length]; ltGrades.push(g); saveLtGrades(); saveLtColors(); refreshDrawingChrome(); }
 function delGrade(g){ if(g==='none')return; ltGrades=ltGrades.filter(x=>x!==g); saveLtGrades(); refreshDrawingChrome(); }
 function resetGrades(){ ltGrades=LOCTITE_DEFAULT_GRADES.slice(); ltColors=Object.assign({},LOCTITE_DEFAULT_COLORS); saveLtGrades(); saveLtColors(); refreshDrawingChrome(); }
-function ltMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { loctite:o.loctite||'none', torque:o.torque||'', color:o.color, leader:o.leader||'arrow', curve:!!o.curve, waypoints:Array.isArray(o.waypoints)?o.waypoints:[], bx:o.bx, by:o.by, scale:(+o.scale)||0.8 }; } catch { return { loctite:'none', torque:'', leader:'arrow', curve:false, waypoints:[], scale:0.8 }; } }
+function ltMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { loctite:o.loctite||'none', torque:o.torque||'', color:o.color, leader:o.leader||'arrow', curve:!!o.curve, waypoints:Array.isArray(o.waypoints)?o.waypoints:[], bx:o.bx, by:o.by }; } catch { return { loctite:'none', torque:'', leader:'arrow', curve:false, waypoints:[] }; } }
 function ltSerialize(m){ return JSON.stringify(m); }
 
 // ── §8 Assembly-steps table (on-drawing) ──
@@ -662,6 +666,7 @@ async function runAnnotationSelfTest(){
   if (!isAdmin){ console.warn('Self-test is admin-only.'); return; }
   if (!currentDrawing){ toast('Open a drawing first','err'); return; }
   const results=[], made=[];
+  let testTableId=null;
   const ok=(name,cond)=>results.push((cond?'✓ ':'✗ ')+name);
   const rowKey=(b,tid,ri)=>{ try{ const o=JSON.parse(b.label||'{}'); return o.ft===tid&&o.fr===ri; }catch{ return false; } };
   try {
@@ -672,7 +677,7 @@ async function runAnnotationSelfTest(){
     const back=r1.data?ltMeta(r1.data):{}; ok('Loctite payload round-trips', back.loctite==='243' && back.torque==='8' && back.curve===true && (back.waypoints||[]).length===1);
     // 2) place a steps table
     const r2=await sb.from('deployops_balloons').insert({ drawing_id:currentDrawing.id, page:currentPage, number:0, x_pct:20, y_pct:20, label:JSON.stringify({title:'Self-test',scale:0.9,rows:DEFAULT_STEP_ROWS}), color:'#0e7490', mode:'steptable', arrow_style:'none' }).select().single();
-    ok('place steps table', !r2.error && r2.data); if (r2.data) made.push(r2.data.id);
+    ok('place steps table', !r2.error && r2.data); if (r2.data){ made.push(r2.data.id); testTableId=r2.data.id; }
     const sm=r2.data?stMeta(r2.data):{rows:[]}; ok('steps payload round-trips', sm.rows.length===DEFAULT_STEP_ROWS.length);
     // 3) spawn a balloon from a step row
     if (r2.data){
@@ -692,9 +697,24 @@ async function runAnnotationSelfTest(){
   // cleanup everything created
   let cleaned=0;
   for (const id of made){ try { await sb.from('deployops_balloons').delete().eq('id', id); cleaned++; } catch(e){} }
+  // belt-and-suspenders: sweep any balloon that still points at THIS run's
+  // test steps-table — an uncaptured orphan a dedupe regression could leak.
+  // Scoped to the current drawing and matched ONLY on testTableId (this run's
+  // server-generated UUID), so it can hit nothing but balloons this test
+  // spawned: real annotations and the Safety-net canary carry other ft ids.
+  let swept=0;
+  if (testTableId){
+    try {
+      const { data:rest } = await sb.from('deployops_balloons').select('id,label').eq('drawing_id', currentDrawing.id);
+      for (const b of (rest||[])){
+        let hit=false; try { hit = JSON.parse(b.label||'{}').ft === testTableId; } catch {}
+        if (hit){ try { await sb.from('deployops_balloons').delete().eq('id', b.id); swept++; } catch(e){} }
+      }
+    } catch(e){}
+  }
   await loadBalloons(); paintAnnotations();
   const pass=results.every(r=>r[0]==='✓');
-  console.log('%cDeployOps annotation self-test — '+(pass?'ALL PASS':'FAILURES')+'\n'+results.join('\n')+'\nCleaned up '+cleaned+' test row(s).', 'font-family:monospace;font-size:12px');
+  console.log('%cDeployOps annotation self-test — '+(pass?'ALL PASS':'FAILURES')+'\n'+results.join('\n')+'\nCleaned up '+cleaned+' captured + swept '+swept+' orphan(s).', 'font-family:monospace;font-size:12px');
   toast(pass?('Self-test passed ✓ ('+results.length+' checks)'):'Self-test FAILED — see console', pass?'ok':'err');
   return { pass, results };
 }
@@ -1006,111 +1026,84 @@ async function selectDrawing(id) {
 // ============================================================
 const DRAWING_UNCATEGORIZED = 'Uncategorized';
 
-// ── Nested folders live entirely in the existing `folder` text column ──
-// We treat `folder` as a "/"-separated PATH ("Crawler v2/CRW-FRAME-ASSY").
-// Legacy rows have no "/", so they are simply depth-1 paths — fully
-// backward-compatible, no schema migration required.
-const FSEP = '/';
-
-// A drawing's folder as trimmed path segments. Blank → ['Uncategorized'].
-function folderSegs(d) {
-  const raw = (d.folder || '').trim();
-  if (!raw) return [DRAWING_UNCATEGORIZED];
-  return raw.split(FSEP).map(s => s.trim()).filter(Boolean);
-}
-// Does a drawing's segments sit AT or UNDER the given path prefix?
-function underPath(segs, prefix) {
-  return prefix.every((p, i) => segs[i] === p);
-}
-
 // Display label for a drawing's folder (NULL/blank → "Uncategorized").
 function drawingFolderName(d) {
   return (d.folder && d.folder.trim()) ? d.folder.trim() : DRAWING_UNCATEGORIZED;
 }
 
-// Folder autocomplete suggestions for the upload / edit dialogs. Emits every
-// existing folder PATH plus each parent prefix (so typing into a nested folder
-// is one tap), unioned with model names. Suggestion-only — the input stays free
-// text, so brand-new paths still work. Blanks + the Uncategorized sentinel out.
+// Folder autocomplete suggestions for the upload / edit dialogs: the union of
+// existing drawing-folder names and model names (English canonical — folders
+// align to models by a one-tap pick). Suggestion-only — the input stays free
+// text, so brand-new folder names still work. Trimmed, deduped, blanks and the
+// "Uncategorized" sentinel excluded, sorted.
 function folderSuggestions() {
-  const set = new Set();
-  drawings.forEach(d => {
-    const segs = folderSegs(d).filter(s => s !== DRAWING_UNCATEGORIZED);
-    for (let i = 1; i <= segs.length; i++) set.add(segs.slice(0, i).join(FSEP));
-  });
-  models.forEach(m => { const n = m.name && m.name.trim(); if (n) set.add(n); });
-  return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const fromDrawings = drawings.map(d => d.folder && d.folder.trim()).filter(Boolean);
+  const fromModels = models.map(m => m.name && m.name.trim()).filter(Boolean);
+  return [...new Set([...fromDrawings, ...fromModels])]
+    .filter(n => n && n !== DRAWING_UNCATEGORIZED)
+    .sort((a, b) => a.localeCompare(b));
 }
 
-// Breadcrumb for the current drawing path. Root + every segment is clickable.
-function drawingCrumbsHTML() {
-  let html = `<div class="crumbs"><a onclick="gotoDrawingPath(0)">📐 Drawings</a>`;
-  drawingPath.forEach((name, i) => {
-    const last = i === drawingPath.length - 1;
-    html += `<span class="sep">/</span>` + (last
-      ? `<span class="cur" style="color:var(--text)">${esc(name)}</span>`
-      : `<a onclick="gotoDrawingPath(${i + 1})">${esc(name)}</a>`);
-  });
-  return html + `</div>`;
-}
-
-// Renders the folder grid at the current path (drawingPath). Sub-folders and
-// drawings sit side by side; nesting is unbounded. Mirrors the checklist folder
-// grid so it looks native and works on mobile.
+// Renders either the folder grid (drawingFolder === null) or the list of
+// drawings inside one folder. Mirrors the checklist-section folder grid so
+// it looks native and works on mobile.
 function renderDrawingFolderView(el) {
   const lang = getUiLang();
-  const depth = drawingPath.length;
-
-  // Partition every drawing relative to the current path.
-  const subCounts = {};   // next-segment folder name → recursive drawing count
-  const here = [];        // drawings whose path is exactly the current path
+  const groups = {};
   drawings.forEach(d => {
-    const segs = folderSegs(d);
-    if (!underPath(segs, drawingPath)) return;
-    if (segs.length === depth) { here.push(d); return; }
-    const next = segs[depth];
-    subCounts[next] = (subCounts[next] || 0) + 1;
+    const f = drawingFolderName(d);
+    (groups[f] = groups[f] || []).push(d);
   });
-
-  // Real sub-folders first (alpha), Uncategorized last.
-  const subNames = Object.keys(subCounts).sort((a, b) => {
+  // Real folders first (alpha), Uncategorized last.
+  const folderNames = Object.keys(groups).sort((a, b) => {
     if (a === DRAWING_UNCATEGORIZED) return 1;
     if (b === DRAWING_UNCATEGORIZED) return -1;
     return a.localeCompare(b);
   });
 
-  let html = '';
-  if (depth === 0) {
-    html += `<div class="cl-section-header" style="margin-bottom:16px">
+  if (drawingFolder === null) {
+    let html = `<div class="cl-section-header" style="margin-bottom:16px">
         <h2 style="font-size:18px;flex:1">📐 Drawings</h2>
       </div>`;
-  } else {
-    html += `<button class="back-btn" onclick="backToDrawingFolders()">← Back</button>`
-      + drawingCrumbsHTML()
-      + `<div class="cl-section-header" style="margin-bottom:16px">
-          <h2 style="font-size:18px;flex:1">📁 ${esc(drawingPath[depth - 1])}</h2>
-          <button class="btn btn-primary btn-sm admin-only" onclick="uploadToCurrentFolder()" title="${esc(tr(lang, 'dwUploadToFolder'))}">＋ ${esc(tr(lang, 'dwUploadToFolder'))}</button>
-          <button class="btn btn-sm admin-only" onclick="newSubFolder()" title="Create a sub-folder here">＋ Sub-folder</button>
-          <span class="badge badge-blue">${here.length}</span>
+    html += `<div class="folder-grid">`;
+    folderNames.forEach(f => {
+      html += `
+        <div class="folder-card" data-folder="${esc(f)}" onclick="openDrawingFolder(this.dataset.folder)">
+          <span class="folder-count">${groups[f].length}</span>
+          <div class="folder-icon">📁</div>
+          <div class="folder-name">${esc(f)}</div>
         </div>`;
+    });
+    // Admin-only contextual upload entry point — reuses the topbar upload flow
+    // (no default folder). Hidden for non-admins via .admin-only (RLS also gates).
+    html += `
+        <div class="folder-card upload-card admin-only" onclick="triggerPDFFilePicker()" title="${esc(tr(lang, 'dwUploadPdf'))}">
+          <div class="folder-icon">＋</div>
+          <div class="folder-name">${esc(tr(lang, 'dwUploadPdf'))}</div>
+        </div>`;
+    html += `</div>`;
+    if (folderNames.length === 0) {
+      html += `<p style="color:var(--text2);font-size:13px;margin-top:14px">No drawings yet. Use <b>📤 Upload PDF</b> to add one.</p>`;
+    }
+    el.innerHTML = html;
+    return;
   }
 
-  html += `<div class="folder-grid">`;
-
-  // Sub-folder cards
-  subNames.forEach(name => {
-    html += `
-        <div class="folder-card" data-folder="${esc(name)}" onclick="openDrawingFolder(this.dataset.folder)">
-          <span class="folder-count">${subCounts[name]}</span>
-          <div class="folder-icon">${name === DRAWING_UNCATEGORIZED ? '🗂️' : '📁'}</div>
-          <div class="folder-name">${esc(name)}</div>
-        </div>`;
-  });
-
-  // Drawing cards at this exact path
-  here.forEach(d => {
-    const pc = d.page_count || 0;
-    html += `
+  // Inside a folder: list its drawings as cards.
+  const list = groups[drawingFolder] || [];
+  let html = `<button class="back-btn" onclick="backToDrawingFolders()">← Folders</button>
+    <div class="cl-section-header" style="margin-bottom:16px">
+      <h2 style="font-size:18px;flex:1">📁 ${esc(drawingFolder)}</h2>
+      <button class="btn btn-primary btn-sm admin-only" onclick="uploadToCurrentFolder()" title="${esc(tr(lang, 'dwUploadToFolder'))}">＋ ${esc(tr(lang, 'dwUploadToFolder'))}</button>
+      <span class="badge badge-blue">${list.length}</span>
+    </div>`;
+  if (list.length === 0) {
+    html += `<div class="empty"><div class="icon">📐</div><p>This folder is empty.</p></div>`;
+  } else {
+    html += `<div class="folder-grid">`;
+    list.forEach(d => {
+      const pc = d.page_count || 0;
+      html += `
         <div class="folder-card" data-id="${esc(d.id)}" onclick="selectDrawing(this.dataset.id)">
           <span class="folder-count">${pc}p</span>
           <button class="edit-icon-btn admin-only" data-id="${esc(d.id)}" onclick="event.stopPropagation();showEditDrawing(this.dataset.id)" title="Edit drawing">✏</button>
@@ -1118,39 +1111,14 @@ function renderDrawingFolderView(el) {
           <div class="folder-name">${esc(d.drawing_ref)}</div>
           <div style="font-size:11px;color:var(--text2);text-transform:none;letter-spacing:0;font-weight:400">${esc(pickField(d, 'name', lang))}</div>
         </div>`;
-  });
-
-  // Admin-only contextual upload entry point — prefilled to the current path.
-  html += `
-        <div class="folder-card upload-card admin-only" onclick="uploadToCurrentFolder()" title="${esc(tr(lang, 'dwUploadPdf'))}">
-          <div class="folder-icon">＋</div>
-          <div class="folder-name">${depth ? 'Upload here' : esc(tr(lang, 'dwUploadPdf'))}</div>
-        </div>`;
-
-  html += `</div>`;
-
-  if (depth === 0 && subNames.length === 0 && here.length === 0) {
-    html += `<p style="color:var(--text2);font-size:13px;margin-top:14px">No drawings yet. Use <b>📤 Upload PDF</b> to add one.</p>`;
+    });
+    html += `</div>`;
   }
   el.innerHTML = html;
 }
 
-// ── Folder navigation (path-based) ──
-function openDrawingFolder(name) { drawingPath = [...drawingPath, name]; currentDrawing = null; renderDrawing(); }
-function gotoDrawingPath(n) { drawingPath = drawingPath.slice(0, n); currentDrawing = null; renderDrawing(); }
-function backToDrawingFolders() { drawingPath = drawingPath.slice(0, -1); currentDrawing = null; renderDrawing(); }
-
-// Create a sub-folder under the current path. Folders are derived from drawings
-// (there is no folder table), so a new sub-folder becomes "real" the moment a
-// drawing is uploaded/moved into it — we open it and offer the first upload.
-function newSubFolder() {
-  const name = (prompt('New sub-folder name:') || '').trim().split(FSEP).join('');
-  if (!name) return;
-  drawingPath = [...drawingPath, name];
-  currentDrawing = null;
-  renderDrawing();
-  triggerPDFFilePicker(drawingPath.join(FSEP));
-}
+function openDrawingFolder(name) { drawingFolder = name; renderDrawing(); }
+function backToDrawingFolders() { drawingFolder = null; currentDrawing = null; renderDrawing(); }
 // Viewer "← Folders" button: close the drawing and return to the folder it was
 // opened from (or the top-level grid if opened via the quick-jump select).
 function backFromDrawing() { currentDrawing = null; renderDrawing(); }
@@ -1207,7 +1175,7 @@ function triggerPDFFilePicker(defaultFolder = null) {
 
 // "Upload to this folder" — opens the upload modal pre-filled to the folder
 // currently being browsed (still editable in the modal).
-function uploadToCurrentFolder() { triggerPDFFilePicker(drawingPath.join(FSEP)); }
+function uploadToCurrentFolder() { triggerPDFFilePicker(drawingFolder); }
 
 function handlePDFUpload(event) {
   const file = event.target.files[0];
@@ -1553,7 +1521,7 @@ function setMarkerSize(v) {
   localStorage.setItem('deployops_balloon_size', String(markerSize));
   const val = document.getElementById('markerSizeVal');
   if (val) val.textContent = Math.round(markerSize * 100) + '%';
-  renderBalloonsSVG();
+  paintAnnotations();
 }
 
 // ── Note templates ──
@@ -1643,6 +1611,42 @@ function onDrawingLoad() {
   }
   initDrawingZoom();
 }
+
+// ============================================================
+// PRINT — overlay proportional scale
+// On screen the HTML annotations (lt-callout / step-table) are tuned in fixed
+// px against the on-screen drawing width. In print the drawing is scaled up to
+// fill the A3 box, so fixed-px annotations look shrunk. Their transforms are set
+// inline (so print CSS can't touch them) — scale each one by printWidth/screenWidth
+// at beforeprint, restore at afterprint. SVG leaders are viewBox-driven and need no fix.
+// ============================================================
+let _printOvSaved = null;
+function applyPrintOverlayScale() {
+  const container = document.getElementById('drawingContainer');
+  const img = document.getElementById('drawingImg');
+  if (!container || !img || !img.naturalWidth) return;
+  const screenW = container.clientWidth;
+  if (!screenW) return;
+  // A3 landscape content box at 96 CSS px/in, minus the @page 8mm margins both sides.
+  const pxPerMm = 96 / 25.4;
+  const boxW = (420 - 16) * pxPerMm, boxH = (297 - 16) * pxPerMm;
+  const aspect = img.naturalWidth / img.naturalHeight;
+  const printW = Math.min(boxW, boxH * aspect); // width- or height-constrained fit
+  const factor = printW / screenW;
+  if (!isFinite(factor) || factor <= 0) return;
+  _printOvSaved = [];
+  document.querySelectorAll('#dwgOverlay .lt-callout, #dwgOverlay .step-table').forEach(el => {
+    _printOvSaved.push([el, el.style.transform]);
+    el.style.transform = (el.style.transform || '') + ' scale(' + factor + ')';
+  });
+}
+function restorePrintOverlayScale() {
+  if (!_printOvSaved) return;
+  _printOvSaved.forEach(([el, t]) => { el.style.transform = t; });
+  _printOvSaved = null;
+}
+window.addEventListener('beforeprint', applyPrintOverlayScale);
+window.addEventListener('afterprint', restorePrintOverlayScale);
 
 // ============================================================
 // ZOOM + PAN  (CSS transform on the wrapper holding img + svg, so balloons
@@ -1806,6 +1810,7 @@ async function handleDrawingClick(e) {
   if (e.target.closest('.tip-handle')) return; // tip handles its own drag
   if (e.target.closest('.add-leader')) return; // "+" affordance handles its own click
   if (e.target.closest('.dwg-table-g')) return; // table cards drag / button themselves
+  if (e.target.closest('.caution-btn')) return; // caution size buttons handle their own click
   if (e.target.closest('.balloon-g')) {
     const g = e.target.closest('.balloon-g');
     const bid = g.dataset.id;
@@ -2045,7 +2050,7 @@ function renderTableCardSVG(b, x0, y0, vbW) {
   s += `<rect x="${x0}" y="${y0}" width="${W}" height="${H}" rx="${3*scale}" fill="white" stroke="#94a3b8" stroke-width="${1*scale}"/>`;
   // drag bar
   s += `<g class="table-drag" data-id="${b.id}"><rect x="${x0}" y="${y0}" width="${W}" height="${barH}" rx="${3*scale}" fill="#e2e8f0"/>
-    <text x="${x0 + 5*scale}" y="${y0 + barH/2}" dominant-baseline="central" font-size="${fs}" fill="#475569" font-family="DM Sans,sans-serif">⠿ ${title}</text></g>`;
+    <text x="${x0 + 5*scale}" y="${y0 + barH/2}" dominant-baseline="central" font-size="${fs}" fill="#475569" font-family="DM Sans,sans-serif" class="tbl-grip">⠿</text><text x="${x0 + 15*scale}" y="${y0 + barH/2}" dominant-baseline="central" font-size="${fs}" fill="#475569" font-family="DM Sans,sans-serif">${title}</text></g>`;
   // admin controls (scale − / ＋ / delete) on the bar's right
   if (isAdmin) {
     const bw = barH; // square buttons
@@ -2067,12 +2072,16 @@ function renderTableCardSVG(b, x0, y0, vbW) {
   s += border(x1, hA, colW[1]+colW[2], rh) + cellTxt(x1, hA + rh/2, colW[1]+colW[2], title, {center:true, bold:true});
   s += border(x1, hB, colW[1], rh) + cellTxt(x1, hB + rh/2, colW[1], 'Screw', {center:true, bold:true});
   s += border(x2, hB, colW[2], rh) + cellTxt(x2, hB + rh/2, colW[2], 'Torque N·m', {center:true, bold:true});
-  // data rows
+  // data rows — highlighted rows get an amber band so the operator sees which torques this assembly needs
+  const hiSet = new Set(Array.isArray(meta.hi) ? meta.hi : []);
   rows.forEach((r, i) => {
     const ry = dataTop + i*rh, rcy = ry + rh/2;
-    s += border(x0, ry, colW[0], rh) + cellTxt(x0, rcy, colW[0], esc(r[0]||''));
-    s += border(x1, ry, colW[1], rh) + cellTxt(x1, rcy, colW[1], esc(r[1]||''));
+    const on = hiSet.has(i);
+    if (on) s += `<rect x="${x0}" y="${ry}" width="${W}" height="${rh}" fill="#fde047"/>`;
+    s += border(x0, ry, colW[0], rh) + cellTxt(x0, rcy, colW[0], esc(r[0]||''), {bold:on});
+    s += border(x1, ry, colW[1], rh) + cellTxt(x1, rcy, colW[1], esc(r[1]||''), {bold:on});
     s += border(x2, ry, colW[2], rh) + cellTxt(x2, rcy, colW[2], esc(r[2]||''), {center:true, bold:true});
+    if (isAdmin) s += `<rect x="${x0}" y="${ry}" width="${W}" height="${rh}" fill="transparent" style="cursor:pointer" onclick="toggleTableRow('${b.id}',${i})"></rect>`;
   });
   s += `</g>`;
   return s;
@@ -2084,6 +2093,31 @@ async function scaleTable(bid, dir) {
   const cur = (+meta.scale) || 1;
   meta.scale = Math.max(0.5, Math.min(3, +(cur + dir*0.2).toFixed(2)));
   b.label = JSON.stringify(meta);
+  renderBalloonsSVG();
+  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+  catch(e) { console.error(e); toast('Resize failed','err'); }
+}
+
+// Toggle a torque row's highlight (admin) — marks which wrenches this assembly needs.
+async function toggleTableRow(bid, i) {
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  let meta = {}; try { meta = JSON.parse(b.label || '{}'); } catch {}
+  const hi = new Set(Array.isArray(meta.hi) ? meta.hi : []);
+  if (hi.has(i)) hi.delete(i); else hi.add(i);
+  meta.hi = [...hi].sort((a, b) => a - b);
+  b.label = JSON.stringify(meta);
+  renderBalloonsSVG();
+  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+  catch(e) { console.error(e); toast('Highlight save failed','err'); }
+}
+
+// Independent caution size — stored per-caution in the label's extra (_extra.s).
+async function scaleCaution(bid, dir) {
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const m = balloonMeta(b);
+  const cur = (+m._extra.s) || 1;
+  const s = Math.max(0.6, Math.min(3, +(cur + dir*0.2).toFixed(2)));
+  b.label = serializeBalloonLabel(m.text, m.curve, m.waypoints, Object.assign({}, m._extra, { s }));
   renderBalloonsSVG();
   try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
   catch(e) { console.error(e); toast('Resize failed','err'); }
@@ -2173,8 +2207,6 @@ function loctorqueHTML(b){
   let tools = '';
   if (sel){
     tools = '<div class="lt-tools admin-only">'
-      + '<button class="lt-scale" data-id="'+b.id+'" data-d="-0.1" title="Smaller">−</button>'
-      + '<button class="lt-scale" data-id="'+b.id+'" data-d="0.1" title="Bigger">＋</button>'
       + '<button class="lt-dup" data-id="'+b.id+'" title="Duplicate">⧉</button>'
       + (arrowOn ? '<button class="lt-curve'+(m.curve?' on':'')+'" data-id="'+b.id+'" title="Curve / straight">'+(m.curve?'↝':'→')+'</button>' : '')
       + '<button class="lt-arrow'+(arrowOn?'':' off')+'" data-id="'+b.id+'" title="Arrow on / off">➤</button>'
@@ -2182,18 +2214,18 @@ function loctorqueHTML(b){
       + '<button class="lt-del" data-id="'+b.id+'" title="Delete">×</button>'
       + '</div>';
   }
-  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale('+(m.scale||0.8)+')">'
+  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale('+markerSize+')">'
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
-    + '<div class="lt-grade"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
-    + '<div class="lt-torque"><span class="lt-tq" '+(sel?'contenteditable':'')+' data-id="'+b.id+'">'+esc(m.torque)+'</span><span class="lt-unit">N·m</span></div>'
+    + '<div class="lt-grade" style="color:'+c+'"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
+    + '<div class="lt-torque">'+(sel?'<input class="lt-tq" type="text" inputmode="decimal" value="'+esc(m.torque)+'" placeholder="—" data-id="'+b.id+'" style="width:40px;text-align:right;background:rgba(255,255,255,.1);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:1px 4px">':'<span class="lt-tq">'+(m.torque?esc(m.torque):'—')+'</span>')+'<span class="lt-unit">N·m</span></div>'
     + '</div>' + tools + '</div>';
 }
 
 function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
-  const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
+  const _ord = m.rows.map((r,i)=>i).sort((a,bi)=>((m.rows[a].skip?1:0)-(m.rows[bi].skip?1:0))||(a-bi)); const rows = _ord.map((ri) => { const r = m.rows[ri];
     const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+'">'+r.n+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
     return '<tr><td class="st-num">'+chip+'</td>'
@@ -2221,12 +2253,11 @@ function bindOverlay(ov){
   ov.querySelectorAll('.lt-grip').forEach(g => g.addEventListener('pointerdown', startLTBoxDrag));
   ov.querySelectorAll('.dt-bar').forEach(g => g.addEventListener('pointerdown', startStepTableDrag));
   ov.querySelectorAll('.lt-grade-sel').forEach(el => el.addEventListener('change', (e)=>{ stop(e); ltSetGrade(el.dataset.id, el.value); }));
-  ov.querySelectorAll('.lt-tq').forEach(el => el.addEventListener('blur', ()=> ltSetTorque(el.dataset.id, el.textContent.trim())));
+  ov.querySelectorAll('input.lt-tq').forEach(el => { const commit=()=>ltSetTorque(el.dataset.id, el.value.trim()); el.addEventListener('change', commit); el.addEventListener('blur', commit); el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } }); });
   ov.querySelectorAll('.lt-swatch').forEach(el => el.addEventListener('input', (e)=>{ stop(e); ltSetColor(el.dataset.id, el.value); }));
   ov.querySelectorAll('.lt-curve').forEach(el => el.addEventListener('click', (e)=>{ stop(e); toggleLeaderCurve(el.dataset.id); }));
   ov.querySelectorAll('.lt-arrow').forEach(el => el.addEventListener('click', (e)=>{ stop(e); ltToggleArrow(el.dataset.id); }));
   ov.querySelectorAll('.lt-dup').forEach(el => el.addEventListener('click', (e)=>{ stop(e); dupLT(el.dataset.id); }));
-  ov.querySelectorAll('.lt-scale').forEach(el => el.addEventListener('click', (e)=>{ stop(e); ltScale(el.dataset.id, +el.dataset.d); }));
   ov.querySelectorAll('.lt-del, .st-tdel').forEach(el => el.addEventListener('click', (e)=>{ stop(e); deleteAnnotation(el.dataset.id); }));
   ov.querySelectorAll('.st-ic').forEach(el => el.addEventListener('blur', ()=> stCommit(el.dataset.id, +el.dataset.ri, el.textContent.trim())));
   ov.querySelectorAll('.st-arrow-btn').forEach(el => el.addEventListener('click', (e)=>{ stop(e); spawnFromStep(el.dataset.id, +el.dataset.ri); }));
@@ -2243,7 +2274,6 @@ async function ltUpdate(b, m){
 function ltSetGrade(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.loctite=val; delete m.color; ltUpdate(b,m); }
 function ltSetColor(id, c){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.color=c; ltUpdate(b,m); }
 function ltSetTorque(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); if((m.torque||'')===val)return; m.torque=val; ltUpdate(b,m); }
-function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.scale=Math.max(0.6,Math.min(1.6,+(((m.scale||0.8)+d)).toFixed(2))); ltUpdate(b,m); }
 function ltToggleArrow(id){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.leader=(m.leader||'arrow')==='none'?'arrow':'none'; ltUpdate(b,m); }
 async function dupLT(id){
   const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b);
@@ -2257,20 +2287,8 @@ async function dupLT(id){
 function stSerialize(m){ return JSON.stringify({ title:m.title, scale:m.scale, rows:m.rows }); }
 async function stUpdate(b, m){ b.label = stSerialize(m); renderOverlay(); try { await sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id); } catch(e){ console.error(e); } }
 function stCommit(id, ri, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(!m.rows[ri]||(m.rows[ri].text||'')===val)return; m.rows[ri].text=val; stUpdate(b,m); }
-function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.6,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
+function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.4,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
 function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(kind==='skip') m.rows.push({skip:true,text:''}); else { const n=m.rows.filter(x=>!x.skip).length+1; m.rows.push({n,text:''}); } stUpdate(b,m); }
-
-// Independent caution size — stored per-caution in the label's extra (_extra.s).
-async function scaleCaution(bid, dir) {
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const m = balloonMeta(b);
-  const cur = (+m._extra.s) || 1;
-  const s = Math.max(0.6, Math.min(3, +(cur + dir*0.2).toFixed(2)));
-  b.label = serializeBalloonLabel(m.text, m.curve, m.waypoints, Object.assign({}, m._extra, { s }));
-  renderBalloonsSVG();
-  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
-  catch(e) { console.error(e); toast('Resize failed','err'); }
-}
 
 async function deleteAnnotation(id){
   const b=balloons.find(x=>x.id===id); if(!b)return;
@@ -2418,8 +2436,8 @@ function renderBalloonsSVG() {
     // Tag (cable / note / caution) box dimensions (used for both leader trim and body)
     let tagW = 0, tagH = 0;
     if (isTag) {
-      const text = balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
-      const glyphPad = isCaution ? 16 : 0; // room for drawn warning triangle
+      const text = balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? '注意' : '?');
+      const glyphPad = isCaution ? 10 : 0; // room for ⚠ glyph
       tagW = Math.max(34 * markerSize, (text.length * 6.2 + 26 + glyphPad) * markerSize) * cautionScale;
       tagH = 18 * markerSize * cautionScale;
     }
@@ -2475,7 +2493,7 @@ function renderBalloonsSVG() {
     if (isTag) {
       // Box tag — white background, coloured border. Cable/note show a chip on
       // the left; caution shows a ⚠ glyph before amber-bordered text.
-      const text = esc(balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? 'Caution' : '?'));
+      const text = esc(balloonText(b) || (shape === 'note' ? 'Note' : isCaution ? '注意' : '?'));
       const x0 = cx - tagW/2, y0 = cy - tagH/2;
       const indPad = 3 * markerSize * cautionScale;
       const indSize = tagH - indPad*2;
@@ -2484,17 +2502,9 @@ function renderBalloonsSVG() {
       const textX = indX + indSize + 4*markerSize*cautionScale;
       const fs = 10 * markerSize * cautionScale;
       if (isCaution) {
-        const icoScale = (fs * 1.25) / 125;
-        const icoW = 140 * icoScale, icoH = 125 * icoScale;
-        const triX = indX, triY = cy - icoH/2;
-        const txtX = triX + icoW + 6*cautionScale;
         html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="#fef9c3" stroke="#f59e0b" stroke-width="${1.5*markerSize}"/>
-          <g transform="translate(${triX},${triY}) scale(${icoScale})">
-            <path d="M61.21,15.70 L8.79,109.30 Q0,125 18,125 L122,125 Q140,125 131.21,109.30 L78.79,15.70 Q70,0 61.21,15.70 Z" fill="#facc15" stroke="#1a1a1a" stroke-width="9" stroke-linejoin="round"/>
-            <rect x="61" y="38" width="18" height="50" rx="7" fill="#1a1a1a"/>
-            <circle cx="70" cy="106" r="9" fill="#1a1a1a"/>
-          </g>
-          <text x="${txtX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#7c2d12" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
+          <polygon points="${indX+indSize/2},${indY} ${indX+indSize},${indY+indSize} ${indX},${indY+indSize}" fill="#facc15" stroke="#111827" stroke-width="${1.2*markerSize}" stroke-linejoin="round"/><text x="${indX+indSize/2}" y="${indY+indSize*0.66}" text-anchor="middle" dominant-baseline="central" fill="#111827" font-size="${indSize*0.58}" font-weight="800" font-family="DM Sans,sans-serif">!</text>
+          <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111827" font-size="${fs}" font-weight="800" font-family="DM Sans,sans-serif">${text}</text>`;
       } else {
         const chip = shape === 'note' ? color : '#27ae60';
         html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="white" stroke="${color}" stroke-width="${1.5*markerSize}"/>
@@ -2528,6 +2538,14 @@ function renderBalloonsSVG() {
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + r + 10, esc(_c)); }
     }
     html += `</g>`;
+
+    // Caution size — independent − / ＋ above a selected caution (admin only).
+    if (isAdmin && isCaution && b.id === selectedBalloonId) {
+      const bw = 13 * markerSize, gap = 2 * markerSize;
+      const byy = (cy - tagH/2) - bw - 3*markerSize;
+      const mkBtn = (bx, lbl, dir) => `<g class="caution-btn" onclick="scaleCaution('${b.id}',${dir})" style="cursor:pointer"><rect x="${bx}" y="${byy}" width="${bw}" height="${bw}" rx="3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/><text x="${bx+bw/2}" y="${byy+bw/2}" text-anchor="middle" dominant-baseline="central" font-size="${bw*0.85}" font-weight="700" fill="#475569">${lbl}</text></g>`;
+      html += mkBtn(cx - bw - gap, '−', -1) + mkBtn(cx + gap, '＋', 1);
+    }
 
     // Per-leader routing controls (admin + selected + has leader): curve toggle,
     // add-bend badge on the longest segment, and draggable bend handles (shared).
@@ -2779,18 +2797,16 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const sc=m.scale||0.8, fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
+  const fs=u*0.013, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
-  ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.strokeStyle='rgba(20,30,45,0.55)'; ctx.lineWidth=u*0.0016;
+  ctx.fillStyle='rgba(11,14,22,0.96)'; ctx.strokeStyle=c; ctx.lineWidth=u*0.0022;
   ctx.beginPath(); ctx.roundRect(x0,y0,w,h,fs*0.5); ctx.fill(); ctx.stroke();
-  // status dot with grayscale-safe dark ring
-  ctx.beginPath(); ctx.arc(x0+pad+fs*0.3,y0+h*0.33,fs*0.34,0,Math.PI*2); ctx.fillStyle='rgba(20,30,45,0.5)'; ctx.fill();
-  ctx.beginPath(); ctx.arc(x0+pad+fs*0.3,y0+h*0.33,fs*0.26,0,Math.PI*2); ctx.fillStyle=c; ctx.fill();
+  ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x0+pad+fs*0.3,y0+h*0.33,fs*0.3,0,Math.PI*2); ctx.fill();
   ctx.textBaseline='middle'; ctx.textAlign='left';
-  ctx.fillStyle='#1d2733'; ctx.fillText(grade, x0+pad+fs*0.9, y0+h*0.33);
-  ctx.fillStyle='#0b0e16'; ctx.fillText(torque, x0+pad, y0+h*0.7);
+  ctx.fillStyle=c; ctx.fillText(grade, x0+pad+fs*0.9, y0+h*0.33);
+  ctx.fillStyle='#e2e8f0'; ctx.fillText(torque, x0+pad, y0+h*0.7);
   ctx.restore();
 }
 // §8 Assembly-steps table → export canvas (light card).
@@ -2803,7 +2819,7 @@ function drawStepTableCanvas(ctx, b, canvas){
   ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
   ctx.fillText('⠿ '+m.title, x0+fs*0.5, y0+barH/2);
   let yy=y0+barH;
-  [...m.rows].sort((a,z)=>(a.skip?1:0)-(z.skip?1:0)).forEach(r=>{
+  m.rows.map((r,i)=>[r,i]).sort((a,bi)=>((a[0].skip?1:0)-(bi[0].skip?1:0))||(a[1]-bi[1])).map(p=>p[0]).forEach(r=>{
     ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1;
     ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,rh);
     ctx.strokeRect(x0,yy,numW,rh); ctx.strokeRect(x0+numW,yy,insW,rh);
@@ -2862,10 +2878,13 @@ function drawTableCanvas(ctx, b, x0, y0, canvas) {
   cell(x1, hA, colW[1]+colW[2], rh, title, {center:true, bold:true});
   cell(x1, hB, colW[1], rh, 'Screw', {center:true, bold:true});
   cell(x2, hB, colW[2], rh, 'Torque N·m', {center:true, bold:true});
+  const hiSet = new Set(Array.isArray(meta.hi) ? meta.hi : []);
   rows.forEach((row, i) => {
     const ry = dataTop + i*rh;
-    cell(x0, ry, colW[0], rh, String(row[0]||''));
-    cell(x1, ry, colW[1], rh, String(row[1]||''));
+    const on = hiSet.has(i);
+    if (on) { ctx.fillStyle = '#fde047'; ctx.fillRect(x0, ry, W, rh); }
+    cell(x0, ry, colW[0], rh, String(row[0]||''), {bold:on});
+    cell(x1, ry, colW[1], rh, String(row[1]||''), {bold:on});
     cell(x2, ry, colW[2], rh, String(row[2]||''), {center:true, bold:true});
   });
   ctx.restore();
@@ -2920,12 +2939,14 @@ async function exportAnnotatedPNG() {
     let sx, sy;
     if (isTag) {
       const text = balloonText(b) || '?';
-      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+      const cs = (sh === 'caution') ? ((+balloonMeta(b)._extra.s) || 1) : 1;
+      const rr = r * cs;
+      ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
       const tw = ctx.measureText(text).width;
-      const indSize = r*0.9;
-      const padX = r*0.35, indGap = r*0.3;
+      const indSize = rr*0.9;
+      const padX = rr*0.35, indGap = rr*0.3;
       const tagW = padX + indSize + indGap + tw + padX;
-      const tagH = r*1.5;
+      const tagH = rr*1.5;
       [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
     } else {
       const dist = Math.sqrt(dx*dx+dy*dy)||1;
@@ -2995,28 +3016,42 @@ async function exportAnnotatedPNG() {
     } else if (bmode === 'steptable') {
       drawStepTableCanvas(ctx, b, canvas);
     } else if (isCable || sh === 'note' || isCaution) {
-      const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
-      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
-      const glyph = isCaution ? '⚠ ' : '';
+      const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? '注意' : '?');
+      const cs = isCaution ? ((+balloonMeta(b)._extra.s) || 1) : 1;
+      const rr = r * cs;
+      ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
+      const glyph = '';
       const tw = ctx.measureText(glyph + text).width;
-      const indSize = r*0.9;
-      const padX = r*0.35, indGap = r*0.3;
+      const indSize = rr*0.9;
+      const padX = rr*0.35, indGap = rr*0.3;
       // caution has no chip square — just glyph + text
-      const w = isCaution ? (padX + tw + padX) : (padX + indSize + indGap + tw + padX);
-      const h = r*1.5, rad = r*0.25;
+      const w = padX + indSize + indGap + tw + padX;
+      const h = rr*1.5, rad = rr*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
-      ctx.fillStyle = isCaution ? '#fff7ed' : 'white';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(1.5, r*0.08);
+      ctx.fillStyle = isCaution ? '#fef9c3' : 'white';
+      ctx.strokeStyle = isCaution ? '#f59e0b' : color;
+      ctx.lineWidth = Math.max(1.5, rr*0.08);
       ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); ctx.fill(); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       if (isCaution) {
-        ctx.fillStyle = '#7c2d12';
-        ctx.fillText(glyph + text, x0 + padX, cy);
+        const indX = x0 + padX, indY = cy - indSize/2;
+        ctx.beginPath();
+        ctx.moveTo(indX + indSize/2, indY);
+        ctx.lineTo(indX + indSize, indY + indSize);
+        ctx.lineTo(indX, indY + indSize);
+        ctx.closePath();
+        ctx.fillStyle = '#facc15'; ctx.fill();
+        ctx.strokeStyle = '#111827'; ctx.lineWidth = Math.max(1, indSize*0.09); ctx.lineJoin = 'round'; ctx.stroke();
+        ctx.fillStyle = '#111827'; ctx.textAlign = 'center';
+        ctx.font = `800 ${indSize*0.58}px DM Sans, sans-serif`;
+        ctx.fillText('!', indX + indSize/2, cy + indSize*0.14);
+        ctx.fillStyle = '#111827'; ctx.textAlign = 'left';
+        ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
+        ctx.fillText(text, indX + indSize + indGap, cy);
       } else {
         ctx.fillStyle = sh === 'note' ? color : '#27ae60';
         const indX = x0 + padX, indY = cy - indSize/2;
-        ctx.beginPath(); ctx.roundRect(indX, indY, indSize, indSize, r*0.1); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(indX, indY, indSize, indSize, rr*0.1); ctx.fill();
         ctx.fillStyle = '#111';
         ctx.fillText(text, indX + indSize + indGap, cy);
       }
