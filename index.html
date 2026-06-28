@@ -1333,11 +1333,22 @@ async function confirmPDFUpload() {
     }).select().single();
     if (dbErr) throw dbErr;
 
+    // Store the source PDF so the viewer can re-render pages vector-crisp at any
+    // zoom. Non-fatal: if it fails the drawing still works off the PNG pages.
+    try {
+      await sb.storage.from('deployops-drawings').upload(`${ref}/source.pdf`, file, { contentType: 'application/pdf', upsert: true });
+    } catch (pdfErr) { console.warn('source.pdf upload failed (hi-fi zoom disabled for this drawing):', pdfErr); }
+
     // Convert each page to PNG and upload
     for (let i = 1; i <= pageCount; i++) {
       toast(`Processing page ${i}/${pageCount}...`,'info');
       const page = await pdf.getPage(i);
-      const vp = page.getViewport({ scale: 2.5 });
+      const _b = page.getViewport({ scale: 1 });
+      const _long = Math.max(_b.width, _b.height);
+      const RASTER_TARGET = 8000, RASTER_MAX_AREA = 40e6;
+      let _scale = Math.min(RASTER_TARGET / _long, Math.sqrt(RASTER_MAX_AREA / (_b.width * _b.height)));
+      _scale = Math.max(_scale, 2.5);
+      const vp = page.getViewport({ scale: _scale });
       const canvas = document.createElement('canvas');
       canvas.width = vp.width; canvas.height = vp.height;
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
@@ -1426,6 +1437,7 @@ function renderDrawing() {
       <div class="drawing-container" id="drawingContainer">
         <div class="dwg-zoom-wrap" id="dwgZoomWrap">
           <img id="drawingImg" src="${pageUrl}" crossorigin="anonymous" onload="onDrawingLoad()">
+          <canvas id="drawingCanvas" class="no-print" style="position:absolute;top:0;left:0;width:100%;height:100%;display:none;pointer-events:none"></canvas>
           <svg id="balloonSvg" class="${isAdmin?'interactive':''}"></svg>
           <div id="dwgOverlay" class="dwg-overlay"></div>
         </div>
@@ -1704,6 +1716,7 @@ function onDrawingLoad() {
     container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
   }
   initDrawingZoom();
+  initPdfLayer();
 }
 
 // ============================================================
@@ -1733,6 +1746,7 @@ function applyDwgTransform() {
   container.classList.toggle('pan-ready', dwgSpaceHeld && !dwgPanning);
   const lvl = document.getElementById('zoomLevel');
   if (lvl) lvl.textContent = Math.round(dwgZoom * 100) + '%';
+  schedulePdfRender();
 }
 
 function clampDwgPan() {
@@ -1835,6 +1849,81 @@ function dwgKeyHandler() {
   });
 }
 dwgKeyHandler();
+
+// ============================================================
+// HI-FI PDF LAYER
+// Re-render the current page straight from the stored source PDF at a resolution
+// matched to the live zoom, so line work + text stay vector-crisp at any zoom.
+// Sits as a canvas directly over the PNG <img> (same box), under the balloon SVG,
+// so balloon anchoring + click-to-place math are unchanged. Legacy drawings with
+// no stored PDF silently keep using the PNG.
+// ============================================================
+const pdfDocCache = {};       // drawingId -> Promise<pdfDoc> | 'none'
+let pdfRenderToken = 0;       // bumped to cancel stale/async renders
+let pdfRenderTimer = null;
+let pdfLastZoom = 0;
+const PDF_QUALITY = 1.5;      // render at 1.5x the displayed size for headroom
+const PDF_MAXDIM = 8192;      // per-axis canvas cap (desktop-safe)
+
+async function loadPdfDoc(drawing) {
+  if (!drawing || typeof pdfjsLib === 'undefined') return null;
+  const id = drawing.id;
+  if (pdfDocCache[id] === 'none') return null;
+  if (pdfDocCache[id]) { try { return await pdfDocCache[id]; } catch (e) { return null; } }
+  const { data } = sb.storage.from('deployops-drawings').getPublicUrl(`${drawing.drawing_ref}/source.pdf`);
+  const p = pdfjsLib.getDocument(data.publicUrl).promise;
+  pdfDocCache[id] = p;
+  try { return await p; }
+  catch (e) { pdfDocCache[id] = 'none'; return null; }  // no PDF stored (legacy) — fall back to PNG
+}
+
+async function renderPdfLayer() {
+  const canvas = document.getElementById('drawingCanvas');
+  const wrap = document.getElementById('dwgZoomWrap');
+  if (!canvas || !wrap || !currentDrawing) return;
+  const drawingAtStart = currentDrawing.id;
+  const doc = await loadPdfDoc(currentDrawing);
+  if (!doc || !currentDrawing || currentDrawing.id !== drawingAtStart) {
+    if (canvas) canvas.style.display = 'none';
+    return;
+  }
+  const token = ++pdfRenderToken;
+  let page;
+  try { page = await doc.getPage(currentPage); } catch (e) { return; }
+  if (token !== pdfRenderToken) return;
+  const boxW = wrap.offsetWidth || canvas.clientWidth || 1000;
+  const base = page.getViewport({ scale: 1 });
+  let scale = Math.min(boxW * dwgZoom * PDF_QUALITY, PDF_MAXDIM) / base.width;
+  if (base.height * scale > PDF_MAXDIM) scale = PDF_MAXDIM / base.height;
+  const vp = page.getViewport({ scale });
+  const off = document.createElement('canvas');
+  off.width = Math.max(1, Math.round(vp.width));
+  off.height = Math.max(1, Math.round(vp.height));
+  try {
+    await page.render({ canvasContext: off.getContext('2d', { alpha: false }), viewport: vp }).promise;
+  } catch (e) { return; }
+  if (token !== pdfRenderToken) return;
+  canvas.width = off.width; canvas.height = off.height;
+  canvas.getContext('2d', { alpha: false }).drawImage(off, 0, 0);
+  canvas.style.display = 'block';
+  pdfLastZoom = dwgZoom;
+}
+
+// Debounced re-render on zoom change. No-op during pan (zoom unchanged).
+function schedulePdfRender() {
+  const canvas = document.getElementById('drawingCanvas');
+  const shown = canvas && canvas.style.display === 'block';
+  if (shown && Math.abs(dwgZoom - pdfLastZoom) < 0.01) return;
+  clearTimeout(pdfRenderTimer);
+  pdfRenderTimer = setTimeout(renderPdfLayer, 110);
+}
+
+function initPdfLayer() {
+  pdfLastZoom = 0;
+  const canvas = document.getElementById('drawingCanvas');
+  if (canvas) canvas.style.display = 'none';
+  renderPdfLayer();
+}
 
 function changePage(delta) {
   const np = currentPage + delta;
@@ -2814,6 +2903,7 @@ async function deleteCurrentPage() {
     await sb.from('deployops_drawings').update({ page_count: total - 1 }).eq('id', currentDrawing.id);
 
     drawingCacheBust[currentDrawing.id] = Date.now();
+    pdfDocCache[currentDrawing.id] = 'none'; // page order in source.pdf no longer matches after a delete — fall back to PNG
     toast(`Page ${deletedPage} deleted`,'ok');
     await loadDrawings();
     currentDrawing = drawings.find(d => d.id === currentDrawing.id);
