@@ -614,6 +614,19 @@ const DEFAULT_STEP_ROWS = [
   { skip:true, text:'Do NOT install shipping bracket — remove before run.' }
 ];
 function stMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { title:o.title||'Assembly steps', scale:(+o.scale)||0.9, rows:Array.isArray(o.rows)?o.rows:[] }; } catch { return { title:'Assembly steps', scale:0.9, rows:[] }; } }
+// Display id for a step row: bare number when it's the only row in its group
+// ("1"), or number + a/b/c… when several rows share a step number — i.e. the
+// step is split into parallel sub-steps that can be done at the same time.
+function stepDisplayId(rows, ri){
+  const row = rows[ri]; if(!row || row.skip) return '';
+  const group = rows.map((r,i)=>({r,i})).filter(o=>!o.r.skip && o.r.n===row.n);
+  if(group.length <= 1) return String(row.n);
+  const pos = group.findIndex(o=>o.i===ri);
+  return String(row.n) + String.fromCharCode(97 + (pos<0?0:pos)); // 1a, 1b, …
+}
+// Sub-step letter stamped onto a step balloon when it was spawned from a
+// parallel row (read back from the balloon's label JSON for rendering).
+function stepSubLetter(b){ if((b&&b.mode)!=='step') return ''; try { return JSON.parse(b.label||'{}').sl || ''; } catch { return ''; } }
 
 let armedLT = false, armedSteps = false;
 
@@ -679,6 +692,64 @@ function leaderRouteOf(b){
   return { curve:meta.curve, waypoints:meta.waypoints||[], start:{x:b.x_pct, y:b.y_pct}, tip:{x:b.tip_x_pct, y:b.tip_y_pct} };
 }
 function paintAnnotations(){ renderBalloonsSVG(); renderOverlay(); }
+
+// ── Extra leaders: a balloon may have several arrows fanning out to different
+// screws. The primary leader stays in tip_x_pct/tip_y_pct; extras live in the
+// label JSON under _extra.xt as [{x,y,w:[],c:bool}] (percentage coords).
+function extraTips(b){ const e = balloonMeta(b)._extra; return (e && Array.isArray(e.xt)) ? e.xt : []; }
+async function saveExtraTips(b, arr){
+  const meta = balloonMeta(b);
+  const extra = Object.assign({}, meta._extra);
+  if (arr && arr.length) extra.xt = arr; else delete extra.xt;
+  b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, extra);
+  renderBalloonsSVG();
+  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id); } catch(e){ console.error(e); }
+}
+async function addExtraLeader(bid){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  if (b.tip_x_pct == null || b.tip_y_pct == null) return addLeader(bid); // seed primary first
+  const arr = extraTips(b).slice();
+  const n = arr.length + 1;
+  const tx = Math.min(100, Math.max(0, (b.x_pct || 0) + 8 + n*4));
+  const ty = Math.min(100, Math.max(0, (b.y_pct || 0) - 8 - n*2));
+  arr.push({ x: tx, y: ty, w: [], c: defaultArrowCurve() });
+  await saveExtraTips(b, arr);
+  toast('Extra arrow added — drag its tip onto the screw', 'ok');
+}
+async function deleteExtraLeader(bid, xi){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const arr = extraTips(b).slice(); if (xi < 0 || xi >= arr.length) return;
+  arr.splice(xi, 1);
+  await saveExtraTips(b, arr);
+  toast('Arrow removed', 'ok');
+}
+function startXTipDrag(e){
+  if (e.button !== 0 || dwgSpaceHeld) return;
+  e.preventDefault(); e.stopPropagation();
+  isDragging = false;
+  const g = e.currentTarget, bid = g.dataset.id, xi = +g.dataset.xi;
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const img = document.getElementById('drawingImg'); if (!img) return;
+  const arr = extraTips(b).slice(); if (!arr[xi]) return;
+  const onMove = (ev) => {
+    ev.preventDefault(); isDragging = true;
+    const rect = img.getBoundingClientRect();
+    const xp = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+    const yp = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+    arr[xi] = Object.assign({}, arr[xi], { x: xp, y: yp });
+    const meta = balloonMeta(b);
+    b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, Object.assign({}, meta._extra, { xt: arr }));
+    renderBalloonsSVG();
+  };
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (isDragging){ try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); } catch(err){ console.error(err); } await loadBalloons(); paintAnnotations(); }
+    setTimeout(() => { isDragging = false; }, 100);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
 
 // Admin smoke test for §7/§8 — exercises the real insert/spawn/dedupe DB paths
 // on the OPEN drawing, then deletes everything it created. Safe + non-destructive.
@@ -2534,14 +2605,15 @@ function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
   const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
-    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+'">'+r.n+'</span>';
+    const did = stepDisplayId(m.rows, ri);
+    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';width:auto;min-width:22px;padding:0 5px">'+did+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
     return '<tr><td class="st-num">'+chip+'</td>'
       + '<td class="st-ins"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
       + '<td class="st-arrow admin-only">'+arrowBtn+'</td></tr>';
   }).join('');
   const tools = sel ? '<span class="dt-tools admin-only"><button class="st-scale" data-id="'+b.id+'" data-d="-0.1">−</button><button class="st-scale" data-id="'+b.id+'" data-d="0.1">＋</button><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
-  const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
+  const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="parallel" title="Add a parallel sub-step (1a, 1b…) to the last step">＋ Parallel</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
   return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale('+(m.scale||0.9)+')">'
     + '<div class="dt-bar" data-id="'+b.id+'"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
     + '<table class="dt-table"><thead><tr><th>Step</th><th>Assembly instruction</th><th class="admin-only">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
@@ -2598,7 +2670,7 @@ function stSerialize(m){ return JSON.stringify({ title:m.title, scale:m.scale, r
 async function stUpdate(b, m){ b.label = stSerialize(m); renderOverlay(); try { await sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id); } catch(e){ console.error(e); } }
 function stCommit(id, ri, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(!m.rows[ri]||(m.rows[ri].text||'')===val)return; m.rows[ri].text=val; stUpdate(b,m); }
 function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.6,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
-function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(kind==='skip') m.rows.push({skip:true,text:''}); else { const n=m.rows.filter(x=>!x.skip).length+1; m.rows.push({n,text:''}); } stUpdate(b,m); }
+function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); const steps=m.rows.filter(x=>!x.skip); if(kind==='skip') m.rows.push({skip:true,text:''}); else if(kind==='parallel'){ const lastN = steps.length ? steps[steps.length-1].n : 1; m.rows.push({n:lastN,text:''}); } else { const maxN = steps.length ? Math.max(...steps.map(x=>x.n||0)) : 0; m.rows.push({n:maxN+1,text:''}); } stUpdate(b,m); }
 
 // Independent caution size — stored per-caution in the label's extra (_extra.s).
 async function scaleCaution(bid, dir) {
@@ -2622,16 +2694,19 @@ async function deleteAnnotation(id){
 async function spawnFromStep(tableId, ri){
   const tbl=balloons.find(x=>x.id===tableId); if(!tbl)return; const m=stMeta(tbl); const r=m.rows[ri]; if(!r)return;
   const isX=!!r.skip;
-  const existing=balloons.find(x=>{ if((x.mode)!==(isX?'x':'step'))return false; try{ const o=JSON.parse(x.label||'{}'); return o&&o.ft===tableId&&o.fr===ri; }catch{return false;} });
-  if(existing){ selectedBalloonId=existing.id; paintAnnotations(); if(typeof showBalloonActions==='function') showBalloonActions(existing.id); return; }
-  const bx=Math.min(92,(tbl.x_pct||0)+24), by=Math.min(86,(tbl.y_pct||0)+8+(((r.n||1)%5)*4));
+  const did=stepDisplayId(m.rows, ri);
+  const sl=isX ? '' : did.replace(/^[0-9]+/, '');
+  const dup=balloons.filter(x=>{ try{ const o=JSON.parse(x.label||'{}'); return o&&o.ft===tableId&&o.fr===ri; }catch{return false;} }).length;
+  // (dedupe removed — a row may spawn multiple arrows; staggered below)
+  const off=dup*5;
+  const bx=Math.min(92,(tbl.x_pct||0)+24+off), by=Math.min(86,(tbl.y_pct||0)+8+(((r.n||1)%5)*4)+off);
   const tx=Math.max(2,Math.min(98,bx+11)), ty=Math.max(2,Math.min(98,by+7));
-  const label=JSON.stringify({ t:'', c:defaultArrowCurve(), w:[], ft:tableId, fr:ri });
+  const label=JSON.stringify({ t:'', c:defaultArrowCurve(), w:[], ft:tableId, fr:ri, sl });
   try {
     const { data, error } = await sb.from('deployops_balloons').insert({ drawing_id:currentDrawing.id, page:currentPage, number:isX?0:(r.n||1), x_pct:bx, y_pct:by, tip_x_pct:tx, tip_y_pct:ty, label, color:isX?'#f87171':stepColor(r.n), mode:isX?'x':'step', arrow_style:'solid' }).select().single();
     if (error) throw error;
     if (layerVis[isX?'x':'step']===false){ layerVis[isX?'x':'step']=true; saveLayerVis(); }
-    await loadBalloons(); selectedBalloonId = data ? data.id : null; paintAnnotations(); toast('Balloon spawned — drag its tip onto the screw','ok');
+    await loadBalloons(); selectedBalloonId = data ? data.id : null; paintAnnotations(); toast(dup?('Arrow #'+(dup+1)+' added — drag its tip onto the next screw'):'Balloon spawned — drag its tip onto the screw','ok');
   } catch(e){ console.error(e); toast('Spawn failed: '+(e.message||e),'err'); }
 }
 
@@ -2820,6 +2895,30 @@ function renderBalloonsSVG() {
     }
 
     // Balloon body
+    // Extra leaders (multiple arrows from one balloon) — drawn under the body.
+    extraTips(b).forEach((xt, xi) => {
+      const xtx = (xt.x||0)/100*vbW, xty = (xt.y||0)/100*vbH;
+      const exStyle = b.arrow_style || 'solid';
+      let exSW = 2, exDash = '', exMarker = `url(#${ahId})`;
+      if (exStyle === 'dashed') exDash = '6 4';
+      else if (exStyle === 'thick'){ exSW = 3.5; exMarker = `url(#${ahId}_big)`; }
+      else if (exStyle === 'dot') exMarker = '';
+      const xwps = Array.isArray(xt.w) ? xt.w : [];
+      if (xt.c || xwps.length){
+        const pts = [{x:b.x_pct,y:b.y_pct}, ...xwps, {x:xt.x,y:xt.y}].map(p => ({ x:p.x/100*vbW, y:p.y/100*vbH }));
+        html += `<path class="leader-line" d="${leaderPathD(!!xt.c, pts, vbW)}" fill="none" stroke="${color}" stroke-width="${exSW}" ${exDash?`stroke-dasharray="${exDash}"`:''} ${exMarker?`marker-end="${exMarker}"`:''} stroke-linecap="round" stroke-linejoin="round"/>`;
+      } else {
+        let sx, sy;
+        if (boxLike){ [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, xtx, xty); }
+        else { const dx = xtx-cx, dy = xty-cy, dist = Math.sqrt(dx*dx+dy*dy)||1; sx = cx+dx/dist*r; sy = cy+dy/dist*r; }
+        html += `<line class="leader-line" x1="${sx}" y1="${sy}" x2="${xtx}" y2="${xty}" stroke="${color}" stroke-width="${exSW}" ${exDash?`stroke-dasharray="${exDash}"`:''} ${exMarker?`marker-end="${exMarker}"`:''} stroke-linecap="round"/>`;
+      }
+      if (exStyle === 'dot') html += `<circle class="leader-line" cx="${xtx}" cy="${xty}" r="4" fill="${color}"/>`;
+      if (isAdmin && b.id === selectedBalloonId){
+        html += `<g class="xtip-handle" data-id="${b.id}" data-xi="${xi}" data-role="xtip"><circle cx="${xtx}" cy="${xty}" r="6" fill="white" stroke="${color}" stroke-width="2"/></g>`;
+        html += `<g class="xtip-del" data-id="${b.id}" data-xi="${xi}" style="cursor:pointer"><circle cx="${xtx+12}" cy="${xty-12}" r="7" fill="#dc2626" stroke="white" stroke-width="1.5"/><text x="${xtx+12}" y="${xty-12}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">×</text></g>`;
+      }
+    });
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
     if (isTag) {
       // Box tag — white background, coloured border. Cable/note show a chip on
@@ -2871,20 +2970,20 @@ function renderBalloonsSVG() {
       const s = r * 1.8, x0 = cx - s/2, y0 = cy - s/2;
       html += `<rect x="${x0-3}" y="${y0-3}" width="${s+6}" height="${s+6}" rx="5" fill="white" opacity="0.9" class="b-halo"/>
         <rect class="b-main" x="${x0}" y="${y0}" width="${s}" height="${s}" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
-        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
+        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${(b.number||'')+stepSubLetter(b)}</text>`;
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + r + 10, esc(_c)); }
     } else if (shape === 'triangle') {
       const h = r * 2.1, w = r * 2.3;
       const p1 = `${cx},${cy - h*0.6}`, p2 = `${cx + w/2},${cy + h*0.4}`, p3 = `${cx - w/2},${cy + h*0.4}`;
       html += `<polygon points="${cx},${cy-h*0.6-3} ${cx+w/2+3},${cy+h*0.4+3} ${cx-w/2-3},${cy+h*0.4+3}" fill="white" opacity="0.9" class="b-halo"/>
         <polygon class="b-main" points="${p1} ${p2} ${p3}" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="${cx}" y="${cy + h*0.08}" text-anchor="middle" dominant-baseline="central" fill="#111" font-size="${r*0.95}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
+        <text x="${cx}" y="${cy + h*0.08}" text-anchor="middle" dominant-baseline="central" fill="#111" font-size="${r*0.95}" font-weight="700" font-family="DM Sans,sans-serif">${(b.number||'')+stepSubLetter(b)}</text>`;
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + h*0.4 + 12, esc(_c)); }
     } else {
       html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
         <circle class="b-main" cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="1.5"/>
         <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white"
-              font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
+              font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${(b.number||'')+stepSubLetter(b)}</text>`;
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + r + 10, esc(_c)); }
     }
     html += `</g>`;
@@ -2905,6 +3004,9 @@ function renderBalloonsSVG() {
       const ctX = Math.max(14, cx - (boxLike ? tagW/2 : r) - 16);
       const ctY = Math.min(vbH - 14, cy + (boxLike ? tagH/2 : r) + 16);
       html += leaderControlsSVG(b, color, leaderNodesPct(b, meta), meta.curve, vbW, vbH, ctX, ctY);
+      const axx = Math.min(vbW - 12, cx + (boxLike ? tagW/2 : r) + 14);
+      const ayy = Math.max(12, cy - (boxLike ? tagH/2 : r) - 14);
+      html += `<g class="add-xleader" data-id="${b.id}" style="cursor:pointer"><circle cx="${axx}" cy="${ayy}" r="9" fill="#0e7490" stroke="white" stroke-width="2"/><text x="${axx}" y="${ayy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="13" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">+</text><title>Add another arrow from this balloon</title></g>`;
     }
 
     // "Add leader" affordance — only on the selected marker when it has no leader yet.
@@ -2932,6 +3034,9 @@ function renderBalloonsSVG() {
     svg.querySelectorAll('.tip-handle').forEach(g => {
       g.addEventListener('pointerdown', startTipDrag);
     });
+    svg.querySelectorAll('.xtip-handle').forEach(g => { g.addEventListener('pointerdown', startXTipDrag); });
+    svg.querySelectorAll('.xtip-del').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); deleteExtraLeader(g.dataset.id, +g.dataset.xi); }); });
+    svg.querySelectorAll('.add-xleader').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addExtraLeader(g.dataset.id); }); });
     svg.querySelectorAll('.add-leader').forEach(g => {
       g.addEventListener('click', (e) => { e.stopPropagation(); addLeader(g.dataset.id); });
     });
@@ -3375,6 +3480,37 @@ async function exportAnnotatedPNG() {
     ctx.restore();
   });
 
+  // Extra leaders (multiple arrows from one balloon) — straight line + arrowhead.
+  pageBalloons.forEach(b => {
+    if ((b.mode||'') === 'table') return;
+    const tips = extraTips(b); if (!tips.length) return;
+    const style = b.arrow_style || 'solid'; if (style === 'none') return;
+    const cx = b.x_pct/100 * canvas.width, cy = b.y_pct/100 * canvas.height;
+    const color = b.color || '#e74c3c';
+    tips.forEach(xt => {
+      const tx = (xt.x||0)/100 * canvas.width, ty = (xt.y||0)/100 * canvas.height;
+      const dx = tx-cx, dy = ty-cy, dist = Math.sqrt(dx*dx+dy*dy)||1;
+      const sx = cx + dx/dist*r, sy = cy + dy/dist*r;
+      ctx.save();
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = 'round';
+      if (style === 'dashed'){ ctx.setLineDash([r*0.4, r*0.3]); ctx.lineWidth = r*0.15; }
+      else if (style === 'thick'){ ctx.lineWidth = r*0.25; }
+      else { ctx.lineWidth = r*0.15; }
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.setLineDash([]);
+      if (style === 'dot'){ ctx.beginPath(); ctx.arc(tx, ty, r*0.28, 0, Math.PI*2); ctx.fill(); }
+      else {
+        const ang = Math.atan2(dy, dx);
+        const ahLen = style === 'thick' ? r*0.7 : r*0.55, ahW = style === 'thick' ? r*0.35 : r*0.28;
+        ctx.beginPath(); ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - ahLen*Math.cos(ang) + ahW*Math.sin(ang), ty - ahLen*Math.sin(ang) - ahW*Math.cos(ang));
+        ctx.lineTo(tx - ahLen*Math.cos(ang) - ahW*Math.sin(ang), ty - ahLen*Math.sin(ang) + ahW*Math.cos(ang));
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    });
+  });
+
   // Second pass: balloons / tags / no-install / tables
   pageBalloons.forEach(b => {
     const cx = b.x_pct/100 * canvas.width;
@@ -3471,7 +3607,7 @@ async function exportAnnotatedPNG() {
       // Number
       ctx.fillStyle = 'white'; ctx.font = `bold ${r*1.3}px DM Sans, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(b.number||''), cx, cy);
+      ctx.fillText(String(b.number||'')+stepSubLetter(b), cx, cy);
       // Label
       if (balloonText(b)) {
         ctx.font = `${r*0.6}px DM Sans, sans-serif`;
