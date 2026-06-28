@@ -779,6 +779,27 @@ async function deleteXLeaderBend(bid, xi, i){
   arr[xi] = Object.assign({}, xt, { w: wps });
   await saveExtraTips(b, arr);
 }
+// Split a leader into two: duplicate its full route (waypoints + curve) into a
+// new extra arrow whose tip starts just beside the original, so the two share a
+// path from the balloon and the user only drags the new tip to the 2nd screw.
+async function splitLeader(bid){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  if (b.tip_x_pct == null || b.tip_y_pct == null) return;
+  const meta = balloonMeta(b);
+  const arr = extraTips(b).slice();
+  const wps = (meta.waypoints || []).map(p => ({ x:p.x, y:p.y }));
+  arr.push({ x: clampPct(b.tip_x_pct + 5), y: clampPct(b.tip_y_pct + 5), w: wps, c: !!meta.curve });
+  await saveExtraTips(b, arr);
+  toast('Arrow split \u2014 drag the new tip to its screw', 'ok');
+}
+async function splitXLeader(bid, xi){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const arr = extraTips(b).slice(); const xt = arr[xi]; if (!xt) return;
+  const wps = (Array.isArray(xt.w) ? xt.w : []).map(p => ({ x:p.x, y:p.y }));
+  arr.push({ x: clampPct((xt.x||0) + 5), y: clampPct((xt.y||0) + 5), w: wps, c: !!xt.c });
+  await saveExtraTips(b, arr);
+  toast('Arrow split \u2014 drag the new tip to its screw', 'ok');
+}
 function startXWaypointDrag(e){
   if (e.button !== 0 || dwgSpaceHeld) return;
   e.preventDefault(); e.stopPropagation();
@@ -2652,7 +2673,7 @@ function renderLoctorqueLeaderSVG(b, vbW, vbH){
   const pts = nodesPct.map(p => ({ x:p.x/100*vbW, y:p.y/100*vbH }));
   const ahId = 'ah_' + c.replace('#','');
   const d = leaderPathD(m.curve, pts, vbW);
-  let out = '<path class="leader-line" d="'+d+'" fill="none" stroke="'+c+'" stroke-width="2.4" marker-end="url(#'+ahId+')" stroke-linecap="round" stroke-linejoin="round"/>';
+  let out = '<path class="leader-line" d="'+d+'" fill="none" stroke="'+c+'" stroke-width="1.6" marker-end="url(#'+ahId+')" stroke-linecap="round" stroke-linejoin="round"/>';
   out += '<circle cx="'+(tipX/100*vbW)+'" cy="'+(tipY/100*vbH)+'" r="4.5" fill="'+c+'" stroke="#0b0e16" stroke-width="1.5"/>';
   if (isAdmin && b.id === selectedBalloonId){
     out += '<g class="tip-handle selected" data-id="'+b.id+'" data-role="tip"><circle cx="'+(tipX/100*vbW)+'" cy="'+(tipY/100*vbH)+'" r="6" fill="white" stroke="'+c+'" stroke-width="2"/></g>';
@@ -2992,6 +3013,7 @@ function renderBalloonsSVG() {
 
       // Tip handle (admin only, only when this balloon is selected)
       if (isAdmin && b.id === selectedBalloonId) {
+        html += `<g class="leader-split" data-id="${b.id}" style="cursor:pointer"><circle cx="${tx-13}" cy="${ty-13}" r="7" fill="#0e7490" stroke="white" stroke-width="1.5"/><text x="${tx-13}" y="${ty-13}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="9" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">Y</text><title>Split this arrow into two</title></g>`;
         html += `<g class="tip-handle selected" data-id="${b.id}" data-role="tip">
           <circle cx="${tx}" cy="${ty}" r="6" fill="white" stroke="${color}" stroke-width="2"/>
         </g>`;
@@ -3024,6 +3046,7 @@ function renderBalloonsSVG() {
         const xnodes = [{x:b.x_pct,y:b.y_pct}, ...xwps, {x:xt.x,y:xt.y}];
         const xToggleX = Math.max(14, xtx - 16), xToggleY = Math.min(vbH - 14, xty + 16);
         html += xLeaderControlsSVG(b, xi, color, xnodes, !!xt.c, vbW, vbH, xToggleX, xToggleY);
+        html += `<g class="xleader-split" data-id="${b.id}" data-xi="${xi}" style="cursor:pointer"><circle cx="${xtx-13}" cy="${xty-13}" r="7" fill="#0e7490" stroke="white" stroke-width="1.5"/><text x="${xtx-13}" y="${xty-13}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="9" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">Y</text><title>Split this arrow into two</title></g>`;
       }
     });
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
@@ -3147,6 +3170,8 @@ function renderBalloonsSVG() {
     svg.querySelectorAll('.xbend-add').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addXLeaderBend(g.dataset.id, +g.dataset.xi); }); });
     svg.querySelectorAll('.xwp-handle').forEach(g => { g.addEventListener('pointerdown', startXWaypointDrag); });
     svg.querySelectorAll('.xwp-del').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); deleteXLeaderBend(g.dataset.id, +g.dataset.xi, +g.dataset.i); }); });
+    svg.querySelectorAll('.leader-split').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); splitLeader(g.dataset.id); }); });
+    svg.querySelectorAll('.xleader-split').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); splitXLeader(g.dataset.id, +g.dataset.xi); }); });
     svg.querySelectorAll('.add-xleader').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addExtraLeader(g.dataset.id); }); });
     svg.querySelectorAll('.add-leader').forEach(g => {
       g.addEventListener('click', (e) => { e.stopPropagation(); addLeader(g.dataset.id); });
