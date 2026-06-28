@@ -535,7 +535,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
 let drawingPath = []; // folder-view state: [] = root grid; ['Crawler v2','CRW-FRAME-ASSY'] = browsing that nested path
-let drawingFolders = []; // explicitly-created folders (incl. empty ones): [{id, path, ...}]
 let pendingUploadFolder = null; // default folder injected into the next upload modal (null = no default, e.g. topbar)
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
 let currentMode = 'dismantling'; // active layer / tool
@@ -989,13 +988,6 @@ async function loadDrawings() {
   // drawing here. The topbar #drawingSelect still works as a quick-jump.
 }
 
-// Explicitly-created folders (the deployops_drawing_folders table). These let a
-// folder exist even with zero drawings in it. Loaded alongside loadDrawings.
-async function loadDrawingFolders() {
-  const { data } = await sb.from('deployops_drawing_folders').select('*').order('path', { ascending: true });
-  drawingFolders = data || [];
-}
-
 async function selectDrawing(id) {
   currentDrawing = drawings.find(d => d.id === id) || null;
   currentPage = 1;
@@ -1040,15 +1032,6 @@ function drawingFolderName(d) {
 // existing folder PATH plus each parent prefix (so typing into a nested folder
 // is one tap), unioned with model names. Suggestion-only — the input stays free
 // text, so brand-new paths still work. Blanks + the Uncategorized sentinel out.
-function explicitFolderPaths() {
-  const set = new Set();
-  drawingFolders.forEach(f => {
-    const segs = (f.path || '').split(FSEP).map(s => s.trim()).filter(Boolean);
-    for (let i = 1; i <= segs.length; i++) set.add(segs.slice(0, i).join(FSEP));
-  });
-  return set;
-}
-
 function folderSuggestions() {
   const set = new Set();
   drawings.forEach(d => {
@@ -1056,7 +1039,6 @@ function folderSuggestions() {
     for (let i = 1; i <= segs.length; i++) set.add(segs.slice(0, i).join(FSEP));
   });
   models.forEach(m => { const n = m.name && m.name.trim(); if (n) set.add(n); });
-  explicitFolderPaths().forEach(p => set.add(p));
   return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
@@ -1090,16 +1072,6 @@ function renderDrawingFolderView(el) {
     subCounts[next] = (subCounts[next] || 0) + 1;
   });
 
-  // Merge in explicitly-created folders (incl. empty ones) that sit directly
-  // under the current path, so they show even with zero drawings.
-  explicitFolderPaths().forEach(p => {
-    const segs = p.split(FSEP);
-    if (segs.length !== depth + 1) return;
-    if (!underPath(segs, drawingPath)) return;
-    const next = segs[depth];
-    if (!(next in subCounts)) subCounts[next] = 0;
-  });
-
   // Real sub-folders first (alpha), Uncategorized last.
   const subNames = Object.keys(subCounts).sort((a, b) => {
     if (a === DRAWING_UNCATEGORIZED) return 1;
@@ -1127,15 +1099,9 @@ function renderDrawingFolderView(el) {
 
   // Sub-folder cards
   subNames.forEach(name => {
-    const _childPath = [...drawingPath, name].join(FSEP);
-    const _isEmpty = subCounts[name] === 0 && name !== DRAWING_UNCATEGORIZED;
-    const _delBtn = _isEmpty
-      ? `<button class="delete-icon-btn admin-only" data-path="${esc(_childPath)}" onclick="event.stopPropagation();deleteDrawingFolder(this.dataset.path)" title="Delete empty folder">🗑️</button>`
-      : '';
     html += `
         <div class="folder-card" data-folder="${esc(name)}" onclick="openDrawingFolder(this.dataset.folder)">
           <span class="folder-count">${subCounts[name]}</span>
-          ${_delBtn}
           <div class="folder-icon">${name === DRAWING_UNCATEGORIZED ? '🗂️' : '📁'}</div>
           <div class="folder-name">${esc(name)}</div>
         </div>`;
@@ -1156,7 +1122,6 @@ function renderDrawingFolderView(el) {
 
   // Admin-only contextual upload entry point — prefilled to the current path.
   html += `
-        <div class="folder-card upload-card admin-only" onclick="newSubFolder()" title="Create a folder"><div class="folder-icon">＋</div><div class="folder-name">New folder</div></div>
         <div class="folder-card upload-card admin-only" onclick="uploadToCurrentFolder()" title="${esc(tr(lang, 'dwUploadPdf'))}">
           <div class="folder-icon">＋</div>
           <div class="folder-name">${depth ? 'Upload here' : esc(tr(lang, 'dwUploadPdf'))}</div>
@@ -1178,43 +1143,16 @@ function backToDrawingFolders() { drawingPath = drawingPath.slice(0, -1); curren
 // Create a sub-folder under the current path. Folders are derived from drawings
 // (there is no folder table), so a new sub-folder becomes "real" the moment a
 // drawing is uploaded/moved into it — we open it and offer the first upload.
-async function newSubFolder() {
+function newSubFolder() {
   const name = (prompt('New sub-folder name:') || '').trim().split(FSEP).join('');
   if (!name) return;
   drawingPath = [...drawingPath, name];
   currentDrawing = null;
   renderDrawing();
-  const path = drawingPath.join(FSEP);
-  try {
-    const { error } = await sb.from('deployops_drawing_folders').insert({ path, created_by: currentUser?.email || 'unknown' });
-    if (error && error.code !== '23505') throw error; // 23505 = unique_violation, harmless
-  } catch (e) { console.error(e); toast('Could not create folder: ' + (e.message || e), 'err'); return; }
-  await loadDrawingFolders();
-  renderDrawing();
-  toast('Folder created', 'ok');
+  triggerPDFFilePicker(drawingPath.join(FSEP));
 }
 // Viewer "← Folders" button: close the drawing and return to the folder it was
 // opened from (or the top-level grid if opened via the quick-jump select).
-// Delete an EMPTY folder (admin). Guard: refuse if any drawing lives at/under it.
-// Removes the folder record plus any descendant folder records.
-async function deleteDrawingFolder(path) {
-  const segs = path.split(FSEP);
-  if (drawings.some(d => underPath(folderSegs(d), segs))) { toast('Folder is not empty', 'err'); return; }
-  if (!confirm('Delete empty folder "' + path + '"?')) return;
-  try {
-    let r = await sb.from('deployops_drawing_folders').delete().eq('path', path);
-    if (r.error) throw r.error;
-    r = await sb.from('deployops_drawing_folders').delete().like('path', path + '/%');
-    if (r.error) throw r.error;
-  } catch (e) { console.error(e); toast('Delete failed: ' + (e.message || e), 'err'); return; }
-  await loadDrawingFolders();
-  const cur = drawingPath.join(FSEP);
-  if (cur === path || cur.startsWith(path + FSEP)) drawingPath = segs.slice(0, -1);
-  currentDrawing = null;
-  renderDrawing();
-  toast('Folder deleted', 'ok');
-}
-
 function backFromDrawing() { currentDrawing = null; renderDrawing(); }
 
 // Admin-only rename + move-to-folder. RLS gates the actual write.
@@ -3086,29 +3024,23 @@ async function exportAnnotatedPNG() {
       drawStepTableCanvas(ctx, b, canvas);
     } else if (isCable || sh === 'note' || isCaution) {
       const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
-      const cs = isCaution ? ((+(balloonMeta(b)?._extra?.s)) || 1) : 1;
-      const rr = r * cs;
-      ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
-      const fontPx = rr*0.85;
-      const triK = isCaution ? (fontPx*1.25)/125 : 0;
-      const icoW = 140 * triK;
-      const tw = isCaution ? (icoW + 6 + ctx.measureText(text).width) : ctx.measureText(text).width;
-      const indSize = rr*0.9;
-      const padX = rr*0.35, indGap = rr*0.3;
-      // caution shows the drawn warning triangle + text
+      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+      const glyph = isCaution ? '⚠ ' : '';
+      const tw = ctx.measureText(glyph + text).width;
+      const indSize = r*0.9;
+      const padX = r*0.35, indGap = r*0.3;
+      // caution has no chip square — just glyph + text
       const w = isCaution ? (padX + tw + padX) : (padX + indSize + indGap + tw + padX);
-      const h = rr*1.5, rad = rr*0.25;
+      const h = r*1.5, rad = r*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
-      ctx.fillStyle = isCaution ? '#fef9c3' : 'white';
-      ctx.strokeStyle = isCaution ? '#f59e0b' : color;
-      ctx.lineWidth = Math.max(1.5, rr*0.08);
+      ctx.fillStyle = isCaution ? '#fff7ed' : 'white';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, r*0.08);
       ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); ctx.fill(); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       if (isCaution) {
-        const icoH = 125 * triK;
-        drawCautionTri(ctx, x0 + padX, cy - icoH/2, triK);
         ctx.fillStyle = '#7c2d12';
-        ctx.fillText(text, x0 + padX + icoW + 6, cy);
+        ctx.fillText(glyph + text, x0 + padX, cy);
       } else {
         ctx.fillStyle = sh === 'note' ? color : '#27ae60';
         const indX = x0 + padX, indY = cy - indSize/2;
@@ -6647,7 +6579,7 @@ async function init() {
     else if (e.key === 'Escape' && brushPhase) { brushPhase = null; renderModels(); }  // G.2: Esc exits brush mode
   });
   document.body.dataset.tab = 'models';
-  await Promise.all([loadDrawings(), loadDrawingFolders(), loadModels()]);
+  await Promise.all([loadDrawings(), loadModels()]);
   window._modelsLoaded = true;
   // Drawings tab opens on its folder grid (currentDrawing stays null); no
   // auto-select. Deploy is model-based and no longer depends on currentDrawing.
