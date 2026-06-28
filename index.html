@@ -208,6 +208,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .sym-sw.sel{border-color:var(--text)}
 .sym-add{display:flex;gap:6px}
 .sym-add input{flex:1}
+.sw-label{font-size:10px;color:var(--text2);margin:4px 0 3px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
 .color-row{display:flex;gap:8px;align-items:stretch}
 .color-row select{flex:1}
 .color-pick{width:40px;min-width:40px;padding:2px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer}
@@ -838,7 +839,7 @@ function loadLayerVis() {
 function saveLayerVis() {
   if (currentDrawing) localStorage.setItem('deployops_layervis_' + currentDrawing.id, JSON.stringify(layerVis));
 }
-function normTpl(t){ return (t && typeof t === 'object') ? { text: String(t.text||''), color: t.color || null } : { text: String(t||''), color: null }; }
+function normTpl(t){ return (t && typeof t === 'object') ? { text: String(t.text||''), color: t.color || null, textColor: t.textColor || null } : { text: String(t||''), color: null, textColor: null }; }
 function loadNoteTemplates() {
   try { const raw = localStorage.getItem('deployops_note_templates'); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) return a.map(normTpl); } } catch {}
   return DEFAULT_NOTE_TEMPLATES.map(normTpl);
@@ -846,20 +847,25 @@ function loadNoteTemplates() {
 function saveNoteTemplates(list) { localStorage.setItem('deployops_note_templates', JSON.stringify(list)); }
 
 let newNoteColor = null;   // null = auto palette colour
+let newNoteTextColor = null;
 let armedNoteColor = null;
+let armedNoteTextColor = null;
 function pickNoteColor(c){ newNoteColor = c; refreshDrawingChrome(); }
+function pickNoteTextColor(c){ newNoteTextColor = c; refreshDrawingChrome(); }
 function noteColorSwatches(){ return colorSwatchRow(SYMBOL_COLORS, newNoteColor, 'pickNoteColor', {auto:true, transparent:true}); }
+function noteTextColorSwatches(){ return colorSwatchRow(SYMBOL_COLORS, newNoteTextColor, 'pickNoteTextColor', {auto:true}); }
 
 // ── Special symbols: shared DB library + independent display size ──
 let symbols = [];                 // library rows [{id,text,color,sort_order}]
 let armedSymbol = null;           // {id,text,color} — next drawing click drops it
 let newSymbolColor = '#0ea5e9';   // selected colour in the add form
+let newSymbolTextColor = null;    // null = auto contrast
 let symbolSize = parseFloat(localStorage.getItem('deployops_symbol_size')) || 2;
 const SYMBOL_COLORS = ['#0ea5e9','#ef4444','#f59e0b','#22c55e','#8b5cf6','#ec4899','#14b8a6','#111827'];
 function pickTextColor(hex){ try { const h=(hex||'').replace('#',''); const n=h.length===3?h.split('').map(c=>c+c).join(''):h; const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16); return (0.299*r+0.587*g+0.114*b)>150 ? '#111' : '#fff'; } catch { return '#fff'; } }
 function hex6(c){ try { let h=(c||'').trim(); if(/^#([0-9a-f]{3})$/i.test(h)){ h='#'+h.slice(1).split('').map(x=>x+x).join(''); } return /^#([0-9a-f]{6})$/i.test(h)?h.toLowerCase():'#888888'; } catch { return '#888888'; } }
 
-function pillStyle(color){ if(color==='transparent'||color==='none'||!color){ return { fill:'none', stroke:'#94a3b8', text:'#111' }; } return { fill:color, stroke:'#ffffff', text:pickTextColor(color) }; }
+function pillStyle(color, textColor){ const tc = (textColor && textColor !== 'auto') ? textColor : null; if(color==='transparent'||color==='none'||!color){ return { fill:'none', stroke:'#94a3b8', text: tc || '#111' }; } return { fill:color, stroke:'#ffffff', text: tc || pickTextColor(color) }; }
 const TRANSPARENT_BG = 'repeating-conic-gradient(#b9c0cc 0% 25%, #fff 0% 50%) 0 / 10px 10px';
 function colorSwatchRow(colors, current, onpick, opts){
   let h = '';
@@ -875,7 +881,9 @@ async function addSymbol(){
   const text = (inp && inp.value || '').trim();
   if (!text) { toast('Enter symbol text','err'); return; }
   const sort_order = symbols.length ? Math.max.apply(null, symbols.map(s=>s.sort_order||0))+1 : 0;
-  const { error } = await sb.from('deployops_symbols').insert({ text, color:newSymbolColor, sort_order });
+  const row = { text, color:newSymbolColor, sort_order };
+  if (newSymbolTextColor) row.text_color = newSymbolTextColor;
+  const { error } = await sb.from('deployops_symbols').insert(row);
   if (error) { toast('Save failed: '+error.message,'err'); return; }
   await loadSymbols(); refreshDrawingChrome(); toast('Symbol added','ok');
 }
@@ -886,11 +894,12 @@ async function deleteSymbol(id){
   await loadSymbols(); refreshDrawingChrome();
 }
 function pickSymbolColor(c){ newSymbolColor = c; refreshDrawingChrome(); }
+function pickSymbolTextColor(c){ newSymbolTextColor = c; refreshDrawingChrome(); }
 function armSymbol(id){
   if (!isAdmin) return;
   const s = symbols.find(x=>x.id===id); if (!s) return;
   if (armedSymbol && armedSymbol.id===id) { disarmSymbol(); return; }
-  armedSymbol = { id:s.id, text:s.text, color:s.color };
+  armedSymbol = { id:s.id, text:s.text, color:s.color, textColor:s.text_color||null };
   armedNote = null; armedLT = false; armedSteps = false;
   currentMode = 'symbol'; balloonMode = 'add';
   if (layerVis['symbol'] === false) { layerVis['symbol'] = true; saveLayerVis(); }
@@ -917,7 +926,10 @@ function renderSymbolsCard(){
     <div class="dwg-card-head"><span>Special symbols</span><span class="marker-size-val" id="symSizeVal">${pct}%</span></div>
     <input type="range" class="marker-size-slider" min="0.5" max="4" step="0.25" value="${symbolSize}" oninput="setSymbolSize(this.value)" style="margin-bottom:10px">
     <div class="sym-chips">${chips || '<span class="dwg-empty">No symbols yet</span>'}</div>
+    <div class="sw-label">Background</div>
     <div class="sym-colors">${sws}</div>
+    <div class="sw-label">Text</div>
+    <div class="sym-colors">${colorSwatchRow(SYMBOL_COLORS, newSymbolTextColor, 'pickSymbolTextColor', {auto:true})}</div>
     <div class="sym-add">
       <input id="symInput" placeholder="e.g. ⚠️注意" onkeydown="if(event.key==='Enter')addSymbol()">
       <button class="btn btn-sm btn-primary" onclick="addSymbol()">Add</button>
@@ -1704,7 +1716,10 @@ function renderNoteTemplatesCard() {
   return `<div class="dwg-card admin-only">
     <div class="dwg-card-head"><span>Note templates</span></div>
     <div class="tpl-chips">${chips || '<span class="dwg-empty">No templates</span>'}</div>
+    <div class="sw-label">Background</div>
     <div class="sym-colors">${noteColorSwatches()}</div>
+    <div class="sw-label">Text</div>
+    <div class="sym-colors">${noteTextColorSwatches()}</div>
     <div class="tpl-add">
       <input id="tplInput" placeholder="New template text…">
       <button class="btn btn-sm btn-primary" onclick="addNoteTemplate()">Save</button>
@@ -1781,10 +1796,11 @@ function setMarkerSize(v) {
 }
 
 // ── Note templates ──
-function armNoteText(t, color) {
+function armNoteText(t, color, textColor) {
   if (!isAdmin) return; // arming only matters for placement (admin)
   armedNote = t;
   armedNoteColor = (color === undefined) ? null : color;
+  armedNoteTextColor = (textColor === undefined) ? null : textColor;
   currentMode = 'note';
   balloonMode = 'add';
   if (layerVis.note === false) { layerVis.note = true; saveLayerVis(); }
@@ -1793,7 +1809,7 @@ function armNoteText(t, color) {
 }
 function armNoteTemplate(i) {
   const tpls = loadNoteTemplates();
-  if (tpls[i] != null) armNoteText(tpls[i].text, tpls[i].color);
+  if (tpls[i] != null) armNoteText(tpls[i].text, tpls[i].color, tpls[i].textColor);
 }
 function disarmNote() { armedNote = null; armedSymbol = null; renderDrawing(); }
 function addNoteTemplate() {
@@ -1801,7 +1817,7 @@ function addNoteTemplate() {
   const t = (inp && inp.value || '').trim();
   if (!t) { toast('Enter template text','err'); return; }
   const tpls = loadNoteTemplates();
-  if (!tpls.some(x => x.text === t && (x.color||null) === (newNoteColor||null))) tpls.push({ text: t, color: newNoteColor });
+  if (!tpls.some(x => x.text === t && (x.color||null) === (newNoteColor||null) && (x.textColor||null) === (newNoteTextColor||null))) tpls.push({ text: t, color: newNoteColor, textColor: newNoteTextColor });
   saveNoteTemplates(tpls);
   if (inp) inp.value = '';
   refreshDrawingChrome();
@@ -2151,10 +2167,9 @@ async function handleDrawingClick(e) {
   if (armedSymbol != null) {
     const sym = armedSymbol;
     armedSymbol = null;
-    const { error } = await sb.from('deployops_balloons').insert({
-      drawing_id: currentDrawing.id, page: currentPage, number: nextNum,
-      x_pct, y_pct, label: sym.text, color: sym.color, mode: 'symbol', arrow_style: 'none'
-    });
+    const _srow = { drawing_id: currentDrawing.id, page: currentPage, number: nextNum, x_pct, y_pct, label: sym.text, color: sym.color, mode: 'symbol', arrow_style: 'none' };
+    if (sym.textColor) _srow.text_color = sym.textColor;
+    const { error } = await sb.from('deployops_balloons').insert(_srow);
     if (error) { toast('Save failed: '+error.message,'err'); armedSymbol = sym; return; }
     toast('Symbol placed','ok');
     await loadBalloons();
@@ -2166,12 +2181,11 @@ async function handleDrawingClick(e) {
   if (armedNote != null) {
     const text = armedNote;
     const ncolor = armedNoteColor || markerColor('note', nextNum);
-    armedNote = null; armedNoteColor = null;
-    const { error } = await sb.from('deployops_balloons').insert({
-      drawing_id: currentDrawing.id, page: currentPage, number: nextNum,
-      x_pct, y_pct,
-      label: text, color: ncolor, mode: 'note', arrow_style: 'none'
-    });
+    const ntext = armedNoteTextColor || null;
+    armedNote = null; armedNoteColor = null; armedNoteTextColor = null;
+    const _nrow = { drawing_id: currentDrawing.id, page: currentPage, number: nextNum, x_pct, y_pct, label: text, color: ncolor, mode: 'note', arrow_style: 'none' };
+    if (ntext) _nrow.text_color = ntext;
+    const { error } = await sb.from('deployops_balloons').insert(_nrow);
     if (error) { toast('Save failed: '+error.message,'err'); armedNote = text; return; }
     toast('Note placed','ok');
     await loadBalloons();
@@ -2214,6 +2228,8 @@ async function handleDrawingClick(e) {
       <option value="#22d3ee">🔷 Cyan</option>
       <option value="#111">⚫ Black</option>
     </select><input type="color" id="bColorCustom" class="color-pick" value="${hex6(MODES[currentMode].color)}" title="Custom background colour"></div>
+    <label>Text Color</label>
+    <div class="color-row"><select id="bTextMode" onchange="document.getElementById('bTextColorCustom').disabled=this.value!=='custom'"><option value="auto">Auto (contrast)</option><option value="custom">Custom</option></select><input type="color" id="bTextColorCustom" class="color-pick" value="#ffffff" disabled title="Custom text colour"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveBalloon(${x_pct},${y_pct})">Place</button>
@@ -2233,16 +2249,16 @@ async function saveBalloon(x, y) {
   }
   const label = document.getElementById('bLabel').value.trim();
   const color = document.getElementById('bColorCustom').value;
+  const _btm = document.getElementById('bTextMode');
+  const text_color = (_btm && _btm.value === 'custom') ? document.getElementById('bTextColorCustom').value : null;
   if (!isCable && isNaN(num)) { toast('Enter a number','err'); return; }
   if (isCable && !label) { toast('Enter tag text','err'); return; }
   closeModal();
 
   // No leader by default — added on demand afterward via the "+" affordance.
-  const { error } = await sb.from('deployops_balloons').insert({
-    drawing_id: currentDrawing.id, page: currentPage,
-    number: num, x_pct: x, y_pct: y,
-    label, color, mode: currentMode, arrow_style: 'none'
-  });
+  const _arow = { drawing_id: currentDrawing.id, page: currentPage, number: num, x_pct: x, y_pct: y, label, color, mode: currentMode, arrow_style: 'none' };
+  if (text_color) _arow.text_color = text_color;
+  const { error } = await sb.from('deployops_balloons').insert(_arow);
   if (error) { toast('Save failed: '+error.message,'err'); return; }
   toast(`${MODES[currentMode].label} placed`,'ok');
   await loadBalloons();
@@ -2271,6 +2287,8 @@ function showBalloonActions(bid) {
       <option value="#22d3ee" ${b.color==='#22d3ee'?'selected':''}>🔷 Cyan</option>
       <option value="#111" ${b.color==='#111'?'selected':''}>⚫ Black</option>
     </select><input type="color" id="ebColorCustom" class="color-pick" value="${hex6(b.color)}" title="Custom background colour"></div>
+    <label>Text Color</label>
+    <div class="color-row"><select id="ebTextMode" onchange="document.getElementById('ebTextColorCustom').disabled=this.value!=='custom'"><option value="auto" ${!b.text_color?'selected':''}>Auto (contrast)</option><option value="custom" ${b.text_color?'selected':''}>Custom</option></select><input type="color" id="ebTextColorCustom" class="color-pick" value="${hex6(b.text_color||'#ffffff')}" ${b.text_color?'':'disabled'} title="Custom text colour"></div>
     ${(b.tip_x_pct != null && b.tip_y_pct != null) ? `
     <label>Leader Arrow <span style="text-transform:none;letter-spacing:0;color:var(--text2);font-weight:400">(pick “none” to remove)</span></label>
     <div class="arrow-style-row" id="arrowStyleRowEdit">
@@ -2298,6 +2316,8 @@ async function updateBalloon(bid, isCable) {
   }
   const labelText = document.getElementById('ebLabel').value.trim();
   const color = document.getElementById('ebColorCustom').value;
+  const _etm = document.getElementById('ebTextMode');
+  const _wantTC = (_etm && _etm.value === 'custom') ? document.getElementById('ebTextColorCustom').value : null;
   const styleEl = document.querySelector('#arrowStyleRowEdit .arrow-style-btn.active');
   const arrow_style = styleEl ? styleEl.dataset.style : 'none';
   closeModal();
@@ -2305,6 +2325,7 @@ async function updateBalloon(bid, isCable) {
   const _meta = _b ? balloonMeta(_b) : { curve:false, waypoints:[] };
   const label = serializeBalloonLabel(labelText, _meta.curve, _meta.waypoints);
   const patch = { number: num, label, color, arrow_style };
+  if (_wantTC) patch.text_color = _wantTC; else if (_b && _b.text_color) patch.text_color = null;
   // Removing the leader (style → none) also clears the tip so no orphan coords linger.
   if (arrow_style === 'none') { patch.tip_x_pct = null; patch.tip_y_pct = null; }
   await sb.from('deployops_balloons').update(patch).eq('id', bid);
@@ -2824,7 +2845,7 @@ function renderBalloonsSVG() {
           </g>
           <text x="${txtX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#7c2d12" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
       } else if (shape === 'note') {
-        const ps = pillStyle(color);
+        const ps = pillStyle(color, b.text_color);
         html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="${Math.min(tagH/2,10)}" fill="${ps.fill}" stroke="${ps.stroke}" stroke-width="${1.5*markerSize}"/>
           <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="${ps.text}" font-size="${fs}" font-weight="700" font-family="DM Sans,'Noto Sans JP',sans-serif">${text}</text>`;
       } else {
@@ -2837,7 +2858,7 @@ function renderBalloonsSVG() {
       const stext = esc(balloonText(b) || '★');
       const fs = 11 * symbolSize;
       const x0 = cx - tagW/2, y0 = cy - tagH/2;
-      const ps = pillStyle(color);
+      const ps = pillStyle(color, b.text_color);
       html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="${tagH/2}" fill="${ps.fill}" stroke="${ps.stroke}" stroke-width="1.5"/>
         <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="${ps.text}" font-size="${fs}" font-weight="700" font-family="DM Sans, 'Noto Sans JP', sans-serif">${stext}</text>`;
     } else if (shape === 'x') {
@@ -3385,7 +3406,7 @@ async function exportAnnotatedPNG() {
       const w = isCaution ? (padX + tw + padX) : (padX + indSize + indGap + tw + padX);
       const h = rr*1.5, rad = rr*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
-      const _ps = (sh === 'note') ? pillStyle(color) : null;
+      const _ps = (sh === 'note') ? pillStyle(color, b.text_color) : null;
       ctx.fillStyle = isCaution ? '#fef9c3' : (_ps ? _ps.fill : 'white');
       ctx.strokeStyle = isCaution ? '#f59e0b' : (_ps ? _ps.stroke : color);
       ctx.lineWidth = Math.max(1.5, rr*0.08);
@@ -3418,7 +3439,7 @@ async function exportAnnotatedPNG() {
       const padX = rs*0.5, w = tw + padX*2, h = rs*1.3;
       const x0 = cx - w/2, y0 = cy - h/2;
       ctx.beginPath(); ctx.roundRect(x0, y0, w, h, h/2);
-      const ps2 = pillStyle(color);
+      const ps2 = pillStyle(color, b.text_color);
       ctx.strokeStyle = ps2.stroke; ctx.lineWidth = Math.max(1.5, rs*0.08);
       if (ps2.fill !== 'none') { ctx.fillStyle = ps2.fill; ctx.fill(); }
       ctx.stroke();
