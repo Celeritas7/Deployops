@@ -1231,10 +1231,50 @@ function showEditDrawing(id) {
     <input id="edDrawingFolder" list="edDrawingFolderOptions" value="${esc(d.folder || '')}" placeholder="${DRAWING_UNCATEGORIZED}">
     <datalist id="edDrawingFolderOptions">${folders.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
     <div class="modal-actions">
+      <button class="btn btn-danger admin-only" onclick="deleteDrawing(this.dataset.id)" data-id="${esc(d.id)}">🗑️ Delete</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEditDrawing(this.dataset.id)" data-id="${esc(d.id)}">Save</button>
     </div>
   `);
+}
+
+// Admin-only: permanently delete a drawing — its DB row, all its balloons, and
+// every storage file (source.pdf + page_*.png). Listing the storage folder and
+// removing whatever's there is safer than looping page_count, which drifts after
+// page deletions.
+async function deleteDrawing(id) {
+  const d = drawings.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm(`Delete drawing "${d.name || d.drawing_ref}" and ALL its pages, balloons and the source PDF?\n\nThis cannot be undone.`)) return;
+
+  const ref = d.drawing_ref;
+  try {
+    // 1. Remove every file under the drawing's storage folder (source.pdf + page_*.png).
+    const { data: files, error: lsErr } = await sb.storage.from('deployops-drawings').list(ref);
+    if (lsErr) throw lsErr;
+    if (files && files.length) {
+      const paths = files.map(f => `${ref}/${f.name}`);
+      const { error: rmErr } = await sb.storage.from('deployops-drawings').remove(paths);
+      if (rmErr) throw rmErr;
+    }
+
+    // 2. Delete its balloons (FK to drawing_id).
+    const { error: bErr } = await sb.from('deployops_balloons').delete().eq('drawing_id', id);
+    if (bErr) throw bErr;
+
+    // 3. Delete the drawing record last, so storage/balloons can be retried on failure.
+    const { error: dErr } = await sb.from('deployops_drawings').delete().eq('id', id);
+    if (dErr) throw dErr;
+
+    closeModal();
+    if (currentDrawing && currentDrawing.id === id) currentDrawing = null;
+    await loadDrawings();
+    renderDrawing();
+    toast('Drawing deleted', 'ok');
+  } catch (e) {
+    console.error(e);
+    toast('Delete failed: ' + (e.message || e.statusText || JSON.stringify(e)), 'err');
+  }
 }
 
 async function saveEditDrawing(id) {
