@@ -195,6 +195,18 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .tpl-chip-del:hover{color:var(--red)}
 .tpl-add{display:flex;gap:6px}
 .tpl-add input{flex:1}
+/* special symbols */
+.sym-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.sym-chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px;border:1px solid rgba(0,0,0,.15)}
+.sym-chip.armed{outline:2px solid var(--accent);outline-offset:1px}
+.sym-chip-text{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:2px 8px}
+.sym-chip-del{border:none;background:rgba(0,0,0,.28);color:#fff;cursor:pointer;font-size:10px;padding:1px 5px;line-height:1;border-radius:999px}
+.sym-chip-del:hover{background:var(--red)}
+.sym-colors{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.sym-sw{width:22px;height:22px;border-radius:6px;cursor:pointer;border:2px solid transparent;padding:0}
+.sym-sw.sel{border-color:var(--text)}
+.sym-add{display:flex;gap:6px}
+.sym-add input{flex:1}
 /* torque reference */
 .torque-tbl{width:100%;border-collapse:collapse;font-size:11px}
 .torque-tbl th,.torque-tbl td{border:1px solid var(--border);padding:4px 6px;text-align:left}
@@ -546,6 +558,7 @@ const MODES = {
   step:        { label:'Step', icon:'▢', color:'#2dd4bf', desc:'Assembly step — build order (square)', kind:'balloon', shape:'square' },
   ref:         { label:'Ref',  icon:'△', color:'#fbbf24', desc:'Reference only — do not assemble at this stage (triangle)', kind:'balloon', shape:'triangle' },
   note:        { label:'Note', icon:'◇', color:'#a78bfa', desc:'Note callout with label', kind:'tag', shape:'note' },
+  symbol:      { label:'Symbol', icon:'★', color:'#0ea5e9', desc:'Special symbol tag (own size)', kind:'tag', shape:'symbol' },
   x:           { label:'No-install', icon:'✕', color:'#f87171', desc:'DO NOT install this part (red ✕)', kind:'balloon', shape:'x' },
   caution:     { label:'Caution', icon:'⚠', color:'#fb923c', desc:'Caution / precaution callout (amber)', kind:'tag', shape:'caution' },
   cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag', hidden:true },
@@ -608,7 +621,7 @@ const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
 
 // ── Drawing annotation client state (localStorage-backed, never in DB) ──────
 // Layers that appear in the toolbar pills + layers panel (in display order).
-const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution'];
+const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution','symbol'];
 // Focusing one layer also reveals its companion(s): Do-not-install travels with Steps.
 const COMPANION = { step:['x'], x:['step'] };
 // Per-drawing independent visibility set ({mode: bool}); default all visible.
@@ -821,6 +834,69 @@ function loadNoteTemplates() {
   return DEFAULT_NOTE_TEMPLATES.slice();
 }
 function saveNoteTemplates(list) { localStorage.setItem('deployops_note_templates', JSON.stringify(list)); }
+
+// ── Special symbols: shared DB library + independent display size ──
+let symbols = [];                 // library rows [{id,text,color,sort_order}]
+let armedSymbol = null;           // {id,text,color} — next drawing click drops it
+let newSymbolColor = '#0ea5e9';   // selected colour in the add form
+let symbolSize = parseFloat(localStorage.getItem('deployops_symbol_size')) || 2;
+const SYMBOL_COLORS = ['#0ea5e9','#ef4444','#f59e0b','#22c55e','#8b5cf6','#ec4899','#14b8a6','#111827'];
+function pickTextColor(hex){ try { const h=(hex||'').replace('#',''); const n=h.length===3?h.split('').map(c=>c+c).join(''):h; const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16); return (0.299*r+0.587*g+0.114*b)>150 ? '#111' : '#fff'; } catch { return '#fff'; } }
+async function loadSymbols(){ try { const { data } = await sb.from('deployops_symbols').select('*').order('sort_order',{ascending:true}); symbols = data || []; } catch(e){ console.warn('loadSymbols failed', e); symbols = []; } }
+async function addSymbol(){
+  const inp = document.getElementById('symInput');
+  const text = (inp && inp.value || '').trim();
+  if (!text) { toast('Enter symbol text','err'); return; }
+  const sort_order = symbols.length ? Math.max.apply(null, symbols.map(s=>s.sort_order||0))+1 : 0;
+  const { error } = await sb.from('deployops_symbols').insert({ text, color:newSymbolColor, sort_order });
+  if (error) { toast('Save failed: '+error.message,'err'); return; }
+  await loadSymbols(); refreshDrawingChrome(); toast('Symbol added','ok');
+}
+async function deleteSymbol(id){
+  const { error } = await sb.from('deployops_symbols').delete().eq('id', id);
+  if (error) { toast('Delete failed: '+error.message,'err'); return; }
+  if (armedSymbol && armedSymbol.id===id) armedSymbol = null;
+  await loadSymbols(); refreshDrawingChrome();
+}
+function pickSymbolColor(c){ newSymbolColor = c; refreshDrawingChrome(); }
+function armSymbol(id){
+  if (!isAdmin) return;
+  const s = symbols.find(x=>x.id===id); if (!s) return;
+  if (armedSymbol && armedSymbol.id===id) { disarmSymbol(); return; }
+  armedSymbol = { id:s.id, text:s.text, color:s.color };
+  armedNote = null; armedLT = false; armedSteps = false;
+  currentMode = 'symbol'; balloonMode = 'add';
+  if (layerVis['symbol'] === false) { layerVis['symbol'] = true; saveLayerVis(); }
+  renderDrawing();
+}
+function disarmSymbol(){ armedSymbol = null; renderDrawing(); }
+function setSymbolSize(v){
+  symbolSize = parseFloat(v) || 2;
+  localStorage.setItem('deployops_symbol_size', String(symbolSize));
+  const el = document.getElementById('symSizeVal'); if (el) el.textContent = Math.round(symbolSize*100)+'%';
+  renderBalloonsSVG();
+}
+function renderSymbolsCard(){
+  const chips = symbols.map(s => {
+    const tc = pickTextColor(s.color);
+    return `<span class="sym-chip ${armedSymbol&&armedSymbol.id===s.id?'armed':''}" style="background:${s.color}">
+      <button class="sym-chip-text" style="color:${tc}" onclick="armSymbol('${s.id}')" title="Arm — next click drops this symbol">${esc(s.text)}</button>
+      <button class="sym-chip-del admin-only" onclick="deleteSymbol('${s.id}')" title="Delete symbol">✕</button>
+    </span>`;
+  }).join('');
+  const sws = SYMBOL_COLORS.map(c => `<button class="sym-sw ${newSymbolColor===c?'sel':''}" style="background:${c}" onclick="pickSymbolColor('${c}')" title="${c}"></button>`).join('');
+  const pct = Math.round(symbolSize*100);
+  return `<div class="dwg-card admin-only">
+    <div class="dwg-card-head"><span>Special symbols</span><span class="marker-size-val" id="symSizeVal">${pct}%</span></div>
+    <input type="range" class="marker-size-slider" min="0.5" max="4" step="0.25" value="${symbolSize}" oninput="setSymbolSize(this.value)" style="margin-bottom:10px">
+    <div class="sym-chips">${chips || '<span class="dwg-empty">No symbols yet</span>'}</div>
+    <div class="sym-colors">${sws}</div>
+    <div class="sym-add">
+      <input id="symInput" placeholder="e.g. ⚠️注意" onkeydown="if(event.key==='Enter')addSymbol()">
+      <button class="btn btn-sm btn-primary" onclick="addSymbol()">Add</button>
+    </div>
+  </div>`;
+}
 // Models tab state (Phase 3)
 let models = [];                    // [{id,name,ref,description,icon,visible,...}]
 let modelView = null;               // currently open model id (null = list view)
@@ -1471,8 +1547,8 @@ function renderDrawing() {
         <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
         <button class="btn btn-sm btn-danger admin-only no-print" onclick="deleteCurrentPage()" ${currentDrawing.page_count<=1?'disabled':''} title="${currentDrawing.page_count<=1?'Cannot delete last page':'Delete this page'}">🗑️ Delete Page</button>
       </div>
-      <div class="armed-hint no-print" id="armedHint" style="${armedNote?'':'display:none'}">
-        📌 Armed note: <b>${esc(armedNote||'')}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>
+      <div class="armed-hint no-print" id="armedHint" style="${(armedNote||armedSymbol)?'':'display:none'}">
+        📌 Armed: <b>${esc(armedNote||(armedSymbol&&armedSymbol.text)||'')}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>
       </div>
       <div class="drawing-container" id="drawingContainer">
         <div class="dwg-zoom-wrap" id="dwgZoomWrap">
@@ -1495,6 +1571,7 @@ function renderDrawingSidebar() {
     ${renderMarkerSizeCard()}
     ${renderLeadersCard()}
     ${renderNoteTemplatesCard()}
+    ${renderSymbolsCard()}
     ${renderTorqueCard()}
     ${renderStepsCard()}
     ${renderLoctiteCard()}
@@ -1654,7 +1731,7 @@ function refreshDrawingChrome() {
   if (btn && balloonMode !== 'add') btn.innerHTML = '➕ Add ' + MODES[currentMode].label;
   const hint = document.getElementById('armedHint');
   if (hint) {
-    if (armedNote) { hint.style.display = ''; hint.innerHTML = `📌 Armed note: <b>${esc(armedNote)}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>`; }
+    const _armTxt = armedNote || (armedSymbol && armedSymbol.text) || ''; if (_armTxt) { hint.style.display = ''; hint.innerHTML = `📌 Armed: <b>${esc(_armTxt)}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>`; }
     else hint.style.display = 'none';
   }
   const side = document.querySelector('.drawing-sidebar');
@@ -1684,7 +1761,7 @@ function armNoteTemplate(i) {
   const tpls = loadNoteTemplates();
   if (tpls[i] != null) armNoteText(tpls[i]);
 }
-function disarmNote() { armedNote = null; renderDrawing(); }
+function disarmNote() { armedNote = null; armedSymbol = null; renderDrawing(); }
 function addNoteTemplate() {
   const inp = document.getElementById('tplInput');
   const t = (inp && inp.value || '').trim();
@@ -2034,6 +2111,21 @@ async function handleDrawingClick(e) {
   const sameModeOnPage = balloons.filter(b => b.page === currentPage && (b.mode||'balloon') === currentMode);
   const nextNum = sameModeOnPage.length > 0
     ? Math.max(...sameModeOnPage.map(b => b.number||0)) + 1 : 1;
+
+  // Armed special symbol — drop a coloured symbol tag, no modal.
+  if (armedSymbol != null) {
+    const sym = armedSymbol;
+    armedSymbol = null;
+    const { error } = await sb.from('deployops_balloons').insert({
+      drawing_id: currentDrawing.id, page: currentPage, number: nextNum,
+      x_pct, y_pct, label: sym.text, color: sym.color, mode: 'symbol', arrow_style: 'none'
+    });
+    if (error) { toast('Save failed: '+error.message,'err'); armedSymbol = sym; return; }
+    toast('Symbol placed','ok');
+    await loadBalloons();
+    renderDrawing();
+    return;
+  }
 
   // Armed note template — drop a note prefilled with the armed text, no modal.
   if (armedNote != null) {
@@ -2602,6 +2694,8 @@ function renderBalloonsSVG() {
     const shape = (MODES[bmode] && MODES[bmode].shape) || (isCable ? 'note' : 'circle');
     const isTag = isCable || shape === 'note' || shape === 'caution';
     const isCaution = shape === 'caution';
+    const isSymbol = shape === 'symbol';
+    const boxLike = isTag || isSymbol;
     const cautionScale = isCaution ? ((+balloonMeta(b)._extra.s) || 1) : 1;
     const style = b.arrow_style || (b.tip_x_pct!=null?'solid':'none');
     const ahId = 'ah_' + color.replace('#','');
@@ -2613,6 +2707,13 @@ function renderBalloonsSVG() {
       const glyphPad = isCaution ? 16 : 0; // room for drawn warning triangle
       tagW = Math.max(34 * markerSize, (text.length * 6.2 + 26 + glyphPad) * markerSize) * cautionScale;
       tagH = 18 * markerSize * cautionScale;
+    }
+
+    if (isSymbol) {
+      const stext = balloonText(b) || '★';
+      const SZ = symbolSize, fs = 11 * SZ;
+      tagH = 20 * SZ;
+      tagW = Math.max(30 * SZ, [...stext].length * fs * 0.78 + 16 * SZ);
     }
 
     // Leader (only if tip exists & style != none). Straight legacy leaders keep
@@ -2631,7 +2732,7 @@ function renderBalloonsSVG() {
       if (!hasRoute) {
         // Edge-trimmed straight line — unchanged behaviour.
         let sx, sy;
-        if (isTag) {
+        if (boxLike) {
           [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
         } else {
           const dx = tx - cx, dy = ty - cy;
@@ -2692,6 +2793,12 @@ function renderBalloonsSVG() {
           <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="${chip}"/>
           <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
       }
+    } else if (isSymbol) {
+      const stext = esc(balloonText(b) || '★');
+      const fs = 11 * symbolSize;
+      const x0 = cx - tagW/2, y0 = cy - tagH/2;
+      html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="${tagH/2}" fill="${color}" stroke="white" stroke-width="1.5"/>
+        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="${pickTextColor(color)}" font-size="${fs}" font-weight="700" font-family="DM Sans, 'Noto Sans JP', sans-serif">${stext}</text>`;
     } else if (shape === 'x') {
       // No-install — filled red circle, white ✕, no number.
       html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
@@ -2733,8 +2840,8 @@ function renderBalloonsSVG() {
     if (isAdmin && b.id === selectedBalloonId && bmode !== 'table' &&
         b.tip_x_pct != null && b.tip_y_pct != null) {
       const meta = balloonMeta(b);
-      const ctX = Math.max(14, cx - (isTag ? tagW/2 : r) - 16);
-      const ctY = Math.min(vbH - 14, cy + (isTag ? tagH/2 : r) + 16);
+      const ctX = Math.max(14, cx - (boxLike ? tagW/2 : r) - 16);
+      const ctY = Math.min(vbH - 14, cy + (boxLike ? tagH/2 : r) + 16);
       html += leaderControlsSVG(b, color, leaderNodesPct(b, meta), meta.curve, vbW, vbH, ctX, ctY);
     }
 
@@ -2743,7 +2850,7 @@ function renderBalloonsSVG() {
     // dragged out on demand. Tables are excluded.
     if (isAdmin && b.id === selectedBalloonId && bmode !== 'table' &&
         (b.tip_x_pct == null || b.tip_y_pct == null)) {
-      const off = (isTag ? tagW/2 : r) + 22;
+      const off = (boxLike ? tagW/2 : r) + 22;
       const ax = Math.min(vbW - 12, cx + off);
       const ay = Math.max(12, cy - off);
       html += `<g class="add-leader" data-id="${b.id}" data-role="add-leader" style="cursor:pointer">
@@ -3111,6 +3218,7 @@ async function exportAnnotatedPNG() {
     return layerVis[m] !== false;
   });
   const r = Math.min(canvas.width, canvas.height) * 0.018 * markerSize;
+  const rs = Math.min(canvas.width, canvas.height) * 0.018 * symbolSize;
   const shapeOf = (b) => {
     const m = b.mode || 'balloon';
     return (MODES[m] && MODES[m].shape) || (m === 'cable' ? 'note' : 'circle');
@@ -3131,6 +3239,7 @@ async function exportAnnotatedPNG() {
     const sh = shapeOf(b);
     const isCable = (b.mode||'balloon') === 'cable';
     const isTag = isCable || isTagShape(sh);
+    const isSymbol = sh === 'symbol';
 
     // Trim line to start at edge of balloon body (rect for tags, circle otherwise)
     const dx = tx-cx, dy = ty-cy;
@@ -3138,7 +3247,13 @@ async function exportAnnotatedPNG() {
     const _hasRoute = _meta.curve || (_meta.waypoints && _meta.waypoints.length);
     let ahAng = Math.atan2(dy, dx);
     let sx, sy;
-    if (isTag) {
+    if (isSymbol) {
+      const text = balloonText(b) || '★';
+      ctx.font = "bold " + (rs*0.7) + "px DM Sans, 'Noto Sans JP', sans-serif";
+      const tw = ctx.measureText(text).width;
+      const tagW = tw + rs, tagH = rs*1.3;
+      [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
+    } else if (isTag) {
       const text = balloonText(b) || '?';
       ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
       const tw = ctx.measureText(text).width;
@@ -3246,6 +3361,18 @@ async function exportAnnotatedPNG() {
         ctx.fillStyle = '#111';
         ctx.fillText(text, indX + indSize + indGap, cy);
       }
+    } else if (sh === 'symbol') {
+      const text = balloonText(b) || '★';
+      ctx.font = "bold " + (rs*0.7) + "px DM Sans, 'Noto Sans JP', sans-serif";
+      const tw = ctx.measureText(text).width;
+      const padX = rs*0.5, w = tw + padX*2, h = rs*1.3;
+      const x0 = cx - w/2, y0 = cy - h/2;
+      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, h/2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = 'white'; ctx.lineWidth = Math.max(1.5, rs*0.08); ctx.stroke();
+      ctx.fillStyle = pickTextColor(color);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, cx, cy);
     } else if (sh === 'x') {
       // No-install — red circle with white ✕, no number
       ctx.beginPath(); ctx.arc(cx, cy, r+4, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill();
@@ -6777,7 +6904,7 @@ async function init() {
     else if (e.key === 'Escape' && brushPhase) { brushPhase = null; renderModels(); }  // G.2: Esc exits brush mode
   });
   document.body.dataset.tab = 'models';
-  await Promise.all([loadDrawings(), loadDrawingFolders(), loadModels()]);
+  await Promise.all([loadDrawings(), loadDrawingFolders(), loadModels(), loadSymbols()]);
   window._modelsLoaded = true;
   // Drawings tab opens on its folder grid (currentDrawing stays null); no
   // auto-select. Deploy is model-based and no longer depends on currentDrawing.
