@@ -754,6 +754,61 @@ function startXTipDrag(e){
 
 // Admin smoke test for §7/§8 — exercises the real insert/spawn/dedupe DB paths
 // on the OPEN drawing, then deletes everything it created. Safe + non-destructive.
+async function toggleXLeaderCurve(bid, xi){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const arr = extraTips(b).slice(); if (!arr[xi]) return;
+  arr[xi] = Object.assign({}, arr[xi], { c: !arr[xi].c });
+  await saveExtraTips(b, arr);
+}
+async function addXLeaderBend(bid, xi){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const arr = extraTips(b).slice(); const xt = arr[xi]; if (!xt) return;
+  const wps = Array.isArray(xt.w) ? xt.w.slice() : [];
+  const nodes = [{x:b.x_pct,y:b.y_pct}, ...wps, {x:xt.x,y:xt.y}];
+  const seg = longestSegPct(nodes);
+  const a = nodes[seg.bi], bb = nodes[seg.bi+1];
+  const dx=bb.x-a.x, dy=bb.y-a.y, L=seg.len||1, off=Math.min(14, L*0.28);
+  wps.splice(seg.bi, 0, { x: clampPct(seg.mx - dy/L*off), y: clampPct(seg.my + dx/L*off) });
+  arr[xi] = Object.assign({}, xt, { w: wps, c: true });
+  await saveExtraTips(b, arr);
+}
+async function deleteXLeaderBend(bid, xi, i){
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const arr = extraTips(b).slice(); const xt = arr[xi]; if (!xt) return;
+  const wps = (Array.isArray(xt.w) ? xt.w : []).filter((_,k)=>k!==i);
+  arr[xi] = Object.assign({}, xt, { w: wps });
+  await saveExtraTips(b, arr);
+}
+function startXWaypointDrag(e){
+  if (e.button !== 0 || dwgSpaceHeld) return;
+  e.preventDefault(); e.stopPropagation();
+  isDragging = false;
+  const g = e.currentTarget, bid = g.dataset.id, xi = +g.dataset.xi, i = +g.dataset.i;
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const img = document.getElementById('drawingImg'); if (!img) return;
+  const arr = extraTips(b).slice(); if (!arr[xi]) return;
+  const onMove = (ev) => {
+    ev.preventDefault(); isDragging = true;
+    const rect = img.getBoundingClientRect();
+    const x = clampPct(((ev.clientX-rect.left)/rect.width)*100);
+    const y = clampPct(((ev.clientY-rect.top)/rect.height)*100);
+    const wps = (Array.isArray(arr[xi].w) ? arr[xi].w : []).slice(); wps[i] = {x,y};
+    arr[xi] = Object.assign({}, arr[xi], { w: wps, c: true });
+    const meta = balloonMeta(b);
+    b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, Object.assign({}, meta._extra, { xt: arr }));
+    g._dirty = true;
+    renderBalloonsSVG();
+  };
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (isDragging && g._dirty){ try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); } catch(err){ console.error(err); } }
+    setTimeout(()=>{ isDragging=false; }, 100);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
 async function runAnnotationSelfTest(){
   if (!isAdmin){ console.warn('Self-test is admin-only.'); return; }
   if (!currentDrawing){ toast('Open a drawing first','err'); return; }
@@ -2565,6 +2620,28 @@ function leaderControlsSVG(b, color, nodesPct, curve, vbW, vbH, toggleX, toggleY
 }
 
 // Loctite leader (box -> screw tip) drawn in the SVG layer.
+// Same controls (curve toggle + add-bend + bend handles) for one extra arrow.
+function xLeaderControlsSVG(b, xi, color, nodesPct, curve, vbW, vbH, toggleX, toggleY){
+  const wps = nodesPct.slice(1, -1);
+  let out = '<g class="xcurve-toggle" data-id="'+b.id+'" data-xi="'+xi+'" style="cursor:pointer">'
+    + '<circle cx="'+toggleX+'" cy="'+toggleY+'" r="9" fill="'+(curve?'#7c3aed':'#334155')+'" stroke="white" stroke-width="2"/>'
+    + '<text x="'+toggleX+'" y="'+toggleY+'" text-anchor="middle" dominant-baseline="central" fill="white" font-size="12" pointer-events="none">'+(curve?'\u219d':'\u2192')+'</text>'
+    + '<title>'+(curve?'Curved \u2014 click for straight':'Straight \u2014 click for curved')+'</title></g>';
+  const seg = longestSegPct(nodesPct);
+  const bAx = seg.mx/100*vbW, bAy = seg.my/100*vbH;
+  out += '<g class="xbend-add" data-id="'+b.id+'" data-xi="'+xi+'" style="cursor:pointer">'
+    + '<circle cx="'+bAx+'" cy="'+bAy+'" r="8" fill="#2563eb" stroke="white" stroke-width="2"/>'
+    + '<text x="'+bAx+'" y="'+bAy+'" text-anchor="middle" dominant-baseline="central" fill="white" font-size="12" font-weight="700" pointer-events="none">\uff0b</text>'
+    + '<title>Add a bend</title></g>';
+  wps.forEach((p, i) => {
+    const wx = p.x/100*vbW, wy = p.y/100*vbH;
+    out += '<g class="xwp-handle" data-id="'+b.id+'" data-xi="'+xi+'" data-i="'+i+'" style="cursor:grab"><circle cx="'+wx+'" cy="'+wy+'" r="7" fill="white" stroke="'+color+'" stroke-width="2.5"/></g>'
+      + '<g class="xwp-del" data-id="'+b.id+'" data-xi="'+xi+'" data-i="'+i+'" style="cursor:pointer"><circle cx="'+(wx+11)+'" cy="'+(wy-11)+'" r="6" fill="#dc2626" stroke="white" stroke-width="1.5"/>'
+      + '<text x="'+(wx+11)+'" y="'+(wy-11)+'" text-anchor="middle" dominant-baseline="central" fill="white" font-size="9" font-weight="700" pointer-events="none">\u00d7</text></g>';
+  });
+  return out;
+}
+
 function renderLoctorqueLeaderSVG(b, vbW, vbH){
   const m = ltMeta(b);
   if ((m.leader||'arrow') === 'none') return '';
@@ -2944,6 +3021,9 @@ function renderBalloonsSVG() {
       if (isAdmin && b.id === selectedBalloonId){
         html += `<g class="xtip-handle" data-id="${b.id}" data-xi="${xi}" data-role="xtip"><circle cx="${xtx}" cy="${xty}" r="6" fill="white" stroke="${color}" stroke-width="2"/></g>`;
         html += `<g class="xtip-del" data-id="${b.id}" data-xi="${xi}" style="cursor:pointer"><circle cx="${xtx+12}" cy="${xty-12}" r="7" fill="#dc2626" stroke="white" stroke-width="1.5"/><text x="${xtx+12}" y="${xty-12}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">×</text></g>`;
+        const xnodes = [{x:b.x_pct,y:b.y_pct}, ...xwps, {x:xt.x,y:xt.y}];
+        const xToggleX = Math.max(14, xtx - 16), xToggleY = Math.min(vbH - 14, xty + 16);
+        html += xLeaderControlsSVG(b, xi, color, xnodes, !!xt.c, vbW, vbH, xToggleX, xToggleY);
       }
     });
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
@@ -3063,6 +3143,10 @@ function renderBalloonsSVG() {
     });
     svg.querySelectorAll('.xtip-handle').forEach(g => { g.addEventListener('pointerdown', startXTipDrag); });
     svg.querySelectorAll('.xtip-del').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); deleteExtraLeader(g.dataset.id, +g.dataset.xi); }); });
+    svg.querySelectorAll('.xcurve-toggle').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); toggleXLeaderCurve(g.dataset.id, +g.dataset.xi); }); });
+    svg.querySelectorAll('.xbend-add').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addXLeaderBend(g.dataset.id, +g.dataset.xi); }); });
+    svg.querySelectorAll('.xwp-handle').forEach(g => { g.addEventListener('pointerdown', startXWaypointDrag); });
+    svg.querySelectorAll('.xwp-del').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); deleteXLeaderBend(g.dataset.id, +g.dataset.xi, +g.dataset.i); }); });
     svg.querySelectorAll('.add-xleader').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addExtraLeader(g.dataset.id); }); });
     svg.querySelectorAll('.add-leader').forEach(g => {
       g.addEventListener('click', (e) => { e.stopPropagation(); addLeader(g.dataset.id); });
