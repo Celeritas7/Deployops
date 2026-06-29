@@ -2066,6 +2066,11 @@ function fitDrawingToContainer() {
   const k = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
   wrap.style.width = Math.round(img.naturalWidth * k) + 'px';
   wrap.style.height = Math.round(img.naturalHeight * k) + 'px';
+  // Drawing-relative unit (= min displayed dimension, un-zoomed). HTML overlay
+  // widgets (Loctite callout + steps table) scale off this so they hold the SAME
+  // proportion to the sheet as the SVG balloons and the print/export path, instead
+  // of being fixed-px and drifting as the sheet renders wider/narrower.
+  wrap.style.setProperty('--dwg-u', String(Math.min(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k))));
 }
 function applyDwgTransform() {
   const { wrap, container } = dwgEls();
@@ -2713,7 +2718,7 @@ function loctorqueHTML(b){
       + '<button class="lt-del" data-id="'+b.id+'" title="Delete">×</button>'
       + '</div>';
   }
-  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale('+ltViewScale(m.scale)+')">'
+  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale(calc(var(--dwg-u,846) / 846 * '+ltViewScale(m.scale)+'))">'
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
@@ -2734,7 +2739,7 @@ function steptableHTML(b){
   }).join('');
   const tools = sel ? '<span class="dt-tools admin-only"><button class="st-scale" data-id="'+b.id+'" data-d="-0.1">−</button><button class="st-scale" data-id="'+b.id+'" data-d="0.1">＋</button><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
   const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="parallel" title="Add a parallel sub-step (1a, 1b…) to the last step">＋ Parallel</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
-  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale('+stViewScale(m.scale)+')">'
+  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale(calc(var(--dwg-u,1000) / 1000 * '+stViewScale(m.scale)+'))">'
     + '<div class="dt-bar" data-id="'+b.id+'"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
     + '<table class="dt-table"><thead><tr><th>Step</th><th>Assembly instruction</th><th class="admin-only">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + addRow + '</div>';
