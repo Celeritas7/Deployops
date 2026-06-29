@@ -652,6 +652,14 @@ const COMPANION = { step:['x'], x:['step'] };
 let layerVis = {};
 // Balloon size multiplier (display + export), persisted globally.
 let markerSize = parseFloat(localStorage.getItem('deployops_balloon_size')) || 1;
+// Loctite-block + steps-table size multipliers (display + export), persisted globally
+// — controlled from the sidebar cards, same as Marker size.
+let loctiteSize = parseFloat(localStorage.getItem('deployops_loctite_size')) || 1;
+let tableSize = parseFloat(localStorage.getItem('deployops_table_size')) || 1;
+// PNG/PDF size correction — multiplies ONLY the exported (canvas) table / loctite
+// block so you can dial the generated size to match the on-screen UI. 1 = no change.
+let tableExportCal = parseFloat(localStorage.getItem('deployops_table_export_cal')) || 1;
+let loctiteExportCal = parseFloat(localStorage.getItem('deployops_loctite_export_cal')) || 1;
 // Armed note-template text — next drawing click drops a note prefilled with it.
 let armedNote = null;
 
@@ -1815,6 +1823,10 @@ function renderStepsCard(){
       <button class="${c?'on':''}" onclick="setDefaultArrowCurve(true)" title="New leaders curved">↝ Curved</button>
     </div>
     <button class="btn btn-sm ${armedSteps?'btn-primary':''}" style="width:100%;justify-content:center" onclick="armStepsTable()">${armedSteps?'Click the drawing to drop…':'▤ Place steps table'}</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span>Table size</span><span class="marker-size-val" id="tableSizeVal">${Math.round(tableSize*100)}%</span></div>
+    <input type="range" class="marker-size-slider" min="0.4" max="2" step="0.05" value="${tableSize}" oninput="setTableSize(this.value)">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Multiplies ONLY the table in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen table.">PNG / PDF size fix</span><span class="marker-size-val" id="tableExportCalVal">${tableExportCal.toFixed(2)}\u00d7</span></div>
+    <input type="range" class="marker-size-slider" min="0.4" max="2.5" step="0.05" value="${tableExportCal}" oninput="setTableExportCal(this.value)">
   </div>`;
 }
 function renderLoctiteCard(){
@@ -1831,6 +1843,10 @@ function renderLoctiteCard(){
       <label class="lt-cfg-row"><span>Torque</span><input id="ltTorqueInp" placeholder="e.g. 8"></label>
     </div>
     <button class="btn btn-sm ${armedLT?'btn-primary':''}" style="width:100%;justify-content:center;margin-top:8px" onclick="armLoctite()">${armedLT?'Click a screw to attach…':'🔩 Place label on a screw'}</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span>Block size</span><span class="marker-size-val" id="loctiteSizeVal">${Math.round(loctiteSize*100)}%</span></div>
+    <input type="range" class="marker-size-slider" min="0.4" max="2" step="0.05" value="${loctiteSize}" oninput="setLoctiteSize(this.value)">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Multiplies ONLY the loctite block in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen block.">PNG / PDF size fix</span><span class="marker-size-val" id="loctiteExportCalVal">${loctiteExportCal.toFixed(2)}\u00d7</span></div>
+    <input type="range" class="marker-size-slider" min="0.4" max="2.5" step="0.05" value="${loctiteExportCal}" oninput="setLoctiteExportCal(this.value)">
     <div class="lt-pal-head">Grades &amp; colours <span>applied to every drawing</span></div>
     <div class="lt-pal-grid">${palette}</div>
     <div class="lt-pal-add"><input id="ltNewGrade" placeholder="Add grade e.g. 638" onkeydown="if(event.key==='Enter'){addGrade(this.value);this.value='';}"><button onclick="addGrade(document.getElementById('ltNewGrade').value);document.getElementById('ltNewGrade').value=''">＋ Add</button></div>
@@ -1940,7 +1956,31 @@ function setMarkerSize(v) {
   localStorage.setItem('deployops_balloon_size', String(markerSize));
   const val = document.getElementById('markerSizeVal');
   if (val) val.textContent = Math.round(markerSize * 100) + '%';
+  schedulePdfRender && schedulePdfRender();
+}
+function setLoctiteSize(v){
+  loctiteSize = parseFloat(v) || 1;
+  localStorage.setItem('deployops_loctite_size', String(loctiteSize));
+  const el = document.getElementById('loctiteSizeVal'); if (el) el.textContent = Math.round(loctiteSize * 100) + '%';
+  renderOverlay();
+}
+function setTableSize(v){
+  tableSize = parseFloat(v) || 1;
+  localStorage.setItem('deployops_table_size', String(tableSize));
+  const el = document.getElementById('tableSizeVal'); if (el) el.textContent = Math.round(tableSize * 100) + '%';
+  renderOverlay();
   renderBalloonsSVG();
+}
+// PNG/PDF size correction setters — affect the exported canvas only (no UI re-render needed).
+function setTableExportCal(v){
+  tableExportCal = parseFloat(v) || 1;
+  localStorage.setItem('deployops_table_export_cal', String(tableExportCal));
+  const el = document.getElementById('tableExportCalVal'); if (el) el.textContent = tableExportCal.toFixed(2) + '\u00d7';
+}
+function setLoctiteExportCal(v){
+  loctiteExportCal = parseFloat(v) || 1;
+  localStorage.setItem('deployops_loctite_export_cal', String(loctiteExportCal));
+  const el = document.getElementById('loctiteExportCalVal'); if (el) el.textContent = loctiteExportCal.toFixed(2) + '\u00d7';
 }
 
 // ── Note templates ──
@@ -2709,8 +2749,6 @@ function loctorqueHTML(b){
   let tools = '';
   if (sel){
     tools = '<div class="lt-tools admin-only">'
-      + '<button class="lt-scale" data-id="'+b.id+'" data-d="-0.1" title="Smaller">−</button>'
-      + '<button class="lt-scale" data-id="'+b.id+'" data-d="0.1" title="Bigger">＋</button>'
       + '<button class="lt-dup" data-id="'+b.id+'" title="Duplicate">⧉</button>'
       + (arrowOn ? '<button class="lt-curve'+(m.curve?' on':'')+'" data-id="'+b.id+'" title="Curve / straight">'+(m.curve?'↝':'→')+'</button>' : '')
       + '<button class="lt-arrow'+(arrowOn?'':' off')+'" data-id="'+b.id+'" title="Arrow on / off">➤</button>'
@@ -2737,7 +2775,7 @@ function steptableHTML(b){
       + '<td class="st-ins"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
       + '<td class="st-arrow admin-only">'+arrowBtn+'</td></tr>';
   }).join('');
-  const tools = sel ? '<span class="dt-tools admin-only"><button class="st-scale" data-id="'+b.id+'" data-d="-0.1">−</button><button class="st-scale" data-id="'+b.id+'" data-d="0.1">＋</button><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
+  const tools = sel ? '<span class="dt-tools admin-only"><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
   const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="parallel" title="Add a parallel sub-step (1a, 1b…) to the last step">＋ Parallel</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
   return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale(calc(var(--dwg-u,1000) / 1000 * '+stViewScale(m.scale)+'))">'
     + '<div class="dt-bar" data-id="'+b.id+'"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
@@ -2784,8 +2822,8 @@ function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; cons
 // Effective on-screen size. Untouched widgets (still carrying the old default)
 // render at the new, smaller default so existing drawings shrink automatically;
 // anything the user explicitly scaled keeps its custom value.
-function ltViewScale(s){ return (s==null||s===0.8)?0.62:s; }
-function stViewScale(s){ return (s==null||s===0.9)?0.68:s; }
+function ltViewScale(s){ return ((s==null||s===0.8)?0.62:s) * loctiteSize; }
+function stViewScale(s){ return ((s==null||s===0.9)?0.68:s) * tableSize; }
 function ltToggleArrow(id){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.leader=(m.leader||'arrow')==='none'?'arrow':'none'; ltUpdate(b,m); }
 async function dupLT(id){
   const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b);
@@ -3394,7 +3432,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const sc=ltViewScale(m.scale), fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
+  const sc=ltViewScale(m.scale)*loctiteExportCal, fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
@@ -3410,7 +3448,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
 }
 // §8 Assembly-steps table → export canvas (light card).
 function drawStepTableCanvas(ctx, b, canvas){
-  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H), scale=stViewScale(m.scale);
+  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H), scale=stViewScale(m.scale)*tableExportCal;
   const x0=b.x_pct/100*W, y0=b.y_pct/100*H;
   const fs=u*0.012*scale, barH=fs*1.9, rh=fs*2.3, numW=fs*3, insW=u*0.17*scale, W2=numW+insW;
   ctx.save(); ctx.textBaseline='middle';
