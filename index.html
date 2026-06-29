@@ -656,8 +656,10 @@ let markerSize = parseFloat(localStorage.getItem('deployops_balloon_size')) || 1
 // — controlled from the sidebar cards, same as Marker size.
 let loctiteSize = parseFloat(localStorage.getItem('deployops_loctite_size')) || 1;
 let tableSize = parseFloat(localStorage.getItem('deployops_table_size')) || 1;
-// Method 3: live displayed-px unit for the sheet (min displayed dimension, un-zoomed).
-let dwgU = 1000;
+// PNG/PDF size correction — multiplies ONLY the exported (canvas) table / loctite
+// block so you can dial the generated size to match the on-screen UI. 1 = no change.
+let tableExportCal = parseFloat(localStorage.getItem('deployops_table_export_cal')) || 1;
+let loctiteExportCal = parseFloat(localStorage.getItem('deployops_loctite_export_cal')) || 1;
 // Armed note-template text — next drawing click drops a note prefilled with it.
 let armedNote = null;
 
@@ -1823,6 +1825,8 @@ function renderStepsCard(){
     <button class="btn btn-sm ${armedSteps?'btn-primary':''}" style="width:100%;justify-content:center" onclick="armStepsTable()">${armedSteps?'Click the drawing to drop…':'▤ Place steps table'}</button>
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span>Table size</span><span class="marker-size-val" id="tableSizeVal">${Math.round(tableSize*100)}%</span></div>
     <input type="range" class="marker-size-slider" min="0.4" max="2" step="0.05" value="${tableSize}" oninput="setTableSize(this.value)">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Multiplies ONLY the table in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen table.">PNG / PDF size fix</span><span class="marker-size-val" id="tableExportCalVal">${tableExportCal.toFixed(2)}\u00d7</span></div>
+    <input type="range" class="marker-size-slider" min="0.4" max="2.5" step="0.05" value="${tableExportCal}" oninput="setTableExportCal(this.value)">
   </div>`;
 }
 function renderLoctiteCard(){
@@ -1841,6 +1845,8 @@ function renderLoctiteCard(){
     <button class="btn btn-sm ${armedLT?'btn-primary':''}" style="width:100%;justify-content:center;margin-top:8px" onclick="armLoctite()">${armedLT?'Click a screw to attach…':'🔩 Place label on a screw'}</button>
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span>Block size</span><span class="marker-size-val" id="loctiteSizeVal">${Math.round(loctiteSize*100)}%</span></div>
     <input type="range" class="marker-size-slider" min="0.4" max="2" step="0.05" value="${loctiteSize}" oninput="setLoctiteSize(this.value)">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Multiplies ONLY the loctite block in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen block.">PNG / PDF size fix</span><span class="marker-size-val" id="loctiteExportCalVal">${loctiteExportCal.toFixed(2)}\u00d7</span></div>
+    <input type="range" class="marker-size-slider" min="0.4" max="2.5" step="0.05" value="${loctiteExportCal}" oninput="setLoctiteExportCal(this.value)">
     <div class="lt-pal-head">Grades &amp; colours <span>applied to every drawing</span></div>
     <div class="lt-pal-grid">${palette}</div>
     <div class="lt-pal-add"><input id="ltNewGrade" placeholder="Add grade e.g. 638" onkeydown="if(event.key==='Enter'){addGrade(this.value);this.value='';}"><button onclick="addGrade(document.getElementById('ltNewGrade').value);document.getElementById('ltNewGrade').value=''">＋ Add</button></div>
@@ -1964,6 +1970,17 @@ function setTableSize(v){
   const el = document.getElementById('tableSizeVal'); if (el) el.textContent = Math.round(tableSize * 100) + '%';
   renderOverlay();
   renderBalloonsSVG();
+}
+// PNG/PDF size correction setters — affect the exported canvas only (no UI re-render needed).
+function setTableExportCal(v){
+  tableExportCal = parseFloat(v) || 1;
+  localStorage.setItem('deployops_table_export_cal', String(tableExportCal));
+  const el = document.getElementById('tableExportCalVal'); if (el) el.textContent = tableExportCal.toFixed(2) + '\u00d7';
+}
+function setLoctiteExportCal(v){
+  loctiteExportCal = parseFloat(v) || 1;
+  localStorage.setItem('deployops_loctite_export_cal', String(loctiteExportCal));
+  const el = document.getElementById('loctiteExportCalVal'); if (el) el.textContent = loctiteExportCal.toFixed(2) + '\u00d7';
 }
 
 // ── Note templates ──
@@ -2093,8 +2110,7 @@ function fitDrawingToContainer() {
   // widgets (Loctite callout + steps table) scale off this so they hold the SAME
   // proportion to the sheet as the SVG balloons and the print/export path, instead
   // of being fixed-px and drifting as the sheet renders wider/narrower.
-  dwgU = Math.min(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k));
-  wrap.style.setProperty('--dwg-u', String(dwgU));
+  wrap.style.setProperty('--dwg-u', String(Math.min(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k))));
 }
 function applyDwgTransform() {
   const { wrap, container } = dwgEls();
@@ -2751,27 +2767,19 @@ function loctorqueHTML(b){
 function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
-  // Method 3 — shared measured-wrap layout, sized in DISPLAYED px off dwgU; both
-  // renderers derive identical per-row heights from stepLayout() (same font + width),
-  // so on-screen == PNG == PDF while long instructions still wrap.
-  const L = stepLayout(m.rows, dwgU, stViewScale(m.scale));
-  const px = n => n.toFixed(2) + 'px';
-  const cs = px(L.fs * 1.5);
-  const rows = L.rowInfo.map(({ r, idx: ri, h }) => {
+  const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
     const did = stepDisplayId(m.rows, ri);
-    const chip = r.skip
-      ? '<span class="mk-cell x" style="width:'+cs+';height:'+cs+';font-size:'+px(L.fs*0.9)+'">✕</span>'
-      : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';height:'+cs+';min-width:'+cs+';width:auto;padding:0 '+px(L.fs*0.35)+';font-size:'+px(L.fs*0.9)+'">'+did+'</span>';
+    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';width:auto;min-width:22px;padding:0 5px">'+did+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
-    return '<tr style="height:'+px(h)+'"><td class="st-num" style="width:'+px(L.numW)+';height:'+px(h)+';text-align:center;vertical-align:middle;padding:0 '+px(L.pad)+';box-sizing:border-box">'+chip+'</td>'
-      + '<td class="st-ins" style="width:'+px(L.insW)+';max-width:'+px(L.insW)+';height:'+px(h)+';vertical-align:middle;padding:'+px(L.padV)+' '+px(L.pad)+';box-sizing:border-box;font-size:'+px(L.fs)+';line-height:'+px(L.lineH)+';white-space:normal;overflow:hidden"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
-      + '<td class="st-arrow admin-only" style="width:'+px(L.numW)+';height:'+px(h)+';text-align:center;vertical-align:middle">'+arrowBtn+'</td></tr>';
+    return '<tr><td class="st-num">'+chip+'</td>'
+      + '<td class="st-ins"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
+      + '<td class="st-arrow admin-only">'+arrowBtn+'</td></tr>';
   }).join('');
   const tools = sel ? '<span class="dt-tools admin-only"><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
   const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="parallel" title="Add a parallel sub-step (1a, 1b…) to the last step">＋ Parallel</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
-  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:none;width:max-content">'
-    + '<div class="dt-bar" data-id="'+b.id+'" style="height:'+px(L.barH)+';padding:0 '+px(L.pad)+';font-size:'+px(L.fs*0.92)+';box-sizing:border-box"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
-    + '<table class="dt-table" style="border-collapse:collapse"><thead><tr><th style="width:'+px(L.numW)+';height:'+px(L.headH)+';text-align:center;font-size:'+px(L.fs)+';padding:0 '+px(L.pad)+';box-sizing:border-box">Step</th><th style="width:'+px(L.insW)+';height:'+px(L.headH)+';text-align:left;font-size:'+px(L.fs)+';padding:0 '+px(L.pad)+';box-sizing:border-box">Assembly instruction</th><th class="admin-only" style="width:'+px(L.numW)+';height:'+px(L.headH)+';text-align:center;font-size:'+px(L.fs)+';box-sizing:border-box">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
+  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale(calc(var(--dwg-u,1000) / 1000 * '+stViewScale(m.scale)+'))">'
+    + '<div class="dt-bar" data-id="'+b.id+'"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
+    + '<table class="dt-table"><thead><tr><th>Step</th><th>Assembly instruction</th><th class="admin-only">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + addRow + '</div>';
 }
 
@@ -2814,38 +2822,6 @@ function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; cons
 // Effective on-screen size. Untouched widgets (still carrying the old default)
 // render at the new, smaller default so existing drawings shrink automatically;
 // anything the user explicitly scaled keeps its custom value.
-// Method 3 — shared layout with MEASURED wrapping. Both the on-screen HTML table
-// and the export/PDF canvas call this; it measures each instruction's wrapped line
-// count (same font + column width) and returns per-row heights, so heights match
-// exactly AND long text still wraps. unit = displayed px (dwgU) on screen, natural
-// px (min(W,H)) on the export canvas.
-function stepLayout(rows, unit, scale){
-  const fs = unit*0.012*scale;
-  const pad = fs*0.6, padV = fs*0.45, lineH = fs*1.4;
-  const numW = fs*3, insW = unit*0.17*scale;
-  const barH = fs*1.9, headH = fs*2.3, minRh = fs*2.3;
-  const textW = insW - pad*2;
-  const mc = stepLayout._mc || (stepLayout._mc = document.createElement('canvas').getContext('2d'));
-  mc.font = "600 "+fs+"px 'DM Sans', sans-serif";
-  const wrap = (text) => {
-    const words = String(text||'').split(/\s+/).filter(Boolean);
-    if (!words.length) return [''];
-    const lines = []; let cur = words[0];
-    for (let i=1;i<words.length;i++){
-      const t = cur+' '+words[i];
-      if (mc.measureText(t).width <= textW) cur = t; else { lines.push(cur); cur = words[i]; }
-    }
-    lines.push(cur); return lines;
-  };
-  const sorted = rows.map((r,idx)=>({r,idx})).sort((a,z)=>(a.r.skip?1:0)-(z.r.skip?1:0));
-  const rowInfo = sorted.map(({r,idx})=>{
-    const lines = wrap(r.text);
-    const h = Math.max(minRh, lines.length*lineH + padV*2);
-    return { r, idx, lines, h };
-  });
-  const tableH = barH + headH + rowInfo.reduce((s,x)=>s+x.h,0);
-  return { fs, pad, padV, lineH, numW, insW, barH, headH, minRh, textW, rowInfo, tableH };
-}
 function ltViewScale(s){ return ((s==null||s===0.8)?0.62:s) * loctiteSize; }
 function stViewScale(s){ return ((s==null||s===0.9)?0.68:s) * tableSize; }
 function ltToggleArrow(id){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.leader=(m.leader||'arrow')==='none'?'arrow':'none'; ltUpdate(b,m); }
@@ -3456,7 +3432,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const sc=ltViewScale(m.scale), fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
+  const sc=ltViewScale(m.scale)*loctiteExportCal, fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
@@ -3472,26 +3448,19 @@ function drawLoctorqueCanvas(ctx, b, canvas){
 }
 // §8 Assembly-steps table → export canvas (light card).
 function drawStepTableCanvas(ctx, b, canvas){
-  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H);
-  const L=stepLayout(m.rows, u, stViewScale(m.scale));
-  const fs=L.fs, barH=L.barH, headH=L.headH, numW=L.numW, insW=L.insW, W2=numW+insW;
+  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H), scale=stViewScale(m.scale)*tableExportCal;
   const x0=b.x_pct/100*W, y0=b.y_pct/100*H;
+  const fs=u*0.012*scale, barH=fs*1.9, rh=fs*2.3, numW=fs*3, insW=u*0.17*scale, W2=numW+insW;
   ctx.save(); ctx.textBaseline='middle';
   ctx.fillStyle='#dbe5f3'; ctx.fillRect(x0,y0,W2,barH);
-  ctx.fillStyle='#1d3a63'; ctx.font='700 '+(fs*0.92)+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
-  ctx.fillText('⠿ '+m.title, x0+L.pad, y0+barH/2);
+  ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
+  ctx.fillText('⠿ '+m.title, x0+fs*0.5, y0+barH/2);
   let yy=y0+barH;
-  ctx.fillStyle='#dbe5f3'; ctx.fillRect(x0,yy,W2,headH);
-  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1; ctx.strokeRect(x0,yy,numW,headH); ctx.strokeRect(x0+numW,yy,insW,headH);
-  ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
-  ctx.textAlign='center'; ctx.fillText('Step', x0+numW/2, yy+headH/2);
-  ctx.textAlign='left'; ctx.fillText('Assembly instruction', x0+numW+L.pad, yy+headH/2);
-  yy+=headH;
-  L.rowInfo.forEach(({ r, h, lines })=>{
+  [...m.rows].sort((a,z)=>(a.skip?1:0)-(z.skip?1:0)).forEach(r=>{
     ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1;
-    ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,h);
-    ctx.strokeRect(x0,yy,numW,h); ctx.strokeRect(x0+numW,yy,insW,h);
-    const cs=fs*1.5, ccx=x0+numW/2, ccy=yy+h/2;
+    ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,rh);
+    ctx.strokeRect(x0,yy,numW,rh); ctx.strokeRect(x0+numW,yy,insW,rh);
+    const cs=fs*1.5, ccx=x0+numW/2, ccy=yy+rh/2;
     ctx.fillStyle=r.skip?'#dc2626':stepColor(r.n);
     ctx.beginPath();
     if(r.skip) ctx.arc(ccx,ccy,cs/2,0,Math.PI*2); else ctx.roundRect(ccx-cs/2,ccy-cs/2,cs,cs,cs*0.2);
@@ -3499,14 +3468,11 @@ function drawStepTableCanvas(ctx, b, canvas){
     ctx.fillStyle='#fff'; ctx.font='800 '+(fs*0.9)+"px 'JetBrains Mono',monospace"; ctx.textAlign='center';
     ctx.fillText(r.skip?'✕':String(r.n), ccx, ccy);
     ctx.fillStyle='#14171c'; ctx.font='600 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
-    ctx.save(); ctx.beginPath(); ctx.rect(x0+numW,yy,insW,h); ctx.clip();
-    const tx=x0+numW+L.pad, totalH=lines.length*L.lineH;
-    let ly=ccy - totalH/2 + L.lineH/2;
-    lines.forEach(line=>{ ctx.fillText(line, tx, ly); ly+=L.lineH; });
-    ctx.restore();
-    yy+=h;
+    ctx.save(); ctx.beginPath(); ctx.rect(x0+numW,yy,insW,rh); ctx.clip();
+    ctx.fillText(r.text||'', x0+numW+fs*0.5, ccy); ctx.restore();
+    yy+=rh;
   });
-  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y0,W2,L.tableH);
+  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y0,W2,barH+rh*m.rows.length);
   ctx.restore();
 }
 
