@@ -435,7 +435,9 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
   .deploy-item input[type=checkbox]{appearance:none;width:16px;height:16px;border:2px solid #333;border-radius:3px}
   .deploy-item.checked input[type=checkbox]::after{content:'✓';display:block;text-align:center;font-size:12px;line-height:14px}
 
-  /* DRAWING TAB — A3 landscape, single page, aspect ratio preserved */
+  /* DRAWING TAB — fit the whole sheet on one A3 landscape page. The zoom-wrap
+     sizes to its content (the PNG <img>, or the hi-fi <canvas> when the PNG is
+     unavailable) and letterboxes to the page; overlays track it at 100%. */
   #drawingTab.active{
     position:absolute;inset:0;width:100%;height:100%;
     display:flex;align-items:center;justify-content:center;
@@ -443,37 +445,45 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
   }
   #drawingTab.active .drawing-area{
     border:none!important;background:#fff!important;border-radius:0!important;
-    margin:0!important;
-    width:100%;height:100%;
+    margin:0!important;width:100%;height:100%;
     display:flex;align-items:center;justify-content:center;
     overflow:visible!important;
   }
-  #drawingTab.active .drawing-layout{display:block;width:100%;height:100%;margin:0}
-  #drawingTab.active .drawing-toolbar{display:none!important}
+  #drawingTab.active .drawing-layout{
+    display:flex;align-items:center;justify-content:center;
+    width:100%;height:100%;margin:0;
+  }
+  #drawingTab.active .drawing-toolbar,
   #drawingTab.active .armed-hint{display:none!important}
-  /* Container takes the natural aspect ratio of the image and scales to fit */
   #drawingTab.active .drawing-container{
-    max-height:none!important;overflow:visible!important;
-    position:relative;
-    width:auto;height:auto;
-    max-width:100%;max-height:100%;
-    aspect-ratio:var(--dwg-ar)!important;
+    aspect-ratio:auto!important;
+    position:relative;overflow:visible!important;
+    width:auto;height:auto;max-width:100%;max-height:100%;
   }
-  /* Neutralise any on-screen zoom/pan so print always renders the full drawing. */
+  /* Neutralise on-screen zoom/pan; size to content, letterboxed to the page. */
   #drawingTab.active .dwg-zoom-wrap{
-    transform:none!important;
-    width:100%!important;height:100%!important;
+    transform:none!important;position:relative;
+    width:auto;height:auto;max-width:100%;max-height:100%;
   }
+  /* The PNG is the in-flow sizer; fit to page preserving aspect ratio. */
   #drawingTab.active .drawing-container img{
-    display:block;
-    width:100%!important;height:100%!important;
-    object-fit:contain;
+    display:block;max-width:100%;max-height:100%;
+    width:auto;height:auto;object-fit:contain;
   }
-  /* SVG keeps its viewBox-driven sizing, locked to the same box as img */
+  #drawingTab.active .drawing-container img.print-hidden{display:none!important}
+  /* Hi-fi PDF canvas overlaid on the PNG box (normal case)… */
+  #drawingTab.active .drawing-container canvas.print-layer{
+    display:block!important;position:absolute;top:0;left:0;
+    width:100%!important;height:100%!important;object-fit:contain;
+  }
+  /* …or the sole in-flow sizer when the PNG is unavailable. */
+  #drawingTab.active .drawing-container canvas.print-layer-solo{
+    display:block!important;position:relative;
+    max-width:100%;max-height:100%;width:auto!important;height:auto!important;
+  }
+  /* Overlays track the rendered raster box. */
   #drawingTab.active .drawing-container svg{
-    position:absolute;
-    top:0;left:0;
-    width:100%;height:100%;
+    position:absolute;top:0;left:0;width:100%;height:100%;
   }
 }
 @page{size:A3 landscape;margin:8mm}
@@ -2025,17 +2035,54 @@ function onDrawingLoad() {
   if (svg && isAdmin) {
     svg.onclick = handleDrawingClick;
   }
-  // Aspect ratio drives PRINT sizing (via the --dwg-ar custom property the print
-  // CSS reads). On screen we letterbox+center the sheet instead (fitDrawingToContainer).
+  // Record the sheet aspect ratio (used as a hint; print sizing now letterboxes
+  // off the rendered raster). On screen we letterbox+center via fitDrawingToContainer.
   const img = document.getElementById('drawingImg');
   const container = document.getElementById('drawingContainer');
   if (img && container && img.naturalWidth) {
-    container.style.setProperty('--dwg-ar', img.naturalWidth + ' / ' + img.naturalHeight);
+    container.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
   }
   initDrawingZoom();
   fitDrawingToContainer();
   initPdfLayer();
 }
+
+// ============================================================
+// PRINT / SAVE-AS-PDF — the on-screen drawing may be carried by the hi-fi PDF
+// <canvas> overlay (added for crisp zoom), which is `no-print`. Without this,
+// print hides the canvas and — when the underlying PNG is missing/blank — the
+// page comes out blank. On beforeprint we promote the visible canvas to a
+// print layer; on afterprint we put it back exactly as it was.
+// ============================================================
+function prepDrawingPrint() {
+  const tab = document.getElementById('drawingTab');
+  if (!tab || !tab.classList.contains('active')) return;
+  const img = document.getElementById('drawingImg');
+  const canvas = document.getElementById('drawingCanvas');
+  // PNG-only drawings already print from the <img>; only act when the hi-fi
+  // canvas is the visible layer (it is excluded from print by default).
+  if (!(canvas && canvas.style.display === 'block')) return;
+  canvas.classList.remove('no-print');
+  if (img && img.naturalWidth) {
+    // PNG present: overlay the crisp canvas exactly on the PNG box.
+    canvas.classList.add('print-layer');
+  } else {
+    // PNG unavailable/blank: hide it and let the canvas carry the page.
+    if (img) img.classList.add('print-hidden');
+    canvas.classList.add('print-layer-solo');
+  }
+}
+function restoreDrawingPrint() {
+  const img = document.getElementById('drawingImg');
+  const canvas = document.getElementById('drawingCanvas');
+  if (canvas) {
+    canvas.classList.remove('print-layer', 'print-layer-solo');
+    if (!canvas.classList.contains('no-print')) canvas.classList.add('no-print');
+  }
+  if (img) img.classList.remove('print-hidden');
+}
+window.addEventListener('beforeprint', prepDrawingPrint);
+window.addEventListener('afterprint', restoreDrawingPrint);
 
 // ============================================================
 // ZOOM + PAN  (CSS transform on the wrapper holding img + svg, so balloons
