@@ -656,6 +656,8 @@ let markerSize = parseFloat(localStorage.getItem('deployops_balloon_size')) || 1
 // — controlled from the sidebar cards, same as Marker size.
 let loctiteSize = parseFloat(localStorage.getItem('deployops_loctite_size')) || 1;
 let tableSize = parseFloat(localStorage.getItem('deployops_table_size')) || 1;
+// Method 1: live displayed-px unit for the sheet (min displayed dimension, un-zoomed).
+let dwgU = 1000;
 // Armed note-template text — next drawing click drops a note prefilled with it.
 let armedNote = null;
 
@@ -2091,7 +2093,8 @@ function fitDrawingToContainer() {
   // widgets (Loctite callout + steps table) scale off this so they hold the SAME
   // proportion to the sheet as the SVG balloons and the print/export path, instead
   // of being fixed-px and drifting as the sheet renders wider/narrower.
-  wrap.style.setProperty('--dwg-u', String(Math.min(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k))));
+  dwgU = Math.min(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k));
+  wrap.style.setProperty('--dwg-u', String(dwgU));
 }
 function applyDwgTransform() {
   const { wrap, container } = dwgEls();
@@ -2748,19 +2751,28 @@ function loctorqueHTML(b){
 function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
+  // Method 1 — sized in DISPLAYED px from the SAME geometry as the export canvas,
+  // so on-screen == PNG == PDF. Single-line, ellipsis-clipped instruction cell.
+  const g = stepGeom(dwgU, stViewScale(m.scale));
+  const px = n => n.toFixed(2) + 'px';
+  const cs = px(g.fs * 1.5);
+  const cellSty = 'height:'+px(g.rh)+';padding:0 '+px(g.pad)+';font-size:'+px(g.fs)+';line-height:'+px(g.rh)+';box-sizing:border-box';
   const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
     const did = stepDisplayId(m.rows, ri);
-    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';width:auto;min-width:22px;padding:0 5px">'+did+'</span>';
+    const chip = r.skip
+      ? '<span class="mk-cell x" style="width:'+cs+';height:'+cs+';font-size:'+px(g.fs*0.9)+'">✕</span>'
+      : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';height:'+cs+';min-width:'+cs+';width:auto;padding:0 '+px(g.fs*0.35)+';font-size:'+px(g.fs*0.9)+'">'+did+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
-    return '<tr><td class="st-num">'+chip+'</td>'
-      + '<td class="st-ins"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
-      + '<td class="st-arrow admin-only">'+arrowBtn+'</td></tr>';
+    return '<tr><td class="st-num" style="width:'+px(g.numW)+';text-align:center;'+cellSty+'">'+chip+'</td>'
+      + '<td class="st-ins" style="width:'+px(g.insW)+';max-width:'+px(g.insW)+';'+cellSty+'"><span class="st-ic" style="display:block;max-width:'+px(g.insW - g.pad*2)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
+      + '<td class="st-arrow admin-only" style="width:'+px(g.numW)+';text-align:center;'+cellSty+'">'+arrowBtn+'</td></tr>';
   }).join('');
   const tools = sel ? '<span class="dt-tools admin-only"><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
   const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="parallel" title="Add a parallel sub-step (1a, 1b…) to the last step">＋ Parallel</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
-  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale(calc(var(--dwg-u,1000) / 1000 * '+stViewScale(m.scale)+'))">'
-    + '<div class="dt-bar" data-id="'+b.id+'"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
-    + '<table class="dt-table"><thead><tr><th>Step</th><th>Assembly instruction</th><th class="admin-only">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
+  const headSty = 'height:'+px(g.headH)+';padding:0 '+px(g.pad)+';font-size:'+px(g.fs)+';line-height:'+px(g.headH)+';box-sizing:border-box;white-space:nowrap';
+  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:none;width:max-content">'
+    + '<div class="dt-bar" data-id="'+b.id+'" style="height:'+px(g.barH)+';padding:0 '+px(g.pad)+';font-size:'+px(g.fs*0.92)+';box-sizing:border-box"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
+    + '<table class="dt-table" style="border-collapse:collapse"><thead><tr><th style="width:'+px(g.numW)+';text-align:center;'+headSty+'">Step</th><th style="width:'+px(g.insW)+';text-align:left;'+headSty+'">Assembly instruction</th><th class="admin-only" style="width:'+px(g.numW)+';text-align:center;'+headSty+'">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + addRow + '</div>';
 }
 
@@ -2803,6 +2815,13 @@ function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; cons
 // Effective on-screen size. Untouched widgets (still carrying the old default)
 // render at the new, smaller default so existing drawings shrink automatically;
 // anything the user explicitly scaled keeps its custom value.
+// Method 1 — single source of truth for steps-table geometry. The on-screen HTML
+// table and the export/PDF canvas BOTH size from this, so heights match exactly.
+// unit = displayed px (dwgU) on screen; natural px (min(W,H)) on the export canvas.
+function stepGeom(unit, scale){
+  const fs = unit*0.012*scale;
+  return { fs, barH:fs*1.9, headH:fs*2.3, rh:fs*2.3, numW:fs*3, insW:unit*0.17*scale, pad:fs*0.6 };
+}
 function ltViewScale(s){ return ((s==null||s===0.8)?0.62:s) * loctiteSize; }
 function stViewScale(s){ return ((s==null||s===0.9)?0.68:s) * tableSize; }
 function ltToggleArrow(id){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.leader=(m.leader||'arrow')==='none'?'arrow':'none'; ltUpdate(b,m); }
@@ -3429,14 +3448,23 @@ function drawLoctorqueCanvas(ctx, b, canvas){
 }
 // §8 Assembly-steps table → export canvas (light card).
 function drawStepTableCanvas(ctx, b, canvas){
-  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H), scale=stViewScale(m.scale);
+  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H);
+  const g=stepGeom(u, stViewScale(m.scale));
+  const fs=g.fs, barH=g.barH, headH=g.headH, rh=g.rh, numW=g.numW, insW=g.insW, W2=numW+insW;
   const x0=b.x_pct/100*W, y0=b.y_pct/100*H;
-  const fs=u*0.012*scale, barH=fs*1.9, rh=fs*2.3, numW=fs*3, insW=u*0.17*scale, W2=numW+insW;
   ctx.save(); ctx.textBaseline='middle';
+  // title bar
   ctx.fillStyle='#dbe5f3'; ctx.fillRect(x0,y0,W2,barH);
-  ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
-  ctx.fillText('⠿ '+m.title, x0+fs*0.5, y0+barH/2);
+  ctx.fillStyle='#1d3a63'; ctx.font='700 '+(fs*0.92)+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
+  ctx.fillText('⠿ '+m.title, x0+g.pad, y0+barH/2);
+  // column-header row (matches the on-screen <thead>)
   let yy=y0+barH;
+  ctx.fillStyle='#dbe5f3'; ctx.fillRect(x0,yy,W2,headH);
+  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1; ctx.strokeRect(x0,yy,numW,headH); ctx.strokeRect(x0+numW,yy,insW,headH);
+  ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
+  ctx.textAlign='center'; ctx.fillText('Step', x0+numW/2, yy+headH/2);
+  ctx.textAlign='left'; ctx.fillText('Assembly instruction', x0+numW+g.pad, yy+headH/2);
+  yy+=headH;
   [...m.rows].sort((a,z)=>(a.skip?1:0)-(z.skip?1:0)).forEach(r=>{
     ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1;
     ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,rh);
@@ -3450,10 +3478,10 @@ function drawStepTableCanvas(ctx, b, canvas){
     ctx.fillText(r.skip?'✕':String(r.n), ccx, ccy);
     ctx.fillStyle='#14171c'; ctx.font='600 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
     ctx.save(); ctx.beginPath(); ctx.rect(x0+numW,yy,insW,rh); ctx.clip();
-    ctx.fillText(r.text||'', x0+numW+fs*0.5, ccy); ctx.restore();
+    ctx.fillText(r.text||'', x0+numW+g.pad, ccy); ctx.restore();
     yy+=rh;
   });
-  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y0,W2,barH+rh*m.rows.length);
+  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y0,W2,barH+headH+rh*m.rows.length);
   ctx.restore();
 }
 
@@ -3525,43 +3553,10 @@ function drawCautionTri(ctx, ox, oy, k){
   ctx.restore();
 }
 
-// Method 2 — rasterize the LIVE on-screen HTML steps table into the export
-// instead of re-drawing it on canvas. On-screen == PNG by construction; text
-// wrapping and exact layout are preserved because it IS the same DOM node.
-async function rasterizeStepTable(b, ctx, canvas){
-  const sel = (window.CSS && CSS.escape) ? CSS.escape(b.id) : b.id;
-  const el = document.querySelector('.step-table[data-id="'+sel+'"]');
-  if (!el || !window.html2canvas) { drawStepTableCanvas(ctx, b, canvas); return; }
-  const m = stMeta(b);
-  const u = Math.min(canvas.width, canvas.height);
-  const factor = (u/1000) * stViewScale(m.scale);   // intrinsic px -> export px
-  const clone = el.cloneNode(true);
-  clone.classList.remove('sel');
-  clone.querySelectorAll('.admin-only').forEach(n => n.remove());
-  clone.style.transform = 'none';
-  clone.style.position = 'static';
-  clone.style.left = 'auto'; clone.style.top = 'auto';
-  clone.style.boxShadow = 'none';
-  const holder = document.createElement('div');
-  holder.style.cssText = 'position:fixed;left:-99999px;top:0;opacity:1;pointer-events:none';
-  holder.appendChild(clone);
-  document.body.appendChild(holder);
-  const iw = clone.offsetWidth, ih = clone.offsetHeight;
-  const cap = Math.max(2, factor * 1.25);
-  let snap = null;
-  try { snap = await window.html2canvas(clone, { backgroundColor:null, scale:cap, logging:false, useCORS:true }); }
-  catch(e){ console.error('rasterizeStepTable', e); }
-  holder.remove();
-  if (!snap) { drawStepTableCanvas(ctx, b, canvas); return; }
-  const x0 = b.x_pct/100 * canvas.width, y0 = b.y_pct/100 * canvas.height;
-  ctx.drawImage(snap, x0, y0, iw*factor, ih*factor);
-}
-
 async function exportAnnotatedPNG() {
   const img = document.getElementById('drawingImg');
   if (!img) return;
   toast('Generating PNG...','info');
-  try { await loadHtml2Pdf(); } catch(e){ console.warn('html2canvas unavailable, steps table falls back to canvas draw', e); }
 
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
@@ -3705,7 +3700,6 @@ async function exportAnnotatedPNG() {
   });
 
   // Second pass: balloons / tags / no-install / tables
-  const stepRasterJobs = [];
   pageBalloons.forEach(b => {
     const cx = b.x_pct/100 * canvas.width;
     const cy = b.y_pct/100 * canvas.height;
@@ -3720,7 +3714,7 @@ async function exportAnnotatedPNG() {
     } else if (bmode === 'loctorque') {
       drawLoctorqueCanvas(ctx, b, canvas);
     } else if (bmode === 'steptable') {
-      stepRasterJobs.push(b); // Method 2: rasterized after the pass (async)
+      drawStepTableCanvas(ctx, b, canvas);
     } else if (isCable || sh === 'note' || isCaution) {
       const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
       const cs = isCaution ? ((+(balloonMeta(b)?._extra?.s)) || 1) : 1;
@@ -3812,8 +3806,6 @@ async function exportAnnotatedPNG() {
       }
     }
   });
-
-  for (const b of stepRasterJobs) { await rasterizeStepTable(b, ctx, canvas); }
 
   canvas.toBlob(blob => {
     const a = document.createElement('a');
