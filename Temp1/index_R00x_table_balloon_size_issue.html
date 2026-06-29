@@ -57,7 +57,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .drawing-container{position:relative;overflow:auto;height:calc(100vh - 210px);max-height:calc(100vh - 210px)}
 .drawing-container.dwg-center{display:flex;align-items:center;justify-content:center}
 /* Zoom/pan wrapper — img + svg transform together so balloons stay anchored. */
-.dwg-zoom-wrap{position:relative;width:100%;transform-origin:0 0;will-change:transform;flex:0 0 auto;container-type:inline-size}
+.dwg-zoom-wrap{position:relative;width:100%;transform-origin:0 0;will-change:transform;flex:0 0 auto}
 .drawing-container.pan-ready{cursor:grab}
 .drawing-container.panning{cursor:grabbing}
 .drawing-container img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
@@ -106,50 +106,50 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .dwg-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
 .dwg-overlay>*{pointer-events:auto}
 /* Loctite chip — Option C: paper / inverted light (flat, see-through, print-safe) */
-.lt-callout{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:stretch;background:rgba(255,255,255,.88);border:1px solid rgba(20,30,45,.38);border-radius:.55em;overflow:hidden;box-shadow:none;font-family:'DM Sans',sans-serif;user-select:none;font-size:1.85cqw}
+.lt-callout{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:stretch;background:rgba(255,255,255,.88);border:1px solid rgba(20,30,45,.38);border-radius:6px;overflow:hidden;box-shadow:none;font-family:'DM Sans',sans-serif;user-select:none}
 .lt-callout.sel{box-shadow:0 0 0 2px #0e7490}
-.lt-grip{width:1.36em;flex-shrink:0;cursor:grab;background:rgba(20,30,45,.06);display:grid;place-items:center;color:#64748b;font-size:.91em;touch-action:none}
+.lt-grip{width:15px;flex-shrink:0;cursor:grab;background:rgba(20,30,45,.06);display:grid;place-items:center;color:#64748b;font-size:10px;touch-action:none}
 .lt-grip:active{cursor:grabbing}
 .lt-body{display:flex;flex-direction:column;min-width:0}
-.lt-grade{display:flex;align-items:center;gap:.55em;padding:.45em .91em .36em;font-family:'JetBrains Mono',monospace;font-size:1em;font-weight:700;letter-spacing:.4px;color:#1d2733;border-bottom:1px solid rgba(20,30,45,.16);white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,.95)}
-.lt-grade .lt-dot{width:.82em;height:.82em;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px rgba(20,30,45,.5)}
-.lt-grade select{background:#fff;color:#1d2733;border:1px solid rgba(20,30,45,.3);border-radius:.45em;font-family:'JetBrains Mono',monospace;font-size:.91em;font-weight:700;padding:.18em .36em;cursor:pointer}
-.lt-torque{display:flex;align-items:center;gap:.45em;padding:.36em .91em .55em;font-size:1.09em;color:#0b0e16;text-shadow:0 0 2px rgba(255,255,255,.95)}
+.lt-grade{display:flex;align-items:center;gap:6px;padding:5px 10px 4px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;color:#1d2733;border-bottom:1px solid rgba(20,30,45,.16);white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,.95)}
+.lt-grade .lt-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px rgba(20,30,45,.5)}
+.lt-grade select{background:#fff;color:#1d2733;border:1px solid rgba(20,30,45,.3);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:2px 4px;cursor:pointer}
+.lt-torque{display:flex;align-items:center;gap:5px;padding:4px 10px 6px;font-size:12px;color:#0b0e16;text-shadow:0 0 2px rgba(255,255,255,.95)}
 .lt-torque .lt-ico{color:#64748b}
-.lt-torque .lt-tq{min-width:1.27em;outline:none;font-weight:800;font-family:'JetBrains Mono',monospace;color:#0b0e16}
+.lt-torque .lt-tq{min-width:14px;outline:none;font-weight:800;font-family:'JetBrains Mono',monospace;color:#0b0e16}
 .lt-torque .lt-tq[contenteditable]:empty::before{content:'—';color:#94a3b8}
-.lt-torque .lt-unit{color:#5b6b7e;font-size:1em}
-.lt-tools{display:flex;align-items:center;gap:.18em;padding:.27em .36em;background:rgba(20,30,45,.05);border-left:1px solid rgba(20,30,45,.16)}
-.lt-tools button,.lt-tools .lt-swatch-wrap{width:1.82em;height:1.82em;border:none;border-radius:.45em;background:rgba(20,30,45,.06);color:#1d2733;font-size:1.09em;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;position:relative;overflow:hidden}
+.lt-torque .lt-unit{color:#5b6b7e;font-size:11px}
+.lt-tools{display:flex;align-items:center;gap:2px;padding:3px 4px;background:rgba(20,30,45,.05);border-left:1px solid rgba(20,30,45,.16)}
+.lt-tools button,.lt-tools .lt-swatch-wrap{width:20px;height:20px;border:none;border-radius:5px;background:rgba(20,30,45,.06);color:#1d2733;font-size:12px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;position:relative;overflow:hidden}
 .lt-tools button:hover{background:rgba(20,30,45,.14)}
 .lt-tools .lt-curve.on{color:#0e7490}
 .lt-tools .lt-arrow.off{color:#94a3b8;text-decoration:line-through}
 .lt-tools .lt-del{color:#dc2626}
 .lt-tools .lt-swatch{position:absolute;inset:0;opacity:0;cursor:pointer}
-.dwg-table{position:absolute;transform-origin:top left;background:#fff;border:1px solid #b9c2d0;border-radius:.5em;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.5);user-select:none;font-family:'DM Sans',sans-serif;font-size:1.45cqw}
+.dwg-table{position:absolute;transform-origin:top left;background:#fff;border:1px solid #b9c2d0;border-radius:6px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.5);user-select:none;font-family:'DM Sans',sans-serif}
 .dwg-table.sel{box-shadow:0 0 0 2px #22d3ee,0 6px 22px rgba(0,0,0,.55)}
-.dwg-table .dt-bar{display:flex;align-items:center;gap:.5em;padding:.33em .58em;background:#dbe5f3;border-bottom:1px solid #b9c2d0;cursor:grab;font-family:'JetBrains Mono',monospace;font-size:.83em;font-weight:700;color:#1d3a63;touch-action:none}
+.dwg-table .dt-bar{display:flex;align-items:center;gap:6px;padding:4px 7px;background:#dbe5f3;border-bottom:1px solid #b9c2d0;cursor:grab;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1d3a63;touch-action:none}
 .dwg-table .dt-bar:active{cursor:grabbing}
 .dwg-table .dt-grip-ico{color:#5b7aa8}
 .dwg-table .dt-title{flex:1;white-space:nowrap}
-.dwg-table .dt-tools{display:flex;gap:.33em}
-.dwg-table .dt-tools button{width:1.5em;height:1.5em;border:1px solid #9fb0c9;background:#fff;border-radius:.33em;color:#1d3a63;font-size:.92em;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
+.dwg-table .dt-tools{display:flex;gap:4px}
+.dwg-table .dt-tools button{width:18px;height:18px;border:1px solid #9fb0c9;background:#fff;border-radius:4px;color:#1d3a63;font-size:11px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
 .dwg-table .dt-tools .st-tdel{color:#c0392b;border-color:#e3a9a1}
 .dwg-table .dt-table{border-collapse:collapse}
-.dwg-table .dt-table th,.dwg-table .dt-table td{border:1px solid #b9c2d0;padding:.33em .75em;text-align:left;color:#14171c;font-size:1em}
+.dwg-table .dt-table th,.dwg-table .dt-table td{border:1px solid #b9c2d0;padding:4px 9px;text-align:left;color:#14171c;font-size:12px}
 .dwg-table .dt-table thead th{background:#dbe5f3;font-weight:700}
-.step-table .st-num{text-align:center;width:3.83em;vertical-align:middle}
-.step-table .st-ins{min-width:13.3em;max-width:20em}
-.step-table .st-ic{outline:none;cursor:text;font-weight:600;color:#14171c;display:block;min-width:3.3em}
+.step-table .st-num{text-align:center;width:46px;vertical-align:middle}
+.step-table .st-ins{min-width:160px;max-width:240px}
+.step-table .st-ic{outline:none;cursor:text;font-weight:600;color:#14171c;display:block;min-width:40px}
 .step-table .st-ic:empty::before{content:'instruction…';color:#aeb4bd;font-style:italic;font-weight:400}
-.step-table .st-arrow{text-align:center;width:3.5em}
-.mk-cell{display:inline-grid;place-items:center;width:1.83em;height:1.83em;font-family:'JetBrains Mono',monospace;font-size:1em;font-weight:800;color:#fff;line-height:1}
-.mk-cell.step{border-radius:.33em}
+.step-table .st-arrow{text-align:center;width:42px}
+.mk-cell{display:inline-grid;place-items:center;width:22px;height:22px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:800;color:#fff;line-height:1}
+.mk-cell.step{border-radius:4px}
 .mk-cell.x{background:#dc2626;border-radius:50%}
-.st-arrow-btn{width:2em;height:2em;border-radius:.5em;background:#fff;border:1.6px solid;font-size:1em;font-weight:800;line-height:1;cursor:pointer;display:inline-grid;place-items:center}
+.st-arrow-btn{width:24px;height:24px;border-radius:6px;background:#fff;border:1.6px solid;font-size:12px;font-weight:800;line-height:1;cursor:pointer;display:inline-grid;place-items:center}
 .st-arrow-btn:hover{filter:brightness(.94)}
-.st-addrow{display:flex;gap:.5em;padding:.42em .58em;background:#dbe5f3;border-top:1px solid #b9c2d0}
-.st-addrow button{flex:1;font-family:'DM Sans',sans-serif;font-size:.92em;font-weight:700;color:#1d3a63;background:#fff;border:1px solid #9fb0c9;border-radius:.42em;padding:.42em;cursor:pointer}
+.st-addrow{display:flex;gap:6px;padding:5px 7px;background:#dbe5f3;border-top:1px solid #b9c2d0}
+.st-addrow button{flex:1;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;color:#1d3a63;background:#fff;border:1px solid #9fb0c9;border-radius:5px;padding:5px;cursor:pointer}
 .st-addrow button:hover{background:#eef4fb}
 .lt-cfg{display:flex;flex-direction:column;gap:6px}
 .lt-cfg-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)}
@@ -2726,7 +2726,7 @@ function steptableHTML(b){
   const sel = b.id === selectedBalloonId;
   const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
     const did = stepDisplayId(m.rows, ri);
-    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';width:auto;min-width:1.83em;padding:0 .42em">'+did+'</span>';
+    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';width:auto;min-width:22px;padding:0 5px">'+did+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
     return '<tr><td class="st-num">'+chip+'</td>'
       + '<td class="st-ins"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
