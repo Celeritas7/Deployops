@@ -3681,20 +3681,41 @@ async function exportAnnotatedPNG() {
     const style = b.arrow_style || 'solid'; if (style === 'none') return;
     const cx = b.x_pct/100 * canvas.width, cy = b.y_pct/100 * canvas.height;
     const color = b.color || '#e74c3c';
+    const W = canvas.width, H = canvas.height;
     tips.forEach(xt => {
-      const tx = (xt.x||0)/100 * canvas.width, ty = (xt.y||0)/100 * canvas.height;
-      const dx = tx-cx, dy = ty-cy, dist = Math.sqrt(dx*dx+dy*dy)||1;
-      const sx = cx + dx/dist*r, sy = cy + dy/dist*r;
+      const tx = (xt.x||0)/100 * W, ty = (xt.y||0)/100 * H;
+      // Follow the extra leader's OWN waypoints + curve flag (same as the SVG/UI
+      // renderer and the main-leader canvas path) so a split arrow rides the curved
+      // trunk and diverges only at its tip — instead of a straight chord.
+      const xwps = (Array.isArray(xt.w) ? xt.w : []).map(p => ({ x:p.x/100*W, y:p.y/100*H }));
+      const pts = [{x:cx,y:cy}, ...xwps, {x:tx,y:ty}];
+      const curved = !!xt.c;
       ctx.save();
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = 'round';
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       if (style === 'dashed'){ ctx.setLineDash([r*0.4, r*0.3]); ctx.lineWidth = r*0.15; }
       else if (style === 'thick'){ ctx.lineWidth = r*0.25; }
       else { ctx.lineWidth = r*0.15; }
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.beginPath();
+      if (!curved){
+        // straight polyline (start trimmed to the balloon edge for the first hop)
+        const dx0 = pts[1].x-cx, dy0 = pts[1].y-cy, d0 = Math.sqrt(dx0*dx0+dy0*dy0)||1;
+        ctx.moveTo(cx + dx0/d0*r, cy + dy0/d0*r);
+        for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+      } else if (pts.length === 2){
+        const a=pts[0], b2=pts[1], mx=(a.x+b2.x)/2, my=(a.y+b2.y)/2, ddx=b2.x-a.x, ddy=b2.y-a.y, len=Math.hypot(ddx,ddy)||1, off=Math.min(len*0.3, W*0.2);
+        ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx-ddy/len*off, my+ddx/len*off, b2.x, b2.y);
+      } else {
+        ctx.moveTo(pts[0].x,pts[0].y);
+        for (let i=0;i<pts.length-1;i++){ const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];
+          ctx.bezierCurveTo(p1.x+(p2.x-p0.x)/6,p1.y+(p2.y-p0.y)/6,p2.x-(p3.x-p1.x)/6,p2.y-(p3.y-p1.y)/6,p2.x,p2.y); }
+      }
+      ctx.stroke();
       ctx.setLineDash([]);
+      // Arrowhead angle = tangent of the last hop (the point feeding into the tip).
+      const prev = pts[pts.length-2] || {x:cx,y:cy};
+      const ang = Math.atan2(ty - prev.y, tx - prev.x);
       if (style === 'dot'){ ctx.beginPath(); ctx.arc(tx, ty, r*0.28, 0, Math.PI*2); ctx.fill(); }
       else {
-        const ang = Math.atan2(dy, dx);
         const ahLen = style === 'thick' ? r*0.7 : r*0.55, ahW = style === 'thick' ? r*0.35 : r*0.28;
         ctx.beginPath(); ctx.moveTo(tx, ty);
         ctx.lineTo(tx - ahLen*Math.cos(ang) + ahW*Math.sin(ang), ty - ahLen*Math.sin(ang) - ahW*Math.cos(ang));
