@@ -173,6 +173,12 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .sp-sw{position:relative;width:26px;height:22px;border-radius:5px;cursor:pointer;display:grid;place-items:center;border:1px solid rgba(255,255,255,.15)}
 .sp-sw span{font-size:10px;font-weight:700;color:rgba(0,0,0,.55);font-family:'JetBrains Mono',monospace}
 .sp-sw input{position:absolute;inset:0;opacity:0;cursor:pointer;border:none;padding:0}
+.sp-sw .sp-del{position:absolute;top:-5px;right:-5px;width:14px;height:14px;border-radius:50%;border:none;background:#dc2626;color:#fff;font-size:9px;line-height:1;cursor:pointer;display:none;place-items:center;padding:0;z-index:2}
+.sp-sw:hover .sp-del{display:grid}
+.sp-add{background:transparent;border:1px dashed var(--border);color:var(--text2);font-size:13px;padding:0;cursor:pointer}
+.sp-add:hover{border-color:var(--accent);color:var(--accent)}
+.size-row-head{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px}
+.dwg-card-head+.size-row-head{margin-top:0}
 .dwg-card input{background:var(--surface);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:6px;font-size:12px;font-family:inherit;width:100%}
 /* layers */
 .layer-list{display:flex;flex-direction:column;gap:2px}
@@ -588,6 +594,20 @@ function stepColor(n){ const a=stepPalette; return a[(((n||1)-1)%a.length+a.leng
 function setBomColor(i, c){ bomPalette[i]=c; localStorage.setItem('deployops_bom_palette', JSON.stringify(bomPalette)); refreshDrawingChrome(); }
 function setStepColor(i, c){ stepPalette[i]=c; localStorage.setItem('deployops_step_palette', JSON.stringify(stepPalette)); refreshDrawingChrome(); }
 function resetPalettes(){ bomPalette=DEFAULT_BOM_PALETTE.slice(); stepPalette=DEFAULT_STEP_PALETTE.slice(); localStorage.removeItem('deployops_bom_palette'); localStorage.removeItem('deployops_step_palette'); refreshDrawingChrome(); }
+// Palettes are length-flexible (colours cycle by index), so the sequence can grow/shrink.
+function palSave(which){ localStorage.setItem(which==='bom'?'deployops_bom_palette':'deployops_step_palette', JSON.stringify(which==='bom'?bomPalette:stepPalette)); refreshDrawingChrome(); }
+function addPaletteColor(which){
+  const a = which==='bom' ? bomPalette : stepPalette;
+  const pool = ['#14b8a6','#e879f9','#facc15','#38bdf8','#fb7185','#4ade80','#c084fc','#f97316','#f87171','#a3e635'];
+  a.push(pool.find(c=>!a.includes(c)) || pool[a.length%pool.length]);
+  palSave(which);
+}
+function delPaletteColor(which,i){
+  const a = which==='bom' ? bomPalette : stepPalette;
+  if (a.length<=1) return;
+  a.splice(i,1);
+  palSave(which);
+}
 
 // ── §7 Loctite grade list + colours (global, persisted, reflect in all drawings) ──
 const LOCTITE_DEFAULT_GRADES = ['none','222','243','263','290','577'];
@@ -1765,7 +1785,7 @@ function renderDrawing() {
 function renderDrawingSidebar() {
   return `
     ${renderLayersCard()}
-    ${renderMarkerSizeCard()}
+    ${renderSizesCard()}
     ${renderLeadersCard()}
     ${renderNoteTemplatesCard()}
     ${renderSymbolsCard()}
@@ -1796,22 +1816,30 @@ function renderLayersCard() {
   </div>`;
 }
 
-function renderMarkerSizeCard() {
-  const pct = Math.round(markerSize * 100);
+// One always-visible card gathering EVERY size control (markers, steps table,
+// column width, loctite block + their PNG/PDF export calibrations).
+function renderSizesCard() {
+  const row = (label, valId, valTxt, min, max, step, val, fn, tip) =>
+    `<div class="size-row-head"${tip?` title="${tip}"`:''}><span>${label}</span><span class="marker-size-val" id="${valId}">${valTxt}</span></div>
+    <input type="range" class="marker-size-slider" min="${min}" max="${max}" step="${step}" value="${val}" oninput="${fn}(this.value)">`;
   return `<div class="dwg-card">
-    <div class="dwg-card-head"><span>Marker size</span><span class="marker-size-val" id="markerSizeVal">${pct}%</span></div>
-    <input type="range" class="marker-size-slider" min="0.2" max="2.5" step="0.05" value="${markerSize}"
-      oninput="setMarkerSize(this.value)">
+    <div class="dwg-card-head"><span>Sizes</span></div>
+    ${row('Marker size','markerSizeVal',Math.round(markerSize*100)+'%',0.2,2.5,0.05,markerSize,'setMarkerSize')}
+    ${row('Table size','tableSizeVal',Math.round(tableSize*100)+'%',0.4,2,0.05,tableSize,'setTableSize')}
+    ${row('Column width','tableColWVal',Math.round(tableColW*100)+'%',0.5,2.5,0.05,tableColW,'setTableColW','Width of the instruction column — wider lets more text fit per line before wrapping. Affects both the on-screen table and the PNG/PDF.')}
+    ${row('Table PNG / PDF fix','tableExportCalVal',tableExportCal.toFixed(2)+'\u00d7',0.4,2.5,0.05,tableExportCal,'setTableExportCal','Multiplies ONLY the table in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen table.')}
+    ${row('Loctite size','loctiteSizeVal',Math.round(loctiteSize*100)+'%',0.4,2,0.05,loctiteSize,'setLoctiteSize')}
+    ${row('Loctite PNG / PDF fix','loctiteExportCalVal',loctiteExportCal.toFixed(2)+'\u00d7',0.4,2.5,0.05,loctiteExportCal,'setLoctiteExportCal','Multiplies ONLY the loctite block in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen block.')}
   </div>`;
 }
 
 function renderPaletteRows(){
-  const sw=(arr,fn)=>arr.map((c,i)=>`<label class="sp-sw" style="background:${c}" title="#${i+1}"><span>${i+1}</span><input type="color" value="${c}" onchange="${fn}(${i}, this.value)"></label>`).join('');
+  const sw=(arr,which,fn)=>arr.map((c,i)=>`<label class="sp-sw" style="background:${c}" title="#${i+1}"><span>${i+1}</span><input type="color" value="${c}" onchange="${fn}(${i}, this.value)">${arr.length>1?`<button class="sp-del" title="Remove colour #${i+1}" onclick="event.preventDefault();event.stopPropagation();delPaletteColor('${which}',${i})">×</button>`:''}</label>`).join('')+`<button class="sp-sw sp-add" title="Add a colour to the sequence" onclick="addPaletteColor('${which}')">＋</button>`;
   return `<div class="step-pal admin-only">
     <div class="sp-lbl">BOM colour sequence</div>
-    <div class="sp-swatches">${sw(bomPalette,'setBomColor')}</div>
+    <div class="sp-swatches">${sw(bomPalette,'bom','setBomColor')}</div>
     <div class="sp-lbl" style="margin-top:8px">Step colour sequence</div>
-    <div class="sp-swatches">${sw(stepPalette,'setStepColor')}</div>
+    <div class="sp-swatches">${sw(stepPalette,'step','setStepColor')}</div>
     <button class="lt-pal-reset" onclick="resetPalettes()">Reset palettes</button>
   </div>`;
 }
@@ -1825,12 +1853,6 @@ function renderStepsCard(){
       <button class="${c?'on':''}" onclick="setDefaultArrowCurve(true)" title="New leaders curved">↝ Curved</button>
     </div>
     <button class="btn btn-sm ${armedSteps?'btn-primary':''}" style="width:100%;justify-content:center" onclick="armStepsTable()">${armedSteps?'Click the drawing to drop…':'▤ Place steps table'}</button>
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span>Table size</span><span class="marker-size-val" id="tableSizeVal">${Math.round(tableSize*100)}%</span></div>
-    <input type="range" class="marker-size-slider" min="0.4" max="2" step="0.05" value="${tableSize}" oninput="setTableSize(this.value)">
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Multiplies ONLY the table in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen table.">PNG / PDF size fix</span><span class="marker-size-val" id="tableExportCalVal">${tableExportCal.toFixed(2)}\u00d7</span></div>
-    <input type="range" class="marker-size-slider" min="0.4" max="2.5" step="0.05" value="${tableExportCal}" oninput="setTableExportCal(this.value)">
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Width of the instruction column — wider lets more text fit per line before wrapping. Affects both the on-screen table and the PNG/PDF.">Column width</span><span class="marker-size-val" id="tableColWVal">${Math.round(tableColW*100)}%</span></div>
-    <input type="range" class="marker-size-slider" min="0.5" max="2.5" step="0.05" value="${tableColW}" oninput="setTableColW(this.value)">
   </div>`;
 }
 function renderLoctiteCard(){
@@ -1847,10 +1869,6 @@ function renderLoctiteCard(){
       <label class="lt-cfg-row"><span>Torque</span><input id="ltTorqueInp" placeholder="e.g. 8"></label>
     </div>
     <button class="btn btn-sm ${armedLT?'btn-primary':''}" style="width:100%;justify-content:center;margin-top:8px" onclick="armLoctite()">${armedLT?'Click a screw to attach…':'🔩 Place label on a screw'}</button>
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span>Block size</span><span class="marker-size-val" id="loctiteSizeVal">${Math.round(loctiteSize*100)}%</span></div>
-    <input type="range" class="marker-size-slider" min="0.4" max="2" step="0.05" value="${loctiteSize}" oninput="setLoctiteSize(this.value)">
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px"><span title="Multiplies ONLY the loctite block in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen block.">PNG / PDF size fix</span><span class="marker-size-val" id="loctiteExportCalVal">${loctiteExportCal.toFixed(2)}\u00d7</span></div>
-    <input type="range" class="marker-size-slider" min="0.4" max="2.5" step="0.05" value="${loctiteExportCal}" oninput="setLoctiteExportCal(this.value)">
     <div class="lt-pal-head">Grades &amp; colours <span>applied to every drawing</span></div>
     <div class="lt-pal-grid">${palette}</div>
     <div class="lt-pal-add"><input id="ltNewGrade" placeholder="Add grade e.g. 638" onkeydown="if(event.key==='Enter'){addGrade(this.value);this.value='';}"><button onclick="addGrade(document.getElementById('ltNewGrade').value);document.getElementById('ltNewGrade').value=''">＋ Add</button></div>
