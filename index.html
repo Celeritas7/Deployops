@@ -231,6 +231,12 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .torque-tbl tbody tr{cursor:pointer}
 .torque-tbl tbody tr:hover{background:var(--surface3)}
 .torque-tbl td.t-num,.torque-tbl th:last-child{text-align:right;font-family:'JetBrains Mono',monospace}
+.torque-tbl td.t-hl{width:20px;text-align:center;padding:2px}
+.t-hl-btn{background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:12px;line-height:1;padding:2px}
+.t-hl-btn:hover{color:#eab308}
+.torque-tbl tbody tr.t-hl-on{background:#fde047 !important;color:#0b0e16}
+.torque-tbl tbody tr.t-hl-on td{color:#0b0e16}
+.torque-tbl tbody tr.t-hl-on .t-hl-btn{color:#a16207}
 
 /* CHECKLIST BUILDER */
 .cl-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden}
@@ -1914,8 +1920,10 @@ function renderNoteTemplatesCard() {
 }
 
 function renderTorqueCard() {
-  const rows = TORQUE_TABLE.rows.map(r =>
-    `<tr onclick="armTorqueRow('${esc(r[1])}','${esc(r[2])}')" title="Arm note: ${esc(r[1])} · ${esc(r[2])} N·m">
+  const hl = new Set(getTorqueHl());
+  const rows = TORQUE_TABLE.rows.map((r,i) =>
+    `<tr class="${hl.has(i)?'t-hl-on':''}" onclick="armTorqueRow('${esc(r[1])}','${esc(r[2])}')" title="Arm note: ${esc(r[1])} · ${esc(r[2])} N·m">
+       <td class="t-hl"><button class="t-hl-btn" onclick="toggleTorqueHl(event,${i})" title="Highlight for wrench prep">▮</button></td>
        <td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="t-num">${esc(r[2])}</td>
      </tr>`).join('');
   return `<div class="dwg-card">
@@ -1924,12 +1932,25 @@ function renderTorqueCard() {
     </div>
     <table class="torque-tbl">
       <thead>
-        <tr><th>Hex bit</th><th colspan="2">${esc(TORQUE_TABLE.title)}</th></tr>
-        <tr><th></th><th>Screw</th><th>Torque N·m</th></tr>
+        <tr><th></th><th>Hex bit</th><th colspan="2">${esc(TORQUE_TABLE.title)}</th></tr>
+        <tr><th></th><th></th><th>Screw</th><th>Torque N·m</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
+}
+
+// ── Torque row highlight (localStorage, per drawing) — flags rows for wrench prep.
+// Separate from armTorqueRow (the row-body click), which authors note templates.
+function torqueHlKey(){ return 'deployops_torque_hl_' + (currentDrawing?.id || 'global'); }
+function getTorqueHl(){ try { return JSON.parse(localStorage.getItem(torqueHlKey())) || []; } catch { return []; } }
+function setTorqueHl(arr){ localStorage.setItem(torqueHlKey(), JSON.stringify(arr)); }
+function toggleTorqueHl(ev, i){
+  ev.stopPropagation();
+  const s = new Set(getTorqueHl());
+  s.has(i) ? s.delete(i) : s.add(i);
+  setTorqueHl([...s]);
+  refreshDrawingChrome();
 }
 
 // Toolbar pill / layer name → focus: make this the active tool AND isolate the
