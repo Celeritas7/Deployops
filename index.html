@@ -73,6 +73,17 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .tip-handle.selected circle{stroke:var(--cyan);stroke-width:3}
 .leader-line{pointer-events:none}
 
+/* GROUPING SHAPES (install-as-package boundary) */
+.shape-main{fill:none;stroke-linejoin:round;pointer-events:none}
+.shape-hit{fill:none;stroke:rgba(0,0,0,0);stroke-width:16;pointer-events:stroke;cursor:move}
+.shape-armed .shape-hit,.shape-armed .shape-chip{pointer-events:none}
+.shape-chip{cursor:move;pointer-events:all}
+.shape-chip-txt{font-family:'JetBrains Mono',monospace;font-weight:700;fill:#0b0e16;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.shape-handle{fill:#fff;stroke:#0b0e16;stroke-width:1.6;pointer-events:all}
+.shape-del{pointer-events:all;cursor:pointer}
+.shape-rubber{fill:none;stroke-width:2.5;stroke-dasharray:7 5;pointer-events:none}
+.shape-draw-surface{fill:transparent;pointer-events:all;cursor:crosshair}
+
 /* MODE PILLS */
 .mode-pills{display:inline-flex;gap:4px;background:#000;border-radius:999px;padding:3px;align-items:center}
 .mode-pill{padding:5px 12px;border-radius:999px;border:none;background:transparent;color:#aaa;font-size:11px;font-family:inherit;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
@@ -81,6 +92,13 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .arrow-style-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .arrow-style-btn{padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:11px;font-family:inherit;cursor:pointer}
 .arrow-style-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
+/* GROUPING SHAPE toolbar group */
+.shape-tools{display:inline-flex;gap:4px;align-items:center;padding:3px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.shape-tools .lbl{font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--text2);text-transform:uppercase;padding:0 4px 0 8px}
+.shape-btn{padding:4px 10px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .12s}
+.shape-btn:hover{color:var(--text);border-color:var(--border)}
+.shape-btn.armed{background:var(--accent);color:#000;font-weight:700}
+.shape-glyph{width:18px;height:12px;flex-shrink:0}
 .upload-area{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:16px;color:var(--text2)}
 .upload-area .icon{font-size:48px}
 .page-nav{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
@@ -585,6 +603,7 @@ const MODES = {
   x:           { label:'No-install', icon:'✕', color:'#f87171', desc:'DO NOT install this part (red ✕)', kind:'balloon', shape:'x' },
   caution:     { label:'Caution', icon:'⚠', color:'#fb923c', desc:'Caution / precaution callout (amber)', kind:'tag', shape:'caution' },
   cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag', hidden:true },
+  shape:       { label:'Group', icon:'⬭', color:'#a78bfa', desc:'Grouping shape — package boundary around a cluster of parts', kind:'shape', noPill:true },
   balloon:     { label:'Balloon',     icon:'①', color:'#888',    desc:'Generic numbered balloon', kind:'balloon', shape:'circle', hidden:true }
 };
 // colour-by-number palettes (marker #1 → colour 1, #2 → colour 2, …)
@@ -657,6 +676,21 @@ function stepSubLetter(b){ if((b&&b.mode)!=='step') return ''; try { return JSON
 
 let armedLT = false, armedSteps = false;
 
+// ── §Grouping shapes — package-boundary ellipse/rect around a balloon cluster.
+// One deployops_balloons row per shape (mode:'shape', number:0, arrow_style:'none');
+// the shape payload {type,w_pct,h_pct,text} rides in the label JSON. x_pct/y_pct is
+// the shape's TOP-LEFT corner; w_pct/h_pct are width/height as % of sheet.
+const SHAPE_COLORS = ['#a78bfa','#fbbf24','#22d3ee','#f87171']; // violet, amber, cyan, red (leader palette)
+const SHAPE_HANDLES = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]];
+const SHAPE_CURSORS = {'-1,-1':'nwse','1,1':'nwse','1,-1':'nesw','-1,1':'nesw','0,-1':'ns','0,1':'ns','-1,0':'ew','1,0':'ew'};
+const SHAPE_MIN = 3; // minimum shape size, % of sheet
+let armedShape = null;        // null | 'ellipse' | 'rect'
+let shapeColor = SHAPE_COLORS[0];
+let shapeLabelSeed = '';      // label text seeded onto the next drawn shape
+let shapeDraft = null;        // live rubber-band while drawing {type,color,x_pct,y_pct,w_pct,h_pct}
+function shParse(b){ try { const o = JSON.parse(b.label||'{}'); return { type:(o.type==='rect'?'rect':'ellipse'), w_pct:(+o.w_pct)||10, h_pct:(+o.h_pct)||10, text:o.text||'' }; } catch { return { type:'ellipse', w_pct:10, h_pct:10, text:'' }; } }
+function shSerialize(m){ return JSON.stringify({ type:(m.type==='rect'?'rect':'ellipse'), w_pct:+(+m.w_pct).toFixed(2), h_pct:+(+m.h_pct).toFixed(2), text:m.text||'' }); }
+
 function markerColor(mode, num){
   const n = ((num||1)-1);
   if (mode === 'dismantling') return bomColor(num);
@@ -671,7 +705,7 @@ const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
 
 // ── Drawing annotation client state (localStorage-backed, never in DB) ──────
 // Layers that appear in the toolbar pills + layers panel (in display order).
-const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution','symbol'];
+const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution','symbol','shape'];
 // Focusing one layer also reveals its companion(s): Do-not-install travels with Steps.
 const COMPANION = { step:['x'], x:['step'] };
 // Per-drawing independent visibility set ({mode: bool}); default all visible.
@@ -1731,7 +1765,7 @@ function renderDrawing() {
 
   if (!Object.keys(layerVis).length) loadLayerVis();
   const pageUrl = getPageURL(currentPage);
-  const modeKeys = Object.keys(MODES).filter(k => !MODES[k].hidden);
+  const modeKeys = Object.keys(MODES).filter(k => !MODES[k].hidden && !MODES[k].noPill);
   el.innerHTML = `
     <div class="drawing-layout">
     <div class="drawing-area ${isFullscreen?'fullscreen-mode':''}">
@@ -1752,6 +1786,12 @@ function renderDrawing() {
             </button>`;
           }).join('')}
         </div>
+        ${isAdmin ? `<div class="shape-tools" title="Draw a package boundary around a group of parts">
+          <span class="lbl">Group</span>
+          <button class="shape-btn ${armedShape==='ellipse'?'armed':''}" data-type="ellipse" onclick="armShape('ellipse')" title="Drag an ellipse around parts that install together"><svg class="shape-glyph" viewBox="0 0 18 12"><ellipse cx="9" cy="6" rx="8" ry="5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Ellipse</button>
+          <button class="shape-btn ${armedShape==='rect'?'armed':''}" data-type="rect" onclick="armShape('rect')" title="Drag a rectangle around parts that install together"><svg class="shape-glyph" viewBox="0 0 18 12"><rect x="1" y="1" width="16" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Rect</button>
+        </div>
+        <div class="mode-indicator add-mode" id="shapeDrawInd" style="${armedShape?'':'display:none'}">DRAG TO DRAW ${armedShape==='ellipse'?'⬭':armedShape==='rect'?'▭':''}</div>` : ''}
         <button class="btn btn-sm admin-only ${balloonMode==='add'?'btn-danger':''}" onclick="toggleBalloonMode()" id="balloonModeBtn">
             ${balloonMode==='add'?'🔴 Cancel Add':'➕ Add ' + MODES[currentMode].label}
           </button>
@@ -1792,6 +1832,7 @@ function renderDrawingSidebar() {
   return `
     ${renderLayersCard()}
     ${renderSizesCard()}
+    ${renderGroupingShapeCard()}
     ${renderLeadersCard()}
     ${renderNoteTemplatesCard()}
     ${renderSymbolsCard()}
@@ -1984,6 +2025,10 @@ function refreshDrawingChrome() {
   document.querySelectorAll('.mode-pill').forEach(p => p.classList.toggle('active', p.dataset.mode === currentMode));
   const btn = document.getElementById('balloonModeBtn');
   if (btn && balloonMode !== 'add') btn.innerHTML = '➕ Add ' + MODES[currentMode].label;
+  // Grouping-shape toolbar: reflect the armed state (the toolbar isn't rebuilt here).
+  document.querySelectorAll('.shape-btn').forEach(b => b.classList.toggle('armed', b.dataset.type === armedShape));
+  const shapeInd = document.getElementById('shapeDrawInd');
+  if (shapeInd) { shapeInd.style.display = armedShape ? '' : 'none'; shapeInd.textContent = armedShape ? ('DRAG TO DRAW ' + (armedShape==='ellipse'?'⬭':'▭')) : ''; }
   const hint = document.getElementById('armedHint');
   if (hint) {
     const _armTxt = armedNote || (armedSymbol && armedSymbol.text) || ''; if (_armTxt) { hint.style.display = ''; hint.innerHTML = `📌 Armed: <b>${esc(_armTxt)}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>`; }
@@ -2279,6 +2324,24 @@ function dwgKeyHandler() {
 }
 dwgKeyHandler();
 
+// Grouping-shape keyboard: Esc cancels the draft / disarms / deselects; Delete removes
+// the selected shape (guarded so it never fires while typing in an input).
+document.addEventListener('keydown', (e) => {
+  if (!isAdmin || !document.getElementById('dwgZoomWrap')) return;
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  if (e.key === 'Escape'){
+    if (shapeDraft){ shapeDraft = null; renderBalloonsSVG(); }
+    else if (armedShape){ armedShape = null; refreshDrawingChrome(); }
+    else if (shSelectedShape()){ selectedBalloonId = null; refreshDrawingChrome(); }
+    return;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && shSelectedShape()){
+    e.preventDefault();
+    deleteAnnotation(selectedBalloonId);
+  }
+});
+
 // ============================================================
 // HI-FI PDF LAYER
 // Re-render the current page straight from the stored source PDF at a resolution
@@ -2363,6 +2426,7 @@ function changePage(delta) {
 
 function toggleBalloonMode() {
   balloonMode = balloonMode === 'add' ? 'select' : 'add';
+  if (balloonMode === 'add') armedShape = null;  // exclusive with the grouping-shape draw tool
   selectedBalloonId = null;
   renderDrawing();
 }
@@ -2388,6 +2452,7 @@ async function handleDrawingClick(e) {
   if (e.target.closest('.tip-handle')) return; // tip handles its own drag
   if (e.target.closest('.add-leader')) return; // "+" affordance handles its own click
   if (e.target.closest('.dwg-table-g')) return; // table cards drag / button themselves
+  if (e.target.closest('.shape-g, .shape-draw-surface')) return; // grouping shapes handle their own pointer + click
   if (e.target.closest('.balloon-g')) {
     const g = e.target.closest('.balloon-g');
     const bid = g.dataset.id;
@@ -2410,7 +2475,16 @@ async function handleDrawingClick(e) {
     return;
   }
 
-  if (balloonMode !== 'add') { selectedBalloonId = null; paintAnnotations(); return; }
+  if (balloonMode !== 'add') {
+    // Empty-sheet click deselects. Resync the sidebar too when a grouping shape was selected.
+    const wasShape = selectedBalloonId && (balloons.find(x => x.id === selectedBalloonId)?.mode === 'shape');
+    selectedBalloonId = null;
+    if (wasShape) refreshDrawingChrome(); else paintAnnotations();
+    return;
+  }
+
+  // Grouping shapes are drawn by dragging (Group ⬭/▭ tools), never point-placed.
+  if (currentMode === 'shape') { toast('Use the Group ⬭ / ▭ tools to drag a boundary','info'); return; }
 
   // Marker lands exactly where the user clicks. No auto-margin callout and no
   // leader by default — a leader is opt-in afterward (the "+" affordance on the
@@ -2903,8 +2977,205 @@ async function scaleCaution(bid, dir) {
 
 async function deleteAnnotation(id){
   const b=balloons.find(x=>x.id===id); if(!b)return;
+  const wasShape = (b.mode === 'shape');
   try { await sb.from('deployops_balloons').delete().eq('id', id); } catch(e){ console.error(e); toast('Delete failed','err'); return; }
-  selectedBalloonId=null; await loadBalloons(); paintAnnotations();
+  selectedBalloonId=null; await loadBalloons();
+  if (wasShape) refreshDrawingChrome(); else paintAnnotations();  // shapes: resync the sidebar card
+}
+
+// ── §Grouping shapes — arm / recolor / relabel + on-canvas draw/move/resize ──
+function armShape(type){
+  armedShape = (armedShape === type) ? null : type;
+  if (armedShape){ balloonMode = 'select'; armedLT = false; armedSteps = false; armedNote = null; armedSymbol = null; shapeDraft = null; selectedBalloonId = null; }
+  refreshDrawingChrome();
+}
+function shSelectedShape(){ if (selectedBalloonId == null) return null; const b = balloons.find(x => x.id === selectedBalloonId); return (b && b.mode === 'shape') ? b : null; }
+function setShapeColor(c){
+  shapeColor = c;
+  const b = shSelectedShape();
+  if (b){ b.color = c; try { sb.from('deployops_balloons').update({ color:c }).eq('id', b.id); } catch(e){ console.error(e); } }
+  refreshDrawingChrome();
+}
+function shOnLabelInput(v){
+  const b = shSelectedShape();
+  if (b){ const m = shParse(b); m.text = v; b.label = shSerialize(m); renderBalloonsSVG(); }  // live edit, no sidebar rebuild (keeps input focus)
+  else shapeLabelSeed = v;
+}
+async function shOnLabelCommit(v){
+  const b = shSelectedShape();
+  if (!b) return;
+  const m = shParse(b); m.text = v; b.label = shSerialize(m);
+  try { await sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id); } catch(e){ console.error(e); }
+}
+
+// Draw a new shape by dragging a rubber-band on the sheet (armed via toolbar/sidebar).
+function startShapeDraw(e){
+  if (e.button !== 0 || dwgSpaceHeld || !armedShape) return;
+  e.preventDefault(); e.stopPropagation();
+  isDragging = true;   // suppress the trailing sheet click; a real draw is signalled by shapeDraft
+  const img = document.getElementById('drawingImg'); if (!img) return;
+  const r0 = img.getBoundingClientRect();
+  const x0 = (e.clientX - r0.left) / r0.width * 100, y0 = (e.clientY - r0.top) / r0.height * 100;
+  const type = armedShape, color = shapeColor;
+  const onMove = (ev) => {
+    ev.preventDefault(); isDragging = true;
+    const rect = img.getBoundingClientRect();
+    const x1 = Math.max(0, Math.min(100, (ev.clientX - rect.left) / rect.width * 100));
+    const y1 = Math.max(0, Math.min(100, (ev.clientY - rect.top) / rect.height * 100));
+    shapeDraft = { type, color, x_pct:Math.min(x0,x1), y_pct:Math.min(y0,y1), w_pct:Math.abs(x1-x0), h_pct:Math.abs(y1-y0) };
+    renderBalloonsSVG();
+  };
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    const d = shapeDraft; shapeDraft = null;
+    if (d && d.w_pct >= SHAPE_MIN && d.h_pct >= SHAPE_MIN){
+      const label = shSerialize({ type, w_pct:d.w_pct, h_pct:d.h_pct, text:shapeLabelSeed.trim() });
+      armedShape = null; // single-shot: draw → review the placed shape selected
+      try {
+        const { data, error } = await sb.from('deployops_balloons').insert({ drawing_id:currentDrawing.id, page:currentPage, number:0, x_pct:d.x_pct, y_pct:d.y_pct, label, color, mode:'shape', arrow_style:'none' }).select().single();
+        if (error) throw error;
+        if (layerVis['shape'] === false){ layerVis['shape'] = true; saveLayerVis(); }
+        await loadBalloons(); selectedBalloonId = data ? data.id : null; refreshDrawingChrome(); toast('Grouping shape placed','ok');
+      } catch(err){ console.error(err); toast('Place failed: '+(err.message||err),'err'); refreshDrawingChrome(); }
+    } else {
+      renderBalloonsSVG(); // too small — clear the draft, stay armed for another try
+    }
+    setTimeout(() => { isDragging = false; }, 100);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+// Move a shape by its outline or label chip. Selects on grab; one row update on release.
+function startShapeDrag(e){
+  if (e.button !== 0 || dwgSpaceHeld) return;
+  e.preventDefault(); e.stopPropagation();
+  isDragging = true;   // suppress the trailing sheet click (select-on-grab rebuilds the SVG); a real move is signalled by `pos`
+  const bid = e.currentTarget.dataset.id;
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const img = document.getElementById('drawingImg'); if (!img) return;
+  if (selectedBalloonId !== bid){ selectedBalloonId = bid; refreshDrawingChrome(); }  // show handles + sync sidebar
+  const r0 = img.getBoundingClientRect();
+  const startXp = (e.clientX - r0.left) / r0.width * 100, startYp = (e.clientY - r0.top) / r0.height * 100;
+  const m = shParse(b);
+  const orig = { x:b.x_pct, y:b.y_pct, w:m.w_pct, h:m.h_pct };
+  let pos = null;
+  const onMove = (ev) => {
+    ev.preventDefault(); isDragging = true;
+    const rect = img.getBoundingClientRect();
+    const xp = (ev.clientX - rect.left) / rect.width * 100, yp = (ev.clientY - rect.top) / rect.height * 100;
+    const nx = Math.max(0, Math.min(100 - orig.w, orig.x + (xp - startXp)));
+    const ny = Math.max(0, Math.min(100 - orig.h, orig.y + (yp - startYp)));
+    b.x_pct = nx; b.y_pct = ny; pos = { x_pct:nx, y_pct:ny };
+    renderBalloonsSVG();
+  };
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (isDragging && pos){ try { await sb.from('deployops_balloons').update(pos).eq('id', bid); } catch(err){ console.error(err); } await loadBalloons(); paintAnnotations(); }
+    setTimeout(() => { isDragging = false; }, 100);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+// Resize from one of the 8 bounding-box handles. Width/height live in label JSON, so
+// the single release update carries {x_pct,y_pct,label}.
+function startShapeResize(e){
+  if (e.button !== 0 || dwgSpaceHeld) return;
+  e.preventDefault(); e.stopPropagation();
+  isDragging = true;   // real resize is signalled by `state`; guards the trailing sheet click
+  const g = e.currentTarget, bid = g.dataset.id;
+  const [hx, hy] = g.dataset.h.split(',').map(Number);
+  const b = balloons.find(x => x.id === bid); if (!b) return;
+  const img = document.getElementById('drawingImg'); if (!img) return;
+  const r0 = img.getBoundingClientRect();
+  const startXp = (e.clientX - r0.left) / r0.width * 100, startYp = (e.clientY - r0.top) / r0.height * 100;
+  const m = shParse(b);
+  const orig = { x:b.x_pct, y:b.y_pct, w:m.w_pct, h:m.h_pct };
+  let state = null;
+  const onMove = (ev) => {
+    ev.preventDefault(); isDragging = true;
+    const rect = img.getBoundingClientRect();
+    const dxp = (ev.clientX - rect.left) / rect.width * 100 - startXp;
+    const dyp = (ev.clientY - rect.top) / rect.height * 100 - startYp;
+    let x = orig.x, y = orig.y, w = orig.w, h = orig.h;
+    if (hx < 0){ w = Math.max(SHAPE_MIN, orig.w - dxp); x = orig.x + orig.w - w; }
+    if (hx > 0){ w = Math.max(SHAPE_MIN, orig.w + dxp); }
+    if (hy < 0){ h = Math.max(SHAPE_MIN, orig.h - dyp); y = orig.y + orig.h - h; }
+    if (hy > 0){ h = Math.max(SHAPE_MIN, orig.h + dyp); }
+    m.w_pct = w; m.h_pct = h; b.x_pct = x; b.y_pct = y; b.label = shSerialize(m);
+    state = { x_pct:x, y_pct:y, label:b.label };
+    renderBalloonsSVG();
+  };
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (isDragging && state){ try { await sb.from('deployops_balloons').update(state).eq('id', bid); } catch(err){ console.error(err); } await loadBalloons(); paintAnnotations(); }
+    setTimeout(() => { isDragging = false; }, 100);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+// SVG for one placed shape: outline + invisible hit outline + top-edge label chip,
+// plus resize handles + delete button when selected (admin). Rendered BEFORE balloons.
+function renderShapeSVG(b, vbW, vbH){
+  const m = shParse(b);
+  const color = b.color || '#a78bfa';
+  const sel = (b.id === selectedBalloonId);
+  const x = b.x_pct/100*vbW, y = b.y_pct/100*vbH, w = m.w_pct/100*vbW, h = m.h_pct/100*vbH;
+  const sw = sel ? 3.5 : 3;
+  const mainEl = (cls, extra) => m.type === 'ellipse'
+    ? `<ellipse class="${cls}" cx="${x+w/2}" cy="${y+h/2}" rx="${w/2}" ry="${h/2}" ${extra||''}/>`
+    : `<rect class="${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="12" ${extra||''}/>`;
+  let out = `<g class="shape-g${sel?' sel':''}" data-id="${b.id}">`;
+  out += mainEl('shape-main', `stroke="${color}" stroke-width="${sw}"`);
+  out += mainEl('shape-hit', `data-id="${b.id}"`);
+  if (m.text){
+    const cx = x + w/2, cyt = y, cw = [...m.text].length * 7.4 + 20;
+    out += `<g class="shape-chip" data-id="${b.id}"><rect x="${cx-cw/2}" y="${cyt-12}" width="${cw}" height="24" rx="12" fill="${color}" stroke="#0b0e16" stroke-width="${sel?2.2:1.4}"/><text class="shape-chip-txt" x="${cx}" y="${cyt+0.5}" font-size="11.5">${esc(m.text)}</text></g>`;
+  }
+  if (isAdmin && sel){
+    SHAPE_HANDLES.forEach(([hx,hy]) => {
+      const px = x + (hx+1)/2*w, py = y + (hy+1)/2*h;
+      out += `<rect class="shape-handle" x="${px-5}" y="${py-5}" width="10" height="10" rx="1.5" data-h="${hx},${hy}" data-id="${b.id}" style="cursor:${SHAPE_CURSORS[hx+','+hy]}-resize"/>`;
+    });
+    const dx = x + w + 16, dy = y - 16;
+    out += `<g class="shape-del" data-id="${b.id}"><circle cx="${dx}" cy="${dy}" r="11" fill="#0f1219" stroke="#f87171" stroke-width="1.6"/><text x="${dx}" y="${dy+0.5}" font-size="11" fill="#f87171" text-anchor="middle" dominant-baseline="central" font-family="DM Sans,sans-serif" font-weight="700">✕</text></g>`;
+  }
+  out += `</g>`;
+  return out;
+}
+function renderShapeRubber(d, vbW, vbH){
+  const x = d.x_pct/100*vbW, y = d.y_pct/100*vbH, w = d.w_pct/100*vbW, h = d.h_pct/100*vbH;
+  return d.type === 'ellipse'
+    ? `<ellipse class="shape-rubber" cx="${x+w/2}" cy="${y+h/2}" rx="${w/2}" ry="${h/2}" stroke="${d.color}"/>`
+    : `<rect class="shape-rubber" x="${x}" y="${y}" width="${w}" height="${h}" rx="12" stroke="${d.color}"/>`;
+}
+
+// Grouping-shape sidebar card (admin). Reflects the selected shape, or seeds the next draw.
+function renderGroupingShapeCard(){
+  const sel = shSelectedShape();
+  const m = sel ? shParse(sel) : null;
+  const activeType = sel ? m.type : armedShape;
+  const curColor = sel ? (sel.color || shapeColor) : shapeColor;
+  const labelVal = sel ? esc(m.text) : esc(shapeLabelSeed);
+  const count = balloons.filter(x => x.page === currentPage && x.mode === 'shape').length;
+  const seg = (t, glyph, tip) => `<button class="${activeType===t?'on':''}" onclick="armShape('${t}')" title="${tip}">${glyph}${t==='ellipse'?'Ellipse':'Rect'}</button>`;
+  const ell = '<svg class="shape-glyph" viewBox="0 0 18 12"><ellipse cx="9" cy="6" rx="8" ry="5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+  const rct = '<svg class="shape-glyph" viewBox="0 0 18 12"><rect x="1" y="1" width="16" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+  const swatches = SHAPE_COLORS.map(c => `<button class="sym-sw ${c===curColor?'sel':''}" style="background:${c}" title="${c}" onclick="setShapeColor('${c}')"></button>`).join('');
+  return `<div class="dwg-card admin-only">
+    <div class="dwg-card-head"><span>Grouping shape</span><span class="dwg-empty">${count}</span></div>
+    <div class="leader-seg">${seg('ellipse',ell,'Drag an ellipse boundary')}${seg('rect',rct,'Drag a rectangle boundary')}</div>
+    <div class="sw-label">Outline color</div>
+    <div class="sym-colors">${swatches}</div>
+    <div class="sw-label">Label</div>
+    <input id="shapeLabelInput" placeholder="Kit / package name (optional)" maxlength="24" value="${labelVal}" oninput="shOnLabelInput(this.value)" onchange="shOnLabelCommit(this.value)">
+    <div class="dwg-empty" style="margin-top:8px">${sel?'Drag the outline or label to move · corner &amp; edge handles resize · Delete removes.':'Pick a shape, then drag on the drawing around the parts that install as one package.'}</div>
+  </div>`;
 }
 
 // From a steps-table row: drop (or re-select) a Step/✗ balloon with a leader arrow.
@@ -3026,12 +3297,15 @@ function renderBalloonsSVG() {
   });
   defs += '</defs>';
 
-  let html = defs;
+  let html = '';
+  let shapesHtml = '';   // grouping shapes render BEFORE balloons so balloons stay clickable on top
   pageBalloons.forEach(b => {
     const cx = b.x_pct / 100 * vbW;
     const cy = b.y_pct / 100 * vbH;
     const bmode = b.mode || 'balloon';
 
+    // Grouping shape (package boundary) — its own render, kept under the balloons.
+    if (bmode === 'shape') { shapesHtml += renderShapeSVG(b, vbW, vbH); return; }
     // Placed reference table — drawn as a draggable card, independent of layers.
     if (bmode === 'table') { html += renderTableCardSVG(b, cx, cy, vbW); return; }
     if (bmode === 'steptable') return;                                   // §8 — HTML overlay only
@@ -3246,10 +3520,19 @@ function renderBalloonsSVG() {
       </g>`;
     }
   });
-  svg.innerHTML = html;
+  // Live rubber-band while drawing, plus a top draw-surface that captures the drag
+  // over the whole sheet (so a shape can be drawn even starting over a balloon).
+  if (shapeDraft) shapesHtml += renderShapeRubber(shapeDraft, vbW, vbH);
+  const drawSurface = (isAdmin && armedShape) ? `<rect class="shape-draw-surface" x="0" y="0" width="${vbW}" height="${vbH}"/>` : '';
+  svg.classList.toggle('shape-armed', !!armedShape);
+  svg.innerHTML = defs + shapesHtml + html + drawSurface;
 
   // Enable drag for admin
   if (isAdmin) {
+    svg.querySelectorAll('.shape-hit, .shape-chip').forEach(g => g.addEventListener('pointerdown', startShapeDrag));
+    svg.querySelectorAll('.shape-handle').forEach(g => g.addEventListener('pointerdown', startShapeResize));
+    svg.querySelectorAll('.shape-del').forEach(g => g.addEventListener('click', (e) => { e.stopPropagation(); deleteAnnotation(g.dataset.id); }));
+    svg.querySelectorAll('.shape-draw-surface').forEach(g => g.addEventListener('pointerdown', startShapeDraw));
     svg.querySelectorAll('.balloon-g').forEach(g => {
       g.addEventListener('pointerdown', startBalloonDrag);
     });
@@ -3625,6 +3908,33 @@ async function exportAnnotatedPNG() {
   };
   const isTagShape = (sh) => sh === 'note' || sh === 'caution';
 
+  // Grouping shapes — outline + top-edge label chip, drawn under leaders & balloons.
+  pageBalloons.forEach(b => {
+    if ((b.mode||'') !== 'shape') return;
+    const m = shParse(b);
+    const color = b.color || '#a78bfa';
+    const x = b.x_pct/100 * canvas.width, y = b.y_pct/100 * canvas.height;
+    const w = m.w_pct/100 * canvas.width, h = m.h_pct/100 * canvas.height;
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, r*0.16); ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (m.type === 'ellipse') ctx.ellipse(x+w/2, y+h/2, Math.abs(w/2), Math.abs(h/2), 0, 0, Math.PI*2);
+    else ctx.roundRect(x, y, w, h, Math.min(canvas.width*0.012, Math.abs(w/2), Math.abs(h/2)));
+    ctx.stroke();
+    if (m.text){
+      const cx = x + w/2, cyt = y;
+      ctx.font = `700 ${r*0.62}px 'JetBrains Mono', monospace`;
+      const tw = ctx.measureText(m.text).width;
+      const chW = tw + r*0.9, chH = r*1.25;
+      ctx.beginPath(); ctx.roundRect(cx-chW/2, cyt-chH/2, chW, chH, chH/2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = Math.max(1.4, r*0.08); ctx.strokeStyle = '#0b0e16'; ctx.stroke();
+      ctx.fillStyle = '#0b0e16'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(m.text, cx, cyt);
+    }
+    ctx.restore();
+  });
+
   // First pass: leader arrows (under balloons)
   pageBalloons.forEach(b => {
     if (b.tip_x_pct == null || b.tip_y_pct == null) return;
@@ -3767,6 +4077,7 @@ async function exportAnnotatedPNG() {
 
   // Second pass: balloons / tags / no-install / tables
   pageBalloons.forEach(b => {
+    if ((b.mode||'') === 'shape') return;   // grouping shapes already drawn (under this pass)
     const cx = b.x_pct/100 * canvas.width;
     const cy = b.y_pct/100 * canvas.height;
     const color = b.color || '#e74c3c';
