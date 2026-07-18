@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="docx-export.js" defer></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -5548,7 +5549,7 @@ function savedWsPad() {
 function wsWordDensity(pad) {
   const p = pad && isFinite(pad.top) && isFinite(pad.bottom) ? pad : savedWsPad();
   const t = Math.max(0, Math.min(30, +p.top)), b = Math.max(0, Math.min(30, +p.bottom));
-  return { cell: `${t}pt 6pt ${b}pt`, item: `${t}pt 10pt ${b}pt`, band: `${Math.max(2, t)}pt 10pt ${Math.max(2, b)}pt` };
+  return { t, b, cell: `${t}pt 6pt ${b}pt`, item: `${t}pt 10pt ${b}pt`, band: `${Math.max(2, t)}pt 10pt ${Math.max(2, b)}pt` };
 }
 function savedWsStyle() {
   const v = localStorage.getItem(WS_STYLE_KEY);
@@ -5587,7 +5588,7 @@ function showPrintOptions(opts = {}) {
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
       <label class="radio-row"><input type="radio" name="destChoice" value="printer" checked> 🖨️ Printer</label>
       <label class="radio-row"><input type="radio" name="destChoice" value="pdf"> 📄 PDF <span style="color:var(--text2);font-size:11px">(downloads one file per section)</span></label>
-      <label class="radio-row"><input type="radio" name="destChoice" value="word"> 📝 Word (.doc) <span style="color:var(--text2);font-size:11px">(editable handover document)</span></label>
+      <label class="radio-row"><input type="radio" name="destChoice" value="word"> 📝 Word (.docx) <span style="color:var(--text2);font-size:11px">(editable handover document)</span></label>
     </div>
 
     ${modeSection}
@@ -6231,11 +6232,11 @@ async function printFilledStatus(opts) {
 }
 
 // ============================================================
-// WORD EXPORT — rebuilds each worksheet section as native Word
-// HTML: real <table> markup with inline styles. Word ignores CSS
-// grid/flex, so the screen markup can't be reused; this mirrors
-// the on-screen sheet 1:1 (same tints, tier bars, badges, gate
-// boxes, column widths) and stays editable in Word / Google Docs.
+// WORD EXPORT — theme + spacing config consumed by docx-export.js,
+// which builds a real OOXML .docx (JSZip). Editable in Word and
+// uploadable anywhere (the old .doc HTML envelope was rejected by
+// upload validators). Mirrors the on-screen sheet: tints, tier
+// bars, group bands, gate boxes, column widths.
 // ============================================================
 function wsWordTheme(style) {
   if (style === 'word') return {
@@ -6260,124 +6261,7 @@ function wsWordTheme(style) {
   };
 }
 
-// Empty checkbox drawn as a bordered 1-cell table — renders as a crisp
-// square in Word (inline checkbox glyphs vary by font and look wrong).
-function wsWordCb(size, bw, color) {
-  return `<table cellpadding="0" cellspacing="0" align="center" style="border-collapse:collapse"><tr><td style="width:${size}pt;height:${size}pt;border:${bw}pt solid ${color};background:#ffffff;font-size:2pt">&nbsp;</td></tr></table>`;
-}
-
-function renderSectionDocWord(model, unitName, section, lang, style, T, P) {
-  P = P || wsWordDensity(null);
-  const word = style === 'word';
-  const titlePrefix = lang === 'ja' ? 'QCチェックリスト - ' : 'QC Checklist - ';
-  // Word has no text-transform — uppercase in JS (no-op for JA strings).
-  const monoLbl = (txt, extra) => `<span style="font-family:${T.mono};font-size:7.5pt;letter-spacing:1.5pt;color:${T.ink2};${extra || ''}">${esc(String(txt).toUpperCase())}</span>`;
-
-  let brand = '';
-  if (style === 'deployops') brand = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:4pt"><tr><td style="width:26pt;height:26pt;background:${T.rule};color:#ffb020;text-align:center;font-size:15pt;font-weight:bold">◢</td><td style="padding-left:8pt"><span style="font-size:11pt;font-weight:bold;color:${T.rule}">DeployOps</span><br>${monoLbl('QC Worksheet', 'font-weight:bold;font-size:7pt')}</td></tr></table>`;
-  else if (style === 'plain') brand = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:4pt"><tr><td style="background:${T.rule};color:#ffffff;padding:4pt 9pt;font-family:${T.mono};font-size:9.5pt;letter-spacing:2pt;font-weight:bold">QC&nbsp;WORKSHEET</td></tr></table>`;
-
-  const fld = (k, v) => `<td style="padding-left:16pt;vertical-align:bottom"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td style="padding-bottom:2pt">${word ? `<b style="font-size:11pt;color:${T.rule}">${esc(k)}</b>` : monoLbl(k)}</td></tr><tr><td style="border-bottom:0.75pt solid ${T.rule};width:${word ? 110 : 90}pt;height:15pt;font-weight:600;font-size:11pt;vertical-align:bottom;color:${T.rule}">${v}</td></tr></table></td>`;
-  const fields = fld(tr(lang, 'ws_field_unit'), unitName ? esc(unitName) : '&nbsp;')
-    + fld(tr(lang, 'ws_field_operator'), '&nbsp;')
-    + fld(tr(lang, 'ws_field_date'), '&nbsp;');
-  const hdrBd = `${word ? '1.5' : '2.5'}pt solid ${T.rule}`;
-  const hdr = `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:10pt"><tr><td style="border-bottom:${hdrBd};padding-bottom:6pt;vertical-align:bottom">${brand}<span style="font-family:${T.disp || T.font};font-size:${word ? 20 : 22}pt;font-weight:bold;color:${T.rule}">${esc(titlePrefix + section.displayName)}</span></td><td align="right" style="border-bottom:${hdrBd};padding-bottom:6pt;vertical-align:bottom"><table cellpadding="0" cellspacing="0" align="right" style="border-collapse:collapse"><tr>${fields}</tr></table></td></tr></table>`;
-
-  const lgCell = (cls, badgeTxt, emoji, ttKey, ldKey) => {
-    const col = cls === 'v' ? T.vBar : cls === 'r' ? T.rBar : cls === 'w' ? T.wBar : T.ink2;
-    const bg = cls === 'v' ? T.vFill : cls === 'r' ? T.rFill : cls === 'w' ? T.wFill : (word ? '#f1f1ec' : '#ffffff');
-    const badge = word ? '' : `<td style="width:22pt;vertical-align:top;padding-top:1pt"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td style="width:16pt;height:16pt;border:1.25pt ${cls === 'plain' ? 'dashed' : 'solid'} ${cls === 'w' ? T.wBar : col};background:${cls === 'w' ? T.wBar : '#ffffff'};color:${cls === 'w' ? '#ffffff' : col};text-align:center;font-family:${T.mono};font-weight:bold;font-size:10pt">${badgeTxt || '&nbsp;'}</td></tr></table></td>`;
-    const tdStyle = word
-      ? `border:0.75pt solid ${cls === 'plain' ? '#333333' : col};background:${bg};padding:7pt 9pt;width:25%;vertical-align:top`
-      : `border:${T.hairBd};background:${bg};padding:7pt 9pt;width:25%;vertical-align:top`;
-    // ld strings carry intentional <b> emphasis — not escaped (same as screen legend).
-    return `<td style="${tdStyle}"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr>${badge}<td style="vertical-align:top;font-size:9pt;color:${T.rule}"><b style="color:${col}">${emoji} ${esc(tr(lang, ttKey))}</b><br>${tr(lang, ldKey)}</td></tr></table></td>`;
-  };
-  const lgCells = lgCell('plain', '', '✅', 'ws_legend_plain_title', 'ws_legend_plain_desc')
-    + lgCell('v', 'V', '🔍', 'ws_legend_verify_title', 'ws_legend_verify_desc')
-    + lgCell('r', 'R', '⚠', 'ws_legend_review_title', 'ws_legend_review_desc')
-    + lgCell('w', 'W', '⛔', 'ws_legend_witness_title', 'ws_legend_witness_desc');
-  const legend = word
-    ? `<table cellpadding="0" cellspacing="6" width="100%" style="border-collapse:separate;margin-bottom:12pt"><tr>${lgCells}</tr></table>`
-    : `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:${T.bd};margin-bottom:12pt"><tr>${lgCells}</tr></table>`;
-
-  const phaseBlocks = Object.entries(section.phaseItems).map(([phase, list]) => {
-    const phaseTxt = lang === 'ja'
-      ? (phaseLabel(phase, true, lang) || (PHASE_META[phase] || {}).label || phase)
-      : (WS_PHASE_TITLES_EN[phase] || (PHASE_META[phase] || {}).label || phase);
-    const band = word
-      ? `<td colspan="5" style="border:${T.hairBd};padding:8pt 10pt 4pt;font-family:${T.disp};font-size:12pt;font-style:italic;font-weight:bold;color:${T.rule};background:#ffffff">${esc(phaseTxt)}</td>`
-      : `<td colspan="5" style="border:${T.hairBd};border-bottom:${T.bd};padding:9pt 10pt 4pt;font-family:${T.mono};font-size:8.5pt;letter-spacing:1.5pt;font-weight:bold;color:${T.rule};background:#ffffff">${esc(String(phaseTxt).toUpperCase())}</td>`;
-    const heads = ['#', tr(lang, 'ws_col_item'), tr(lang, 'ws_col_notes'), tr(lang, 'op'), tr(lang, 'qcCol')];
-    const colHead = heads.map((h, ci) => `<td style="width:${T.cw[ci]}pt;background:${T.headBg};border:${T.hairBd};border-bottom:${T.bd};font-family:${T.mono};font-size:7.5pt;letter-spacing:1.2pt;font-weight:bold;color:${word ? T.rule : T.ink2};padding:5pt 6pt;text-align:${ci === 1 || ci === 2 ? 'left' : 'center'}">${esc(String(h).toUpperCase())}</td>`).join('');
-    const rows = list.map((it, i) => {
-      const t = wsTier(it);
-      const bg = t.cls === 'v' ? T.vFill : t.cls === 'r' ? T.rFill : t.cls === 'w' ? T.wFill : '#ffffff';
-      const wTop = t.cls === 'w' ? `border-top:1.75pt solid ${T.wBar};` : '';
-      const td = (extra) => `style="border:${T.hairBd};${wTop}background:${bg};padding:${P.cell};vertical-align:middle;${extra || ''}"`;
-      const grp = wsSplitGroup(pickField(it, 'label', lang) || '').group;
-      const prevGrp = i > 0 ? wsSplitGroup(pickField(list[i - 1], 'label', lang) || '').group : null;
-      const bandRow = (grp && grp !== prevGrp) ? `<tr><td colspan="5" style="border:${T.hairBd};background:${word ? '#f1f1ec' : '#eef1f5'};padding:${P.band};font-family:${T.font};font-size:10pt;font-weight:bold;color:${T.rule}">${esc(grp)}</td></tr>` : '';
-      const label = esc(wsSplitGroup(pickField(it, 'label', lang) || '').text);
-      const desc = esc(pickField(it, 'description', lang) || '');
-      let itemCell = `<span style="font-size:11.5pt;font-weight:${t.cls === 'w' ? 'bold' : '600'};color:${T.rule}">${label}</span>`;
-      if (t.cls === 'r' || t.cls === 'w') itemCell += `<br><span style="font-family:${T.mono};font-size:7.5pt;letter-spacing:0.8pt;font-weight:bold;color:${t.cls === 'w' ? T.wBar : T.rBar}">${esc(String(tr(lang, t.cls === 'w' ? 'ws_stop_witness' : 'ws_stop_review')).toUpperCase())}</span>`;
-      let notesCell;
-      if (t.cls === 'v') {
-        const subTxt = esc(pickField(it, 'description', lang) || tr(lang, 'ws_verification_mark'));
-        notesCell = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td style="width:15pt;vertical-align:middle">${wsWordCb(11, 1, T.vBar)}</td><td style="vertical-align:middle;font-size:9pt;color:${T.ink2};font-style:italic;padding-left:4pt"><span style="color:${T.vBar};font-weight:bold;font-style:normal">↳</span> ${subTxt}</td></tr></table>`;
-      } else {
-        notesCell = `<span style="font-size:9.5pt;color:${T.ink2}">${desc}</span>`;
-      }
-      let opCell, qcCell;
-      if (t.cls === 'r' || t.cls === 'w') {
-        const bar = t.cls === 'w' ? T.wBar : T.rBar, lockBg = t.cls === 'w' ? T.lockW : T.lockR;
-        opCell = word
-          ? `<td ${td('text-align:center')}><b style="font-size:9pt;color:${T.rule}">N/A</b></td>`
-          : `<td style="border:${T.hairBd};${wTop}background:${lockBg};padding:2pt;vertical-align:middle;text-align:center"><span style="font-size:10pt">🔒</span>${style === 'deployops' ? `<br><span style="font-family:${T.mono};font-size:6pt;letter-spacing:1pt;font-weight:bold;color:${bar}">LOCKED</span>` : ''}</td>`;
-        qcCell = `<td ${td('text-align:center;padding:4pt')}>${wsWordCb(t.cls === 'w' ? 22 : 20, t.cls === 'w' ? 2 : 1.75, bar)}<span style="font-family:${T.mono};font-size:7pt;letter-spacing:1.2pt;font-weight:bold;color:${bar}">${t.cls === 'w' ? 'WIT' : 'SUP'}</span></td>`;
-      } else {
-        opCell = `<td ${td('text-align:center')}>${wsWordCb(16, 1.25, T.rule)}</td>`;
-        qcCell = `<td ${td('text-align:center')}>${wsWordCb(16, 1.25, T.rule)}</td>`;
-      }
-      return bandRow + `<tr><td ${td(`text-align:center;font-family:${T.mono};font-size:11pt;font-weight:bold;color:${T.rule}`)}>${String(i + 1).padStart(2, '0')}</td><td ${td(`padding:${P.item}`)}>${itemCell}</td><td ${td(`padding:${P.item}`)}>${notesCell}</td>${opCell}${qcCell}</tr>`;
-    }).join('');
-    return `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:${T.bd};margin-bottom:14pt;table-layout:fixed"><tr>${band}</tr><tr>${colHead}</tr>${rows}</table>`;
-  }).join('');
-
-  const ftCell = (kKey, subKey) => `<td style="width:33%;border-top:${word ? '1.5' : '2.5'}pt solid ${T.rule};padding:10pt 16pt 0 0;vertical-align:top">${word ? `<b style="font-size:10pt;color:${T.rule}">${esc(tr(lang, kKey))}</b>` : monoLbl(tr(lang, kKey), `font-weight:bold;color:${T.rule};font-size:8pt`)}<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse"><tr><td style="height:22pt;border-bottom:0.75pt solid ${T.rule};font-size:2pt">&nbsp;</td></tr></table>${monoLbl(tr(lang, subKey), 'font-size:7pt')}</td>`;
-  const footer = `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-top:14pt"><tr>${ftCell('ws_footer_completed_by', 'ws_footer_print_sign')}${ftCell('ws_footer_supervisor', 'ws_footer_print_sign')}${ftCell('ws_footer_date_completed', 'ws_footer_date_placeholder')}</tr></table>`;
-
-  const formId = style === 'deployops'
-    ? `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-top:10pt"><tr><td style="border-top:0.5pt dashed #b8c0cb;padding-top:4pt"><span style="background:${T.rule};color:#ffb020;font-family:${T.mono};font-size:7.5pt;font-weight:bold;letter-spacing:1.5pt;padding:2pt 6pt">DEPLOYOPS</span>&nbsp;&nbsp;${monoLbl(`WS-${wsCode(model?.ref, section.sectionName)} · rev A · generated ${wsTodayISO()}`)}</td><td align="right" style="border-top:0.5pt dashed #b8c0cb;padding-top:4pt"><span style="font-family:${T.mono};font-size:7.5pt;letter-spacing:1pt;font-weight:600;color:${T.rule}">RETURN SIGNED COPY TO QC BIN</span></td></tr></table>`
-    : '';
-
-  return hdr + legend + phaseBlocks + footer + formId;
-}
-
-function exportWorksheetDoc(m, unitName, sectionDocs, lang, style, dens) {
-  const T = wsWordTheme(style);
-  const P = wsWordDensity(dens);
-  const pageBreak = '<br clear="all" style="mso-special-character:line-break;page-break-before:always">';
-  const body = sectionDocs.map(s => renderSectionDocWord(m, unitName, s, lang, style, T, P)).join(pageBreak);
-  const wordDoc =
-    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
-    '<head><meta charset="utf-8">' +
-    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->' +
-    `<style>@page WordSection1{size:210mm 297mm;margin:16mm 14mm 14mm 16mm;mso-page-orientation:portrait}div.WordSection1{page:WordSection1}body{font-family:${T.font};color:${T.rule};font-size:10pt}</style>` +
-    `</head><body><div class="WordSection1">${body}</div></body></html>`;
-  const safe = s => (s || '').replace(/[\\/:*?"<>|]+/g, '-').trim();
-  const fname = `QC Worksheet - ${safe(pickField(m, 'name', lang) || m.name || 'Model')}${unitName ? ' - ' + safe(unitName) : ''}.doc`;
-  const blob = new Blob(['\ufeff', wordDoc], { type: 'application/msword' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast('Word document downloaded — opens in MS Word', 'ok');
-}
+// (The .docx generator lives in docx-export.js — exportWorksheetDoc is defined there.)
 
 function openPrintWindow(html) {
   const w = window.open('', '_blank');
