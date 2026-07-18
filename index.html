@@ -5537,6 +5537,19 @@ let _printCtx = null;
 
 const WS_STYLE_KEY = 'deployops_ws_style';
 const WS_STYLES = ['word', 'plain', 'deployops'];
+const WS_DENSITY_KEY = 'deployops_ws_density';
+const WS_DENSITIES = ['compact', 'normal', 'roomy'];
+function savedWsDensity() {
+  const v = localStorage.getItem(WS_DENSITY_KEY);
+  return WS_DENSITIES.includes(v) ? v : 'normal';
+}
+// Word-export row spacing. cell = padding on #/OP/QC cells, item =
+// padding on the ITEM / NOTES text cells. Larger = taller rows.
+function wsWordDensity(level) {
+  if (level === 'compact') return { cell: '0pt 6pt', item: '1pt 10pt' };
+  if (level === 'roomy')   return { cell: '8pt 6pt', item: '10pt 10pt' };
+  return { cell: '3pt 6pt', item: '4pt 10pt' };
+}
 function savedWsStyle() {
   const v = localStorage.getItem(WS_STYLE_KEY);
   return WS_STYLES.includes(v) ? v : 'word';
@@ -5546,6 +5559,7 @@ function showPrintOptions(opts = {}) {
   _printCtx = opts;
   const lockedMode = opts.lockedMode;
   const wsStyle = savedWsStyle();
+  const wsDensity = savedWsDensity();
 
   const modeSection = lockedMode ? '' : `
     <label>Output</label>
@@ -5599,6 +5613,13 @@ function showPrintOptions(opts = {}) {
       <label class="radio-row"><input type="radio" name="styleChoice" value="deployops"${wsStyle==='deployops'?' checked':''}> DeployOps-branded <span style="color:var(--text2);font-size:11px">(logo + form ID — audit copy)</span></label>
     </div>
 
+    <label>Row spacing <span style="color:var(--text2);font-size:11px">(Word export)</span></label>
+    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
+      <label class="radio-row"><input type="radio" name="densityChoice" value="compact"${wsDensity==='compact'?' checked':''}> Compact <span style="color:var(--text2);font-size:11px">(tight rows, most per page)</span></label>
+      <label class="radio-row"><input type="radio" name="densityChoice" value="normal"${wsDensity==='normal'?' checked':''}> Normal</label>
+      <label class="radio-row"><input type="radio" name="densityChoice" value="roomy"${wsDensity==='roomy'?' checked':''}> Roomy <span style="color:var(--text2);font-size:11px">(more breathing room)</span></label>
+    </div>
+
     <label>Language</label>
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
       <label class="radio-row"><input type="radio" name="langChoice" value="en" checked> English</label>
@@ -5627,6 +5648,9 @@ function doPrint() {
   try { localStorage.setItem(WS_STYLE_KEY, wsStyle); } catch(e) {}
   const lang = document.querySelector('input[name="langChoice"]:checked')?.value || 'en';
   const dest  = document.querySelector('input[name="destChoice"]:checked')?.value || 'printer';
+  const densRaw = document.querySelector('input[name="densityChoice"]:checked')?.value;
+  const wsDensity = WS_DENSITIES.includes(densRaw) ? densRaw : 'normal';
+  try { localStorage.setItem(WS_DENSITY_KEY, wsDensity); } catch(e) {}
   const phaseFilter = phase === 'both' ? null : phase;
   // Legacy hand-write/filled templates only know plain vs branded;
   // word/deployops both fall back to branded there.
@@ -5639,7 +5663,7 @@ function doPrint() {
     const unitId = ctx.unitId !== undefined ? ctx.unitId : deployUnitId;
     const content = document.querySelector('input[name="contentChoice"]:checked')?.value || 'empty';
     const emptyRows = content === 'empty';
-    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang, dest, wsStyle });
+    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang, dest, wsStyle, wsDensity });
   } else {
     printFilledStatus({ phaseFilter, plain, lang, dest });
   }
@@ -6012,7 +6036,7 @@ async function generatePerSectionPdfZip(model, unitName, sections, lang, style, 
 // PRINT — printers
 // ============================================================
 async function printBlankWorkOrder(modelId, unitId, opts) {
-  const { phaseFilter, plain = false, emptyRows = false, lang = 'en', dest = 'printer', wsStyle = 'word' } = opts || {};
+  const { phaseFilter, plain = false, emptyRows = false, lang = 'en', dest = 'printer', wsStyle = 'word', wsDensity = 'normal' } = opts || {};
   const m = modelById(modelId);
   if (!m) { toast('Model not found', 'err'); return; }
 
@@ -6080,7 +6104,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     if (dest === 'pdf') {
       await generatePerSectionPdfZip(m, unitName, sectionDocs, lang, style, wsPrinterPath);
     } else if (dest === 'word') {
-      exportWorksheetDoc(m, unitName, sectionDocs, lang, style);
+      exportWorksheetDoc(m, unitName, sectionDocs, lang, style, wsDensity);
     } else {
       wsPrinterPath();
     }
@@ -6242,7 +6266,8 @@ function wsWordCb(size, bw, color) {
   return `<table cellpadding="0" cellspacing="0" align="center" style="border-collapse:collapse"><tr><td style="width:${size}pt;height:${size}pt;border:${bw}pt solid ${color};background:#ffffff;font-size:2pt">&nbsp;</td></tr></table>`;
 }
 
-function renderSectionDocWord(model, unitName, section, lang, style, T) {
+function renderSectionDocWord(model, unitName, section, lang, style, T, P) {
+  P = P || wsWordDensity('normal');
   const word = style === 'word';
   const titlePrefix = lang === 'ja' ? 'QCチェックリスト - ' : 'QC Checklist - ';
   // Word has no text-transform — uppercase in JS (no-op for JA strings).
@@ -6290,7 +6315,7 @@ function renderSectionDocWord(model, unitName, section, lang, style, T) {
       const t = wsTier(it);
       const bg = t.cls === 'v' ? T.vFill : t.cls === 'r' ? T.rFill : t.cls === 'w' ? T.wFill : '#ffffff';
       const wTop = t.cls === 'w' ? `border-top:1.75pt solid ${T.wBar};` : '';
-      const td = (extra) => `style="border:${T.hairBd};${wTop}background:${bg};padding:3pt 6pt;vertical-align:middle;${extra || ''}"`;
+      const td = (extra) => `style="border:${T.hairBd};${wTop}background:${bg};padding:${P.cell};vertical-align:middle;${extra || ''}"`;
       const grp = wsSplitGroup(pickField(it, 'label', lang) || '').group;
       const prevGrp = i > 0 ? wsSplitGroup(pickField(list[i - 1], 'label', lang) || '').group : null;
       const bandRow = (grp && grp !== prevGrp) ? `<tr><td colspan="5" style="border:${T.hairBd};background:${word ? '#f1f1ec' : '#eef1f5'};padding:5pt 10pt 4pt;font-family:${T.font};font-size:10pt;font-weight:bold;color:${T.rule}">${esc(grp)}</td></tr>` : '';
@@ -6316,7 +6341,7 @@ function renderSectionDocWord(model, unitName, section, lang, style, T) {
         opCell = `<td ${td('text-align:center')}>${wsWordCb(16, 1.25, T.rule)}</td>`;
         qcCell = `<td ${td('text-align:center')}>${wsWordCb(16, 1.25, T.rule)}</td>`;
       }
-      return bandRow + `<tr><td ${td(`text-align:center;font-family:${T.mono};font-size:11pt;font-weight:bold;color:${T.rule}`)}>${String(i + 1).padStart(2, '0')}</td><td ${td('padding:4pt 10pt')}>${itemCell}</td><td ${td('padding:4pt 10pt')}>${notesCell}</td>${opCell}${qcCell}</tr>`;
+      return bandRow + `<tr><td ${td(`text-align:center;font-family:${T.mono};font-size:11pt;font-weight:bold;color:${T.rule}`)}>${String(i + 1).padStart(2, '0')}</td><td ${td(`padding:${P.item}`)}>${itemCell}</td><td ${td(`padding:${P.item}`)}>${notesCell}</td>${opCell}${qcCell}</tr>`;
     }).join('');
     return `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:${T.bd};margin-bottom:14pt;table-layout:fixed"><tr>${band}</tr><tr>${colHead}</tr>${rows}</table>`;
   }).join('');
@@ -6331,10 +6356,11 @@ function renderSectionDocWord(model, unitName, section, lang, style, T) {
   return hdr + legend + phaseBlocks + footer + formId;
 }
 
-function exportWorksheetDoc(m, unitName, sectionDocs, lang, style) {
+function exportWorksheetDoc(m, unitName, sectionDocs, lang, style, dens) {
   const T = wsWordTheme(style);
+  const P = wsWordDensity(dens);
   const pageBreak = '<br clear="all" style="mso-special-character:line-break;page-break-before:always">';
-  const body = sectionDocs.map(s => renderSectionDocWord(m, unitName, s, lang, style, T)).join(pageBreak);
+  const body = sectionDocs.map(s => renderSectionDocWord(m, unitName, s, lang, style, T, P)).join(pageBreak);
   const wordDoc =
     '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
     '<head><meta charset="utf-8">' +
