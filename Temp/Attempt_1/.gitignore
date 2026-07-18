@@ -1,0 +1,5 @@
+*.patch
+/deployops/
+
+# local scratch reference snapshot — not part of the app
+a7d2a09-full.html

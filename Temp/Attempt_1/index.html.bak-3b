@@ -51,13 +51,12 @@ body[data-tab="deploy"] #uploadPdfBtn{display:none!important}
 /* DRAWING VIEWER */
 .drawing-area{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:10px}
 .drawing-area.fullscreen-mode{position:fixed;inset:0;z-index:999;background:var(--bg);margin:0;border:none;border-radius:0}
-.drawing-area.fullscreen-mode .drawing-container{height:calc(100vh - 50px);max-height:calc(100vh - 50px)}
+.drawing-area.fullscreen-mode .drawing-container{max-height:calc(100vh - 50px)}
 body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .drawing-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
-.drawing-container{position:relative;overflow:auto;height:calc(100vh - 210px);max-height:calc(100vh - 210px)}
-.drawing-container.dwg-center{display:flex;align-items:center;justify-content:center}
+.drawing-container{position:relative;overflow:auto;max-height:calc(100vh - 220px)}
 /* Zoom/pan wrapper — img + svg transform together so balloons stay anchored. */
-.dwg-zoom-wrap{position:relative;width:100%;transform-origin:0 0;will-change:transform;flex:0 0 auto}
+.dwg-zoom-wrap{position:relative;width:100%;transform-origin:0 0;will-change:transform}
 .drawing-container.pan-ready{cursor:grab}
 .drawing-container.panning{cursor:grabbing}
 .drawing-container img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
@@ -173,12 +172,6 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .sp-sw{position:relative;width:26px;height:22px;border-radius:5px;cursor:pointer;display:grid;place-items:center;border:1px solid rgba(255,255,255,.15)}
 .sp-sw span{font-size:10px;font-weight:700;color:rgba(0,0,0,.55);font-family:'JetBrains Mono',monospace}
 .sp-sw input{position:absolute;inset:0;opacity:0;cursor:pointer;border:none;padding:0}
-.sp-sw .sp-del{position:absolute;top:-5px;right:-5px;width:14px;height:14px;border-radius:50%;border:none;background:#dc2626;color:#fff;font-size:9px;line-height:1;cursor:pointer;display:none;place-items:center;padding:0;z-index:2}
-.sp-sw:hover .sp-del{display:grid}
-.sp-add{background:transparent;border:1px dashed var(--border);color:var(--text2);font-size:13px;padding:0;cursor:pointer}
-.sp-add:hover{border-color:var(--accent);color:var(--accent)}
-.size-row-head{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px}
-.dwg-card-head+.size-row-head{margin-top:0}
 .dwg-card input{background:var(--surface);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:6px;font-size:12px;font-family:inherit;width:100%}
 /* layers */
 .layer-list{display:flex;flex-direction:column;gap:2px}
@@ -202,28 +195,6 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .tpl-chip-del:hover{color:var(--red)}
 .tpl-add{display:flex;gap:6px}
 .tpl-add input{flex:1}
-/* special symbols */
-.sym-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.sym-chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px;border:1px solid rgba(0,0,0,.15)}
-.sym-chip.armed{outline:2px solid var(--accent);outline-offset:1px}
-.sym-chip-text{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:2px 8px}
-.sym-chip-del{border:none;background:rgba(0,0,0,.28);color:#fff;cursor:pointer;font-size:10px;padding:1px 5px;line-height:1;border-radius:999px}
-.sym-chip-del:hover{background:var(--red)}
-.sym-colors{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.sym-sw{width:22px;height:22px;border-radius:6px;cursor:pointer;border:2px solid transparent;padding:0;display:inline-flex;align-items:center;justify-content:center;line-height:1;overflow:hidden}
-.sym-sw-auto{background:linear-gradient(135deg,#60a5fa,#a78bfa);color:#fff;font-size:11px;font-weight:800}
-.sym-sw.sel{border-color:var(--text)}
-.sym-add{display:flex;gap:6px}
-.sym-add input{flex:1}
-.sw-label{font-size:10px;color:var(--text2);margin:4px 0 3px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
-.color-row{display:flex;gap:8px;align-items:stretch}
-.color-row select{flex:1}
-.color-pick{width:40px;min-width:40px;padding:2px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer}
-.dwg-card input.sym-sw{width:22px;height:22px;padding:0}
-.sym-sw-custom{appearance:none;-webkit-appearance:none}
-.sym-sw-custom::-webkit-color-swatch-wrapper{padding:0}
-.sym-sw-custom::-webkit-color-swatch{border:none;border-radius:4px}
-.sym-sw-custom::-moz-color-swatch{border:none;border-radius:4px}
 /* torque reference */
 .torque-tbl{width:100%;border-collapse:collapse;font-size:11px}
 .torque-tbl th,.torque-tbl td{border:1px solid var(--border);padding:4px 6px;text-align:left}
@@ -463,16 +434,16 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
     position:relative;
     width:auto;height:auto;
     max-width:100%;max-height:100%;
-    aspect-ratio:var(--dwg-ar)!important;
+    /* aspect-ratio is set inline via JS once the image loads (see print handler) */
   }
   /* Neutralise any on-screen zoom/pan so print always renders the full drawing. */
   #drawingTab.active .dwg-zoom-wrap{
     transform:none!important;
-    width:100%!important;height:100%!important;
+    width:100%;height:100%;
   }
   #drawingTab.active .drawing-container img{
     display:block;
-    width:100%!important;height:100%!important;
+    width:100%;height:100%;
     object-fit:contain;
   }
   /* SVG keeps its viewBox-driven sizing, locked to the same box as img */
@@ -564,7 +535,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
 let drawingPath = []; // folder-view state: [] = root grid; ['Crawler v2','CRW-FRAME-ASSY'] = browsing that nested path
-let drawingFolders = []; // explicitly-created folders (incl. empty ones): [{id, path, ...}]
 let pendingUploadFolder = null; // default folder injected into the next upload modal (null = no default, e.g. topbar)
 let balloons = [], balloonMode = 'select', selectedBalloonId = null, dragging = null;
 let currentMode = 'dismantling'; // active layer / tool
@@ -575,7 +545,6 @@ const MODES = {
   step:        { label:'Step', icon:'▢', color:'#2dd4bf', desc:'Assembly step — build order (square)', kind:'balloon', shape:'square' },
   ref:         { label:'Ref',  icon:'△', color:'#fbbf24', desc:'Reference only — do not assemble at this stage (triangle)', kind:'balloon', shape:'triangle' },
   note:        { label:'Note', icon:'◇', color:'#a78bfa', desc:'Note callout with label', kind:'tag', shape:'note' },
-  symbol:      { label:'Symbol', icon:'★', color:'#0ea5e9', desc:'Special symbol tag (own size)', kind:'tag', shape:'symbol' },
   x:           { label:'No-install', icon:'✕', color:'#f87171', desc:'DO NOT install this part (red ✕)', kind:'balloon', shape:'x' },
   caution:     { label:'Caution', icon:'⚠', color:'#fb923c', desc:'Caution / precaution callout (amber)', kind:'tag', shape:'caution' },
   cable:       { label:'Cable Tags',  icon:'■', color:'#2980b9', desc:'Cable / unit tags for installation', kind:'tag', hidden:true },
@@ -594,20 +563,6 @@ function stepColor(n){ const a=stepPalette; return a[(((n||1)-1)%a.length+a.leng
 function setBomColor(i, c){ bomPalette[i]=c; localStorage.setItem('deployops_bom_palette', JSON.stringify(bomPalette)); refreshDrawingChrome(); }
 function setStepColor(i, c){ stepPalette[i]=c; localStorage.setItem('deployops_step_palette', JSON.stringify(stepPalette)); refreshDrawingChrome(); }
 function resetPalettes(){ bomPalette=DEFAULT_BOM_PALETTE.slice(); stepPalette=DEFAULT_STEP_PALETTE.slice(); localStorage.removeItem('deployops_bom_palette'); localStorage.removeItem('deployops_step_palette'); refreshDrawingChrome(); }
-// Palettes are length-flexible (colours cycle by index), so the sequence can grow/shrink.
-function palSave(which){ localStorage.setItem(which==='bom'?'deployops_bom_palette':'deployops_step_palette', JSON.stringify(which==='bom'?bomPalette:stepPalette)); refreshDrawingChrome(); }
-function addPaletteColor(which){
-  const a = which==='bom' ? bomPalette : stepPalette;
-  const pool = ['#14b8a6','#e879f9','#facc15','#38bdf8','#fb7185','#4ade80','#c084fc','#f97316','#f87171','#a3e635'];
-  a.push(pool.find(c=>!a.includes(c)) || pool[a.length%pool.length]);
-  palSave(which);
-}
-function delPaletteColor(which,i){
-  const a = which==='bom' ? bomPalette : stepPalette;
-  if (a.length<=1) return;
-  a.splice(i,1);
-  palSave(which);
-}
 
 // ── §7 Loctite grade list + colours (global, persisted, reflect in all drawings) ──
 const LOCTITE_DEFAULT_GRADES = ['none','222','243','263','290','577'];
@@ -635,19 +590,6 @@ const DEFAULT_STEP_ROWS = [
   { skip:true, text:'Do NOT install shipping bracket — remove before run.' }
 ];
 function stMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { title:o.title||'Assembly steps', scale:(+o.scale)||0.9, rows:Array.isArray(o.rows)?o.rows:[] }; } catch { return { title:'Assembly steps', scale:0.9, rows:[] }; } }
-// Display id for a step row: bare number when it's the only row in its group
-// ("1"), or number + a/b/c… when several rows share a step number — i.e. the
-// step is split into parallel sub-steps that can be done at the same time.
-function stepDisplayId(rows, ri){
-  const row = rows[ri]; if(!row || row.skip) return '';
-  const group = rows.map((r,i)=>({r,i})).filter(o=>!o.r.skip && o.r.n===row.n);
-  if(group.length <= 1) return String(row.n);
-  const pos = group.findIndex(o=>o.i===ri);
-  return String(row.n) + String.fromCharCode(97 + (pos<0?0:pos)); // 1a, 1b, …
-}
-// Sub-step letter stamped onto a step balloon when it was spawned from a
-// parallel row (read back from the balloon's label JSON for rendering).
-function stepSubLetter(b){ if((b&&b.mode)!=='step') return ''; try { return JSON.parse(b.label||'{}').sl || ''; } catch { return ''; } }
 
 let armedLT = false, armedSteps = false;
 
@@ -665,23 +607,13 @@ const ARROW_STYLES = ['solid','dashed','thick','dot','none'];
 
 // ── Drawing annotation client state (localStorage-backed, never in DB) ──────
 // Layers that appear in the toolbar pills + layers panel (in display order).
-const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution','symbol'];
+const VISIBLE_LAYERS = ['dismantling','step','ref','note','x','caution'];
 // Focusing one layer also reveals its companion(s): Do-not-install travels with Steps.
 const COMPANION = { step:['x'], x:['step'] };
 // Per-drawing independent visibility set ({mode: bool}); default all visible.
 let layerVis = {};
 // Balloon size multiplier (display + export), persisted globally.
 let markerSize = parseFloat(localStorage.getItem('deployops_balloon_size')) || 1;
-// Loctite-block + steps-table size multipliers (display + export), persisted globally
-// — controlled from the sidebar cards, same as Marker size.
-let loctiteSize = parseFloat(localStorage.getItem('deployops_loctite_size')) || 1;
-let tableSize = parseFloat(localStorage.getItem('deployops_table_size')) || 1;
-// PNG/PDF size correction — multiplies ONLY the exported (canvas) table / loctite
-// block so you can dial the generated size to match the on-screen UI. 1 = no change.
-let tableExportCal = parseFloat(localStorage.getItem('deployops_table_export_cal')) || 1;
-let loctiteExportCal = parseFloat(localStorage.getItem('deployops_loctite_export_cal')) || 1;
-// Steps-table instruction column width multiplier (affects on-screen + PNG/PDF).
-let tableColW = parseFloat(localStorage.getItem('deployops_table_colw')) || 1;
 // Armed note-template text — next drawing click drops a note prefilled with it.
 let armedNote = null;
 
@@ -724,142 +656,8 @@ function leaderRouteOf(b){
 }
 function paintAnnotations(){ renderBalloonsSVG(); renderOverlay(); }
 
-// ── Extra leaders: a balloon may have several arrows fanning out to different
-// screws. The primary leader stays in tip_x_pct/tip_y_pct; extras live in the
-// label JSON under _extra.xt as [{x,y,w:[],c:bool}] (percentage coords).
-function extraTips(b){ const e = balloonMeta(b)._extra; return (e && Array.isArray(e.xt)) ? e.xt : []; }
-async function saveExtraTips(b, arr){
-  const meta = balloonMeta(b);
-  const extra = Object.assign({}, meta._extra);
-  if (arr && arr.length) extra.xt = arr; else delete extra.xt;
-  b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, extra);
-  renderBalloonsSVG();
-  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id); } catch(e){ console.error(e); }
-}
-async function addExtraLeader(bid){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  if (b.tip_x_pct == null || b.tip_y_pct == null) return addLeader(bid); // seed primary first
-  const arr = extraTips(b).slice();
-  const n = arr.length + 1;
-  const tx = Math.min(100, Math.max(0, (b.x_pct || 0) + 8 + n*4));
-  const ty = Math.min(100, Math.max(0, (b.y_pct || 0) - 8 - n*2));
-  arr.push({ x: tx, y: ty, w: [], c: defaultArrowCurve() });
-  await saveExtraTips(b, arr);
-  toast('Extra arrow added — drag its tip onto the screw', 'ok');
-}
-async function deleteExtraLeader(bid, xi){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const arr = extraTips(b).slice(); if (xi < 0 || xi >= arr.length) return;
-  arr.splice(xi, 1);
-  await saveExtraTips(b, arr);
-  toast('Arrow removed', 'ok');
-}
-function startXTipDrag(e){
-  if (e.button !== 0 || dwgSpaceHeld) return;
-  e.preventDefault(); e.stopPropagation();
-  isDragging = false;
-  const g = e.currentTarget, bid = g.dataset.id, xi = +g.dataset.xi;
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const img = document.getElementById('drawingImg'); if (!img) return;
-  const arr = extraTips(b).slice(); if (!arr[xi]) return;
-  const onMove = (ev) => {
-    ev.preventDefault(); isDragging = true;
-    const rect = img.getBoundingClientRect();
-    const xp = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
-    const yp = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
-    arr[xi] = Object.assign({}, arr[xi], { x: xp, y: yp });
-    const meta = balloonMeta(b);
-    b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, Object.assign({}, meta._extra, { xt: arr }));
-    renderBalloonsSVG();
-  };
-  const onUp = async () => {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    if (isDragging){ try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); } catch(err){ console.error(err); } await loadBalloons(); paintAnnotations(); }
-    setTimeout(() => { isDragging = false; }, 100);
-  };
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-}
-
 // Admin smoke test for §7/§8 — exercises the real insert/spawn/dedupe DB paths
 // on the OPEN drawing, then deletes everything it created. Safe + non-destructive.
-async function toggleXLeaderCurve(bid, xi){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const arr = extraTips(b).slice(); if (!arr[xi]) return;
-  arr[xi] = Object.assign({}, arr[xi], { c: !arr[xi].c });
-  await saveExtraTips(b, arr);
-}
-async function addXLeaderBend(bid, xi){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const arr = extraTips(b).slice(); const xt = arr[xi]; if (!xt) return;
-  const wps = Array.isArray(xt.w) ? xt.w.slice() : [];
-  const nodes = [{x:b.x_pct,y:b.y_pct}, ...wps, {x:xt.x,y:xt.y}];
-  const seg = longestSegPct(nodes);
-  const a = nodes[seg.bi], bb = nodes[seg.bi+1];
-  const dx=bb.x-a.x, dy=bb.y-a.y, L=seg.len||1, off=Math.min(14, L*0.28);
-  wps.splice(seg.bi, 0, { x: clampPct(seg.mx - dy/L*off), y: clampPct(seg.my + dx/L*off) });
-  arr[xi] = Object.assign({}, xt, { w: wps, c: true });
-  await saveExtraTips(b, arr);
-}
-async function deleteXLeaderBend(bid, xi, i){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const arr = extraTips(b).slice(); const xt = arr[xi]; if (!xt) return;
-  const wps = (Array.isArray(xt.w) ? xt.w : []).filter((_,k)=>k!==i);
-  arr[xi] = Object.assign({}, xt, { w: wps });
-  await saveExtraTips(b, arr);
-}
-// Split a leader into two: duplicate its full route (waypoints + curve) into a
-// new extra arrow whose tip starts just beside the original, so the two share a
-// path from the balloon and the user only drags the new tip to the 2nd screw.
-async function splitLeader(bid){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  if (b.tip_x_pct == null || b.tip_y_pct == null) return;
-  const meta = balloonMeta(b);
-  const arr = extraTips(b).slice();
-  const wps = (meta.waypoints || []).map(p => ({ x:p.x, y:p.y }));
-  arr.push({ x: clampPct(b.tip_x_pct + 5), y: clampPct(b.tip_y_pct + 5), w: wps, c: !!meta.curve });
-  await saveExtraTips(b, arr);
-  toast('Arrow split \u2014 drag the new tip to its screw', 'ok');
-}
-async function splitXLeader(bid, xi){
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const arr = extraTips(b).slice(); const xt = arr[xi]; if (!xt) return;
-  const wps = (Array.isArray(xt.w) ? xt.w : []).map(p => ({ x:p.x, y:p.y }));
-  arr.push({ x: clampPct((xt.x||0) + 5), y: clampPct((xt.y||0) + 5), w: wps, c: !!xt.c });
-  await saveExtraTips(b, arr);
-  toast('Arrow split \u2014 drag the new tip to its screw', 'ok');
-}
-function startXWaypointDrag(e){
-  if (e.button !== 0 || dwgSpaceHeld) return;
-  e.preventDefault(); e.stopPropagation();
-  isDragging = false;
-  const g = e.currentTarget, bid = g.dataset.id, xi = +g.dataset.xi, i = +g.dataset.i;
-  const b = balloons.find(x => x.id === bid); if (!b) return;
-  const img = document.getElementById('drawingImg'); if (!img) return;
-  const arr = extraTips(b).slice(); if (!arr[xi]) return;
-  const onMove = (ev) => {
-    ev.preventDefault(); isDragging = true;
-    const rect = img.getBoundingClientRect();
-    const x = clampPct(((ev.clientX-rect.left)/rect.width)*100);
-    const y = clampPct(((ev.clientY-rect.top)/rect.height)*100);
-    const wps = (Array.isArray(arr[xi].w) ? arr[xi].w : []).slice(); wps[i] = {x,y};
-    arr[xi] = Object.assign({}, arr[xi], { w: wps, c: true });
-    const meta = balloonMeta(b);
-    b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, Object.assign({}, meta._extra, { xt: arr }));
-    g._dirty = true;
-    renderBalloonsSVG();
-  };
-  const onUp = async () => {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    if (isDragging && g._dirty){ try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); } catch(err){ console.error(err); } }
-    setTimeout(()=>{ isDragging=false; }, 100);
-  };
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-}
-
 async function runAnnotationSelfTest(){
   if (!isAdmin){ console.warn('Self-test is admin-only.'); return; }
   if (!currentDrawing){ toast('Open a drawing first','err'); return; }
@@ -1017,103 +815,11 @@ function loadLayerVis() {
 function saveLayerVis() {
   if (currentDrawing) localStorage.setItem('deployops_layervis_' + currentDrawing.id, JSON.stringify(layerVis));
 }
-function normTpl(t){ return (t && typeof t === 'object') ? { text: String(t.text||''), color: t.color || null, textColor: t.textColor || null } : { text: String(t||''), color: null, textColor: null }; }
 function loadNoteTemplates() {
-  try { const raw = localStorage.getItem('deployops_note_templates'); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) return a.map(normTpl); } } catch {}
-  return DEFAULT_NOTE_TEMPLATES.map(normTpl);
+  try { const raw = localStorage.getItem('deployops_note_templates'); if (raw) return JSON.parse(raw); } catch {}
+  return DEFAULT_NOTE_TEMPLATES.slice();
 }
 function saveNoteTemplates(list) { localStorage.setItem('deployops_note_templates', JSON.stringify(list)); }
-
-let newNoteColor = null;   // null = auto palette colour
-let newNoteTextColor = null;
-let armedNoteColor = null;
-let armedNoteTextColor = null;
-function pickNoteColor(c){ newNoteColor = c; refreshDrawingChrome(); }
-function pickNoteTextColor(c){ newNoteTextColor = c; refreshDrawingChrome(); }
-function noteColorSwatches(){ return colorSwatchRow(SYMBOL_COLORS, newNoteColor, 'pickNoteColor', {auto:true, transparent:true}); }
-function noteTextColorSwatches(){ return colorSwatchRow(SYMBOL_COLORS, newNoteTextColor, 'pickNoteTextColor', {auto:true}); }
-
-// ── Special symbols: shared DB library + independent display size ──
-let symbols = [];                 // library rows [{id,text,color,sort_order}]
-let armedSymbol = null;           // {id,text,color} — next drawing click drops it
-let newSymbolColor = '#0ea5e9';   // selected colour in the add form
-let newSymbolTextColor = null;    // null = auto contrast
-let symbolSize = parseFloat(localStorage.getItem('deployops_symbol_size')) || 2;
-const SYMBOL_COLORS = ['#0ea5e9','#ef4444','#f59e0b','#22c55e','#8b5cf6','#ec4899','#14b8a6','#111827'];
-function pickTextColor(hex){ try { const h=(hex||'').replace('#',''); const n=h.length===3?h.split('').map(c=>c+c).join(''):h; const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16); return (0.299*r+0.587*g+0.114*b)>150 ? '#111' : '#fff'; } catch { return '#fff'; } }
-function hex6(c){ try { let h=(c||'').trim(); if(/^#([0-9a-f]{3})$/i.test(h)){ h='#'+h.slice(1).split('').map(x=>x+x).join(''); } return /^#([0-9a-f]{6})$/i.test(h)?h.toLowerCase():'#888888'; } catch { return '#888888'; } }
-
-function pillStyle(color, textColor){ const tc = (textColor && textColor !== 'auto') ? textColor : null; if(color==='transparent'||color==='none'||!color){ return { fill:'none', stroke:'#94a3b8', text: tc || '#111' }; } return { fill:color, stroke:'#ffffff', text: tc || pickTextColor(color) }; }
-const TRANSPARENT_BG = 'repeating-conic-gradient(#b9c0cc 0% 25%, #fff 0% 50%) 0 / 10px 10px';
-function colorSwatchRow(colors, current, onpick, opts){
-  let h = '';
-  if (opts && opts.auto) h += `<button class="sym-sw sym-sw-auto ${current==null?'sel':''}" onclick="${onpick}(null)" title="Auto colour">A</button>`;
-  h += colors.map(c => `<button class="sym-sw ${current===c?'sel':''}" style="background:${c}" onclick="${onpick}('${c}')" title="${c}"></button>`).join('');
-  if (opts && opts.transparent) h += `<button class="sym-sw ${current==='transparent'?'sel':''}" style="background:${TRANSPARENT_BG}" onclick="${onpick}('transparent')" title="Transparent (no fill)"></button>`;
-  h += `<input type="color" class="sym-sw sym-sw-custom ${(current&&current!=='transparent'&&colors.indexOf(current)<0)?'sel':''}" value="${hex6(current||'#888888')}" oninput="${onpick}(this.value)" title="Custom colour">`;
-  return h;
-}
-async function loadSymbols(){ try { const { data } = await sb.from('deployops_symbols').select('*').order('sort_order',{ascending:true}); symbols = data || []; } catch(e){ console.warn('loadSymbols failed', e); symbols = []; } }
-async function addSymbol(){
-  const inp = document.getElementById('symInput');
-  const text = (inp && inp.value || '').trim();
-  if (!text) { toast('Enter symbol text','err'); return; }
-  const sort_order = symbols.length ? Math.max.apply(null, symbols.map(s=>s.sort_order||0))+1 : 0;
-  const row = { text, color:newSymbolColor, sort_order };
-  if (newSymbolTextColor) row.text_color = newSymbolTextColor;
-  const { error } = await sb.from('deployops_symbols').insert(row);
-  if (error) { toast('Save failed: '+error.message,'err'); return; }
-  await loadSymbols(); refreshDrawingChrome(); toast('Symbol added','ok');
-}
-async function deleteSymbol(id){
-  const { error } = await sb.from('deployops_symbols').delete().eq('id', id);
-  if (error) { toast('Delete failed: '+error.message,'err'); return; }
-  if (armedSymbol && armedSymbol.id===id) armedSymbol = null;
-  await loadSymbols(); refreshDrawingChrome();
-}
-function pickSymbolColor(c){ newSymbolColor = c; refreshDrawingChrome(); }
-function pickSymbolTextColor(c){ newSymbolTextColor = c; refreshDrawingChrome(); }
-function armSymbol(id){
-  if (!isAdmin) return;
-  const s = symbols.find(x=>x.id===id); if (!s) return;
-  if (armedSymbol && armedSymbol.id===id) { disarmSymbol(); return; }
-  armedSymbol = { id:s.id, text:s.text, color:s.color, textColor:s.text_color||null };
-  armedNote = null; armedLT = false; armedSteps = false;
-  currentMode = 'symbol'; balloonMode = 'add';
-  if (layerVis['symbol'] === false) { layerVis['symbol'] = true; saveLayerVis(); }
-  renderDrawing();
-}
-function disarmSymbol(){ armedSymbol = null; renderDrawing(); }
-function setSymbolSize(v){
-  symbolSize = parseFloat(v) || 2;
-  localStorage.setItem('deployops_symbol_size', String(symbolSize));
-  const el = document.getElementById('symSizeVal'); if (el) el.textContent = Math.round(symbolSize*100)+'%';
-  renderBalloonsSVG();
-}
-function renderSymbolsCard(){
-  const chips = symbols.map(s => {
-    const tc = pickTextColor(s.color);
-    return `<span class="sym-chip ${armedSymbol&&armedSymbol.id===s.id?'armed':''}" style="background:${s.color}">
-      <button class="sym-chip-text" style="color:${tc}" onclick="armSymbol('${s.id}')" title="Arm — next click drops this symbol">${esc(s.text)}</button>
-      <button class="sym-chip-del admin-only" onclick="deleteSymbol('${s.id}')" title="Delete symbol">✕</button>
-    </span>`;
-  }).join('');
-  const sws = colorSwatchRow(SYMBOL_COLORS, newSymbolColor, 'pickSymbolColor', {transparent:true});
-  const pct = Math.round(symbolSize*100);
-  return `<div class="dwg-card admin-only">
-    <div class="dwg-card-head"><span>Special symbols</span><span class="marker-size-val" id="symSizeVal">${pct}%</span></div>
-    <input type="range" class="marker-size-slider" min="0.5" max="4" step="0.25" value="${symbolSize}" oninput="setSymbolSize(this.value)" style="margin-bottom:10px">
-    <div class="sym-chips">${chips || '<span class="dwg-empty">No symbols yet</span>'}</div>
-    <div class="sw-label">Background</div>
-    <div class="sym-colors">${sws}</div>
-    <div class="sw-label">Text</div>
-    <div class="sym-colors">${colorSwatchRow(SYMBOL_COLORS, newSymbolTextColor, 'pickSymbolTextColor', {auto:true})}</div>
-    <div class="sym-add">
-      <input id="symInput" placeholder="e.g. ⚠️注意" onkeydown="if(event.key==='Enter')addSymbol()">
-      <button class="btn btn-sm btn-primary" onclick="addSymbol()">Add</button>
-    </div>
-  </div>`;
-}
 // Models tab state (Phase 3)
 let models = [];                    // [{id,name,ref,description,icon,visible,...}]
 let modelView = null;               // currently open model id (null = list view)
@@ -1282,13 +988,6 @@ async function loadDrawings() {
   // drawing here. The topbar #drawingSelect still works as a quick-jump.
 }
 
-// Explicitly-created folders (the deployops_drawing_folders table). These let a
-// folder exist even with zero drawings in it. Loaded alongside loadDrawings.
-async function loadDrawingFolders() {
-  const { data } = await sb.from('deployops_drawing_folders').select('*').order('path', { ascending: true });
-  drawingFolders = data || [];
-}
-
 async function selectDrawing(id) {
   currentDrawing = drawings.find(d => d.id === id) || null;
   currentPage = 1;
@@ -1333,15 +1032,6 @@ function drawingFolderName(d) {
 // existing folder PATH plus each parent prefix (so typing into a nested folder
 // is one tap), unioned with model names. Suggestion-only — the input stays free
 // text, so brand-new paths still work. Blanks + the Uncategorized sentinel out.
-function explicitFolderPaths() {
-  const set = new Set();
-  drawingFolders.forEach(f => {
-    const segs = (f.path || '').split(FSEP).map(s => s.trim()).filter(Boolean);
-    for (let i = 1; i <= segs.length; i++) set.add(segs.slice(0, i).join(FSEP));
-  });
-  return set;
-}
-
 function folderSuggestions() {
   const set = new Set();
   drawings.forEach(d => {
@@ -1349,7 +1039,6 @@ function folderSuggestions() {
     for (let i = 1; i <= segs.length; i++) set.add(segs.slice(0, i).join(FSEP));
   });
   models.forEach(m => { const n = m.name && m.name.trim(); if (n) set.add(n); });
-  explicitFolderPaths().forEach(p => set.add(p));
   return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
@@ -1383,16 +1072,6 @@ function renderDrawingFolderView(el) {
     subCounts[next] = (subCounts[next] || 0) + 1;
   });
 
-  // Merge in explicitly-created folders (incl. empty ones) that sit directly
-  // under the current path, so they show even with zero drawings.
-  explicitFolderPaths().forEach(p => {
-    const segs = p.split(FSEP);
-    if (segs.length !== depth + 1) return;
-    if (!underPath(segs, drawingPath)) return;
-    const next = segs[depth];
-    if (!(next in subCounts)) subCounts[next] = 0;
-  });
-
   // Real sub-folders first (alpha), Uncategorized last.
   const subNames = Object.keys(subCounts).sort((a, b) => {
     if (a === DRAWING_UNCATEGORIZED) return 1;
@@ -1420,15 +1099,9 @@ function renderDrawingFolderView(el) {
 
   // Sub-folder cards
   subNames.forEach(name => {
-    const _childPath = [...drawingPath, name].join(FSEP);
-    const _isEmpty = subCounts[name] === 0 && name !== DRAWING_UNCATEGORIZED;
-    const _delBtn = _isEmpty
-      ? `<button class="delete-icon-btn admin-only" data-path="${esc(_childPath)}" onclick="event.stopPropagation();deleteDrawingFolder(this.dataset.path)" title="Delete empty folder">🗑️</button>`
-      : '';
     html += `
         <div class="folder-card" data-folder="${esc(name)}" onclick="openDrawingFolder(this.dataset.folder)">
           <span class="folder-count">${subCounts[name]}</span>
-          ${_delBtn}
           <div class="folder-icon">${name === DRAWING_UNCATEGORIZED ? '🗂️' : '📁'}</div>
           <div class="folder-name">${esc(name)}</div>
         </div>`;
@@ -1449,7 +1122,6 @@ function renderDrawingFolderView(el) {
 
   // Admin-only contextual upload entry point — prefilled to the current path.
   html += `
-        <div class="folder-card upload-card admin-only" onclick="newSubFolder()" title="Create a folder"><div class="folder-icon">＋</div><div class="folder-name">New folder</div></div>
         <div class="folder-card upload-card admin-only" onclick="uploadToCurrentFolder()" title="${esc(tr(lang, 'dwUploadPdf'))}">
           <div class="folder-icon">＋</div>
           <div class="folder-name">${depth ? 'Upload here' : esc(tr(lang, 'dwUploadPdf'))}</div>
@@ -1471,43 +1143,16 @@ function backToDrawingFolders() { drawingPath = drawingPath.slice(0, -1); curren
 // Create a sub-folder under the current path. Folders are derived from drawings
 // (there is no folder table), so a new sub-folder becomes "real" the moment a
 // drawing is uploaded/moved into it — we open it and offer the first upload.
-async function newSubFolder() {
+function newSubFolder() {
   const name = (prompt('New sub-folder name:') || '').trim().split(FSEP).join('');
   if (!name) return;
   drawingPath = [...drawingPath, name];
   currentDrawing = null;
   renderDrawing();
-  const path = drawingPath.join(FSEP);
-  try {
-    const { error } = await sb.from('deployops_drawing_folders').insert({ path, created_by: currentUser?.email || 'unknown' });
-    if (error && error.code !== '23505') throw error; // 23505 = unique_violation, harmless
-  } catch (e) { console.error(e); toast('Could not create folder: ' + (e.message || e), 'err'); return; }
-  await loadDrawingFolders();
-  renderDrawing();
-  toast('Folder created', 'ok');
+  triggerPDFFilePicker(drawingPath.join(FSEP));
 }
 // Viewer "← Folders" button: close the drawing and return to the folder it was
 // opened from (or the top-level grid if opened via the quick-jump select).
-// Delete an EMPTY folder (admin). Guard: refuse if any drawing lives at/under it.
-// Removes the folder record plus any descendant folder records.
-async function deleteDrawingFolder(path) {
-  const segs = path.split(FSEP);
-  if (drawings.some(d => underPath(folderSegs(d), segs))) { toast('Folder is not empty', 'err'); return; }
-  if (!confirm('Delete empty folder "' + path + '"?')) return;
-  try {
-    let r = await sb.from('deployops_drawing_folders').delete().eq('path', path);
-    if (r.error) throw r.error;
-    r = await sb.from('deployops_drawing_folders').delete().like('path', path + '/%');
-    if (r.error) throw r.error;
-  } catch (e) { console.error(e); toast('Delete failed: ' + (e.message || e), 'err'); return; }
-  await loadDrawingFolders();
-  const cur = drawingPath.join(FSEP);
-  if (cur === path || cur.startsWith(path + FSEP)) drawingPath = segs.slice(0, -1);
-  currentDrawing = null;
-  renderDrawing();
-  toast('Folder deleted', 'ok');
-}
-
 function backFromDrawing() { currentDrawing = null; renderDrawing(); }
 
 // Admin-only rename + move-to-folder. RLS gates the actual write.
@@ -1524,50 +1169,10 @@ function showEditDrawing(id) {
     <input id="edDrawingFolder" list="edDrawingFolderOptions" value="${esc(d.folder || '')}" placeholder="${DRAWING_UNCATEGORIZED}">
     <datalist id="edDrawingFolderOptions">${folders.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
     <div class="modal-actions">
-      <button class="btn btn-danger admin-only" onclick="deleteDrawing(this.dataset.id)" data-id="${esc(d.id)}">🗑️ Delete</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEditDrawing(this.dataset.id)" data-id="${esc(d.id)}">Save</button>
     </div>
   `);
-}
-
-// Admin-only: permanently delete a drawing — its DB row, all its balloons, and
-// every storage file (source.pdf + page_*.png). Listing the storage folder and
-// removing whatever's there is safer than looping page_count, which drifts after
-// page deletions.
-async function deleteDrawing(id) {
-  const d = drawings.find(x => x.id === id);
-  if (!d) return;
-  if (!confirm(`Delete drawing "${d.name || d.drawing_ref}" and ALL its pages, balloons and the source PDF?\n\nThis cannot be undone.`)) return;
-
-  const ref = d.drawing_ref;
-  try {
-    // 1. Remove every file under the drawing's storage folder (source.pdf + page_*.png).
-    const { data: files, error: lsErr } = await sb.storage.from('deployops-drawings').list(ref);
-    if (lsErr) throw lsErr;
-    if (files && files.length) {
-      const paths = files.map(f => `${ref}/${f.name}`);
-      const { error: rmErr } = await sb.storage.from('deployops-drawings').remove(paths);
-      if (rmErr) throw rmErr;
-    }
-
-    // 2. Delete its balloons (FK to drawing_id).
-    const { error: bErr } = await sb.from('deployops_balloons').delete().eq('drawing_id', id);
-    if (bErr) throw bErr;
-
-    // 3. Delete the drawing record last, so storage/balloons can be retried on failure.
-    const { error: dErr } = await sb.from('deployops_drawings').delete().eq('id', id);
-    if (dErr) throw dErr;
-
-    closeModal();
-    if (currentDrawing && currentDrawing.id === id) currentDrawing = null;
-    await loadDrawings();
-    renderDrawing();
-    toast('Drawing deleted', 'ok');
-  } catch (e) {
-    console.error(e);
-    toast('Delete failed: ' + (e.message || e.statusText || JSON.stringify(e)), 'err');
-  }
 }
 
 async function saveEditDrawing(id) {
@@ -1666,22 +1271,11 @@ async function confirmPDFUpload() {
     }).select().single();
     if (dbErr) throw dbErr;
 
-    // Store the source PDF so the viewer can re-render pages vector-crisp at any
-    // zoom. Non-fatal: if it fails the drawing still works off the PNG pages.
-    try {
-      await sb.storage.from('deployops-drawings').upload(`${ref}/source.pdf`, file, { contentType: 'application/pdf', upsert: true });
-    } catch (pdfErr) { console.warn('source.pdf upload failed (hi-fi zoom disabled for this drawing):', pdfErr); }
-
     // Convert each page to PNG and upload
     for (let i = 1; i <= pageCount; i++) {
       toast(`Processing page ${i}/${pageCount}...`,'info');
       const page = await pdf.getPage(i);
-      const _b = page.getViewport({ scale: 1 });
-      const _long = Math.max(_b.width, _b.height);
-      const RASTER_TARGET = 8000, RASTER_MAX_AREA = 40e6;
-      let _scale = Math.min(RASTER_TARGET / _long, Math.sqrt(RASTER_MAX_AREA / (_b.width * _b.height)));
-      _scale = Math.max(_scale, 2.5);
-      const vp = page.getViewport({ scale: _scale });
+      const vp = page.getViewport({ scale: 2.5 });
       const canvas = document.createElement('canvas');
       canvas.width = vp.width; canvas.height = vp.height;
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
@@ -1764,13 +1358,12 @@ function renderDrawing() {
         <button class="btn btn-sm no-print" onclick="window.print()">🖨️ Print</button>
         <button class="btn btn-sm btn-danger admin-only no-print" onclick="deleteCurrentPage()" ${currentDrawing.page_count<=1?'disabled':''} title="${currentDrawing.page_count<=1?'Cannot delete last page':'Delete this page'}">🗑️ Delete Page</button>
       </div>
-      <div class="armed-hint no-print" id="armedHint" style="${(armedNote||armedSymbol)?'':'display:none'}">
-        📌 Armed: <b>${esc(armedNote||(armedSymbol&&armedSymbol.text)||'')}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>
+      <div class="armed-hint no-print" id="armedHint" style="${armedNote?'':'display:none'}">
+        📌 Armed note: <b>${esc(armedNote||'')}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>
       </div>
       <div class="drawing-container" id="drawingContainer">
         <div class="dwg-zoom-wrap" id="dwgZoomWrap">
           <img id="drawingImg" src="${pageUrl}" crossorigin="anonymous" onload="onDrawingLoad()">
-          <canvas id="drawingCanvas" class="no-print" style="position:absolute;top:0;left:0;width:100%;height:100%;display:none;pointer-events:none"></canvas>
           <svg id="balloonSvg" class="${isAdmin?'interactive':''}"></svg>
           <div id="dwgOverlay" class="dwg-overlay"></div>
         </div>
@@ -1785,10 +1378,9 @@ function renderDrawing() {
 function renderDrawingSidebar() {
   return `
     ${renderLayersCard()}
-    ${renderSizesCard()}
+    ${renderMarkerSizeCard()}
     ${renderLeadersCard()}
     ${renderNoteTemplatesCard()}
-    ${renderSymbolsCard()}
     ${renderTorqueCard()}
     ${renderStepsCard()}
     ${renderLoctiteCard()}
@@ -1816,30 +1408,22 @@ function renderLayersCard() {
   </div>`;
 }
 
-// One always-visible card gathering EVERY size control (markers, steps table,
-// column width, loctite block + their PNG/PDF export calibrations).
-function renderSizesCard() {
-  const row = (label, valId, valTxt, min, max, step, val, fn, tip) =>
-    `<div class="size-row-head"${tip?` title="${tip}"`:''}><span>${label}</span><span class="marker-size-val" id="${valId}">${valTxt}</span></div>
-    <input type="range" class="marker-size-slider" min="${min}" max="${max}" step="${step}" value="${val}" oninput="${fn}(this.value)">`;
+function renderMarkerSizeCard() {
+  const pct = Math.round(markerSize * 100);
   return `<div class="dwg-card">
-    <div class="dwg-card-head"><span>Sizes</span></div>
-    ${row('Marker size','markerSizeVal',Math.round(markerSize*100)+'%',0.2,2.5,0.05,markerSize,'setMarkerSize')}
-    ${row('Table size','tableSizeVal',Math.round(tableSize*100)+'%',0.4,2,0.05,tableSize,'setTableSize')}
-    ${row('Column width','tableColWVal',Math.round(tableColW*100)+'%',0.5,2.5,0.05,tableColW,'setTableColW','Width of the instruction column — wider lets more text fit per line before wrapping. Affects both the on-screen table and the PNG/PDF.')}
-    ${row('Table PNG / PDF fix','tableExportCalVal',tableExportCal.toFixed(2)+'\u00d7',0.4,2.5,0.05,tableExportCal,'setTableExportCal','Multiplies ONLY the table in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen table.')}
-    ${row('Loctite size','loctiteSizeVal',Math.round(loctiteSize*100)+'%',0.4,2,0.05,loctiteSize,'setLoctiteSize')}
-    ${row('Loctite PNG / PDF fix','loctiteExportCalVal',loctiteExportCal.toFixed(2)+'\u00d7',0.4,2.5,0.05,loctiteExportCal,'setLoctiteExportCal','Multiplies ONLY the loctite block in the exported PNG/PDF — tune until the export matches the size you see here. Does not change the on-screen block.')}
+    <div class="dwg-card-head"><span>Marker size</span><span class="marker-size-val" id="markerSizeVal">${pct}%</span></div>
+    <input type="range" class="marker-size-slider" min="0.5" max="2.5" step="0.1" value="${markerSize}"
+      oninput="setMarkerSize(this.value)">
   </div>`;
 }
 
 function renderPaletteRows(){
-  const sw=(arr,which,fn)=>arr.map((c,i)=>`<label class="sp-sw" style="background:${c}" title="#${i+1}"><span>${i+1}</span><input type="color" value="${c}" onchange="${fn}(${i}, this.value)">${arr.length>1?`<button class="sp-del" title="Remove colour #${i+1}" onclick="event.preventDefault();event.stopPropagation();delPaletteColor('${which}',${i})">×</button>`:''}</label>`).join('')+`<button class="sp-sw sp-add" title="Add a colour to the sequence" onclick="addPaletteColor('${which}')">＋</button>`;
+  const sw=(arr,fn)=>arr.map((c,i)=>`<label class="sp-sw" style="background:${c}" title="#${i+1}"><span>${i+1}</span><input type="color" value="${c}" onchange="${fn}(${i}, this.value)"></label>`).join('');
   return `<div class="step-pal admin-only">
     <div class="sp-lbl">BOM colour sequence</div>
-    <div class="sp-swatches">${sw(bomPalette,'bom','setBomColor')}</div>
+    <div class="sp-swatches">${sw(bomPalette,'setBomColor')}</div>
     <div class="sp-lbl" style="margin-top:8px">Step colour sequence</div>
-    <div class="sp-swatches">${sw(stepPalette,'step','setStepColor')}</div>
+    <div class="sp-swatches">${sw(stepPalette,'setStepColor')}</div>
     <button class="lt-pal-reset" onclick="resetPalettes()">Reset palettes</button>
   </div>`;
 }
@@ -1890,22 +1474,13 @@ function renderLeadersCard() {
 
 function renderNoteTemplatesCard() {
   const tpls = loadNoteTemplates();
-  const chips = tpls.map((t,i) => {
-    const c = t.color;
-    const bg = (!c) ? '' : (c === 'transparent' ? ('background:' + TRANSPARENT_BG + ';color:var(--text);') : ('background:' + c + ';'));
-    const tc = (!c || c === 'transparent') ? 'var(--text)' : pickTextColor(c);
-    return `<span class="tpl-chip ${armedNote===t.text?'armed':''}" style="${bg}">
-      <button class="tpl-chip-text" style="color:${tc}" onclick="armNoteTemplate(${i})" title="Arm — next click drops this note">${esc(t.text)}</button>
+  const chips = tpls.map((t,i) => `<span class="tpl-chip ${armedNote===t?'armed':''}">
+      <button class="tpl-chip-text" onclick="armNoteTemplate(${i})" title="Arm — next click drops this note">${esc(t)}</button>
       <button class="tpl-chip-del admin-only" onclick="deleteNoteTemplate(${i})" title="Delete template">✕</button>
-    </span>`;
-  }).join('');
+    </span>`).join('');
   return `<div class="dwg-card admin-only">
     <div class="dwg-card-head"><span>Note templates</span></div>
     <div class="tpl-chips">${chips || '<span class="dwg-empty">No templates</span>'}</div>
-    <div class="sw-label">Background</div>
-    <div class="sym-colors">${noteColorSwatches()}</div>
-    <div class="sw-label">Text</div>
-    <div class="sym-colors">${noteTextColorSwatches()}</div>
     <div class="tpl-add">
       <input id="tplInput" placeholder="New template text…">
       <button class="btn btn-sm btn-primary" onclick="addNoteTemplate()">Save</button>
@@ -1965,7 +1540,7 @@ function refreshDrawingChrome() {
   if (btn && balloonMode !== 'add') btn.innerHTML = '➕ Add ' + MODES[currentMode].label;
   const hint = document.getElementById('armedHint');
   if (hint) {
-    const _armTxt = armedNote || (armedSymbol && armedSymbol.text) || ''; if (_armTxt) { hint.style.display = ''; hint.innerHTML = `📌 Armed: <b>${esc(_armTxt)}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>`; }
+    if (armedNote) { hint.style.display = ''; hint.innerHTML = `📌 Armed note: <b>${esc(armedNote)}</b> — click the drawing to drop it. <button class="btn btn-sm" onclick="disarmNote()">Cancel</button>`; }
     else hint.style.display = 'none';
   }
   const side = document.querySelector('.drawing-sidebar');
@@ -1978,45 +1553,13 @@ function setMarkerSize(v) {
   localStorage.setItem('deployops_balloon_size', String(markerSize));
   const val = document.getElementById('markerSizeVal');
   if (val) val.textContent = Math.round(markerSize * 100) + '%';
-  schedulePdfRender && schedulePdfRender();
-}
-function setLoctiteSize(v){
-  loctiteSize = parseFloat(v) || 1;
-  localStorage.setItem('deployops_loctite_size', String(loctiteSize));
-  const el = document.getElementById('loctiteSizeVal'); if (el) el.textContent = Math.round(loctiteSize * 100) + '%';
-  renderOverlay();
-}
-function setTableSize(v){
-  tableSize = parseFloat(v) || 1;
-  localStorage.setItem('deployops_table_size', String(tableSize));
-  const el = document.getElementById('tableSizeVal'); if (el) el.textContent = Math.round(tableSize * 100) + '%';
-  renderOverlay();
   renderBalloonsSVG();
-}
-// PNG/PDF size correction setters — affect the exported canvas only (no UI re-render needed).
-function setTableExportCal(v){
-  tableExportCal = parseFloat(v) || 1;
-  localStorage.setItem('deployops_table_export_cal', String(tableExportCal));
-  const el = document.getElementById('tableExportCalVal'); if (el) el.textContent = tableExportCal.toFixed(2) + '\u00d7';
-}
-function setTableColW(v){
-  tableColW = parseFloat(v) || 1;
-  localStorage.setItem('deployops_table_colw', String(tableColW));
-  const el = document.getElementById('tableColWVal'); if (el) el.textContent = Math.round(tableColW * 100) + '%';
-  renderOverlay();
-}
-function setLoctiteExportCal(v){
-  loctiteExportCal = parseFloat(v) || 1;
-  localStorage.setItem('deployops_loctite_export_cal', String(loctiteExportCal));
-  const el = document.getElementById('loctiteExportCalVal'); if (el) el.textContent = loctiteExportCal.toFixed(2) + '\u00d7';
 }
 
 // ── Note templates ──
-function armNoteText(t, color, textColor) {
+function armNoteText(t) {
   if (!isAdmin) return; // arming only matters for placement (admin)
   armedNote = t;
-  armedNoteColor = (color === undefined) ? null : color;
-  armedNoteTextColor = (textColor === undefined) ? null : textColor;
   currentMode = 'note';
   balloonMode = 'add';
   if (layerVis.note === false) { layerVis.note = true; saveLayerVis(); }
@@ -2025,17 +1568,16 @@ function armNoteText(t, color, textColor) {
 }
 function armNoteTemplate(i) {
   const tpls = loadNoteTemplates();
-  if (tpls[i] != null) armNoteText(tpls[i].text, tpls[i].color, tpls[i].textColor);
+  if (tpls[i] != null) armNoteText(tpls[i]);
 }
-function disarmNote() { armedNote = null; armedSymbol = null; renderDrawing(); }
+function disarmNote() { armedNote = null; renderDrawing(); }
 function addNoteTemplate() {
   const inp = document.getElementById('tplInput');
   const t = (inp && inp.value || '').trim();
   if (!t) { toast('Enter template text','err'); return; }
   const tpls = loadNoteTemplates();
-  if (!tpls.some(x => x.text === t && (x.color||null) === (newNoteColor||null) && (x.textColor||null) === (newNoteTextColor||null))) tpls.push({ text: t, color: newNoteColor, textColor: newNoteTextColor });
+  if (!tpls.includes(t)) tpls.push(t);
   saveNoteTemplates(tpls);
-  if (inp) inp.value = '';
   refreshDrawingChrome();
   toast('Template saved','ok');
 }
@@ -2044,14 +1586,14 @@ function deleteNoteTemplate(i) {
   const removed = tpls[i];
   tpls.splice(i, 1);
   saveNoteTemplates(tpls);
-  if (removed && armedNote === removed.text) { armedNote = null; armedNoteColor = null; }
+  if (armedNote === removed) armedNote = null;
   refreshDrawingChrome();
 }
 function saveLabelAsTemplate(text) {
   const t = (text || '').trim();
   if (!t) { toast('Nothing to save','err'); return; }
   const tpls = loadNoteTemplates();
-  if (!tpls.some(x => x.text === t)) { tpls.push({ text: t, color: null }); saveNoteTemplates(tpls); toast('Saved as template','ok'); }
+  if (!tpls.includes(t)) { tpls.push(t); saveNoteTemplates(tpls); toast('Saved as template','ok'); }
   else toast('Already a template','info');
 }
 
@@ -2093,16 +1635,13 @@ function onDrawingLoad() {
   if (svg && isAdmin) {
     svg.onclick = handleDrawingClick;
   }
-  // Aspect ratio drives PRINT sizing (via the --dwg-ar custom property the print
-  // CSS reads). On screen we letterbox+center the sheet instead (fitDrawingToContainer).
+  // Set aspect ratio on the container so print can scale it uniformly to fit the page
   const img = document.getElementById('drawingImg');
   const container = document.getElementById('drawingContainer');
   if (img && container && img.naturalWidth) {
-    container.style.setProperty('--dwg-ar', img.naturalWidth + ' / ' + img.naturalHeight);
+    container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
   }
   initDrawingZoom();
-  fitDrawingToContainer();
-  initPdfLayer();
 }
 
 // ============================================================
@@ -2121,38 +1660,17 @@ function dwgEls() {
   };
 }
 
-// Letterbox the sheet inside the dark work area and center it (equal margins),
-// instead of pinning it to the top-left. Sets the zoom-wrap to the contained pixel
-// size; the SVG/canvas overlays are 100% of the wrap, so balloons stay aligned.
-function fitDrawingToContainer() {
-  const { wrap, container } = dwgEls();
-  const img = document.getElementById('drawingImg');
-  if (!wrap || !container || !img || !img.naturalWidth) return;
-  if (dwgZoom !== 1) return; // only manage the un-zoomed base fit
-  const cw = container.clientWidth, ch = container.clientHeight;
-  if (!cw || !ch) return;
-  const k = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-  wrap.style.width = Math.round(img.naturalWidth * k) + 'px';
-  wrap.style.height = Math.round(img.naturalHeight * k) + 'px';
-  // Drawing-relative unit (= min displayed dimension, un-zoomed). HTML overlay
-  // widgets (Loctite callout + steps table) scale off this so they hold the SAME
-  // proportion to the sheet as the SVG balloons and the print/export path, instead
-  // of being fixed-px and drifting as the sheet renders wider/narrower.
-  wrap.style.setProperty('--dwg-u', String(Math.min(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k))));
-}
 function applyDwgTransform() {
   const { wrap, container } = dwgEls();
   if (!wrap || !container) return;
   const identity = dwgZoom === 1 && dwgPanX === 0 && dwgPanY === 0;
-  // At identity, flex-center the (letterboxed) sheet with equal margins; once
-  // zoomed/panned, switch to transform-driven view from the top-left origin.
-  container.classList.toggle('dwg-center', identity);
+  // At identity, keep native scrolling (overflow:auto) so tall images still scroll
+  // exactly as before. Once zoomed/panned, switch to transform-driven view.
   container.style.overflow = identity ? 'auto' : 'hidden';
-  wrap.style.transform = identity ? 'none' : `translate(${dwgPanX}px, ${dwgPanY}px) scale(${dwgZoom})`;
+  wrap.style.transform = `translate(${dwgPanX}px, ${dwgPanY}px) scale(${dwgZoom})`;
   container.classList.toggle('pan-ready', dwgSpaceHeld && !dwgPanning);
   const lvl = document.getElementById('zoomLevel');
   if (lvl) lvl.textContent = Math.round(dwgZoom * 100) + '%';
-  schedulePdfRender();
 }
 
 function clampDwgPan() {
@@ -2198,8 +1716,6 @@ function initDrawingZoom() {
   const { wrap, container } = dwgEls();
   if (!container || !wrap) return;
   applyDwgTransform();
-  // Re-fit + re-center the sheet when the window/work-area resizes.
-  if (!window.__dwgFitBound) { window.__dwgFitBound = true; window.addEventListener('resize', () => { fitDrawingToContainer(); applyDwgTransform(); }); }
 
   // Wheel = zoom at cursor. At min zoom, let a downward wheel scroll the
   // container natively (so tall images still scroll as before).
@@ -2258,81 +1774,6 @@ function dwgKeyHandler() {
 }
 dwgKeyHandler();
 
-// ============================================================
-// HI-FI PDF LAYER
-// Re-render the current page straight from the stored source PDF at a resolution
-// matched to the live zoom, so line work + text stay vector-crisp at any zoom.
-// Sits as a canvas directly over the PNG <img> (same box), under the balloon SVG,
-// so balloon anchoring + click-to-place math are unchanged. Legacy drawings with
-// no stored PDF silently keep using the PNG.
-// ============================================================
-const pdfDocCache = {};       // drawingId -> Promise<pdfDoc> | 'none'
-let pdfRenderToken = 0;       // bumped to cancel stale/async renders
-let pdfRenderTimer = null;
-let pdfLastZoom = 0;
-const PDF_QUALITY = 1.5;      // render at 1.5x the displayed size for headroom
-const PDF_MAXDIM = 8192;      // per-axis canvas cap (desktop-safe)
-
-async function loadPdfDoc(drawing) {
-  if (!drawing || typeof pdfjsLib === 'undefined') return null;
-  const id = drawing.id;
-  if (pdfDocCache[id] === 'none') return null;
-  if (pdfDocCache[id]) { try { return await pdfDocCache[id]; } catch (e) { return null; } }
-  const { data } = sb.storage.from('deployops-drawings').getPublicUrl(`${drawing.drawing_ref}/source.pdf`);
-  const p = pdfjsLib.getDocument(data.publicUrl).promise;
-  pdfDocCache[id] = p;
-  try { return await p; }
-  catch (e) { pdfDocCache[id] = 'none'; return null; }  // no PDF stored (legacy) — fall back to PNG
-}
-
-async function renderPdfLayer() {
-  const canvas = document.getElementById('drawingCanvas');
-  const wrap = document.getElementById('dwgZoomWrap');
-  if (!canvas || !wrap || !currentDrawing) return;
-  const drawingAtStart = currentDrawing.id;
-  const doc = await loadPdfDoc(currentDrawing);
-  if (!doc || !currentDrawing || currentDrawing.id !== drawingAtStart) {
-    if (canvas) canvas.style.display = 'none';
-    return;
-  }
-  const token = ++pdfRenderToken;
-  let page;
-  try { page = await doc.getPage(currentPage); } catch (e) { return; }
-  if (token !== pdfRenderToken) return;
-  const boxW = wrap.offsetWidth || canvas.clientWidth || 1000;
-  const base = page.getViewport({ scale: 1 });
-  let scale = Math.min(boxW * dwgZoom * PDF_QUALITY, PDF_MAXDIM) / base.width;
-  if (base.height * scale > PDF_MAXDIM) scale = PDF_MAXDIM / base.height;
-  const vp = page.getViewport({ scale });
-  const off = document.createElement('canvas');
-  off.width = Math.max(1, Math.round(vp.width));
-  off.height = Math.max(1, Math.round(vp.height));
-  try {
-    await page.render({ canvasContext: off.getContext('2d', { alpha: false }), viewport: vp }).promise;
-  } catch (e) { return; }
-  if (token !== pdfRenderToken) return;
-  canvas.width = off.width; canvas.height = off.height;
-  canvas.getContext('2d', { alpha: false }).drawImage(off, 0, 0);
-  canvas.style.display = 'block';
-  pdfLastZoom = dwgZoom;
-}
-
-// Debounced re-render on zoom change. No-op during pan (zoom unchanged).
-function schedulePdfRender() {
-  const canvas = document.getElementById('drawingCanvas');
-  const shown = canvas && canvas.style.display === 'block';
-  if (shown && Math.abs(dwgZoom - pdfLastZoom) < 0.01) return;
-  clearTimeout(pdfRenderTimer);
-  pdfRenderTimer = setTimeout(renderPdfLayer, 110);
-}
-
-function initPdfLayer() {
-  pdfLastZoom = 0;
-  const canvas = document.getElementById('drawingCanvas');
-  if (canvas) canvas.style.display = 'none';
-  renderPdfLayer();
-}
-
 function changePage(delta) {
   const np = currentPage + delta;
   if (np < 1 || np > currentDrawing.page_count) return;
@@ -2353,8 +1794,6 @@ function toggleFullscreen() {
   document.body.classList.toggle('is-fullscreen', isFullscreen);
   const btn = document.getElementById('fullscreenBtn');
   if (btn) btn.innerHTML = isFullscreen ? '✕ Exit Fullscreen' : '⛶ Fullscreen';
-  // Work-area size changed — re-letterbox + re-center the sheet.
-  requestAnimationFrame(() => { dwgZoom = 1; dwgPanX = 0; dwgPanY = 0; fitDrawingToContainer(); applyDwgTransform(); });
 }
 
 async function handleDrawingClick(e) {
@@ -2405,29 +1844,15 @@ async function handleDrawingClick(e) {
   const nextNum = sameModeOnPage.length > 0
     ? Math.max(...sameModeOnPage.map(b => b.number||0)) + 1 : 1;
 
-  // Armed special symbol — drop a coloured symbol tag, no modal.
-  if (armedSymbol != null) {
-    const sym = armedSymbol;
-    armedSymbol = null;
-    const _srow = { drawing_id: currentDrawing.id, page: currentPage, number: nextNum, x_pct, y_pct, label: sym.text, color: sym.color, mode: 'symbol', arrow_style: 'none' };
-    if (sym.textColor) _srow.text_color = sym.textColor;
-    const { error } = await sb.from('deployops_balloons').insert(_srow);
-    if (error) { toast('Save failed: '+error.message,'err'); armedSymbol = sym; return; }
-    toast('Symbol placed','ok');
-    await loadBalloons();
-    renderDrawing();
-    return;
-  }
-
   // Armed note template — drop a note prefilled with the armed text, no modal.
   if (armedNote != null) {
     const text = armedNote;
-    const ncolor = armedNoteColor || markerColor('note', nextNum);
-    const ntext = armedNoteTextColor || null;
-    armedNote = null; armedNoteColor = null; armedNoteTextColor = null;
-    const _nrow = { drawing_id: currentDrawing.id, page: currentPage, number: nextNum, x_pct, y_pct, label: text, color: ncolor, mode: 'note', arrow_style: 'none' };
-    if (ntext) _nrow.text_color = ntext;
-    const { error } = await sb.from('deployops_balloons').insert(_nrow);
+    armedNote = null;
+    const { error } = await sb.from('deployops_balloons').insert({
+      drawing_id: currentDrawing.id, page: currentPage, number: nextNum,
+      x_pct, y_pct,
+      label: text, color: markerColor('note', nextNum), mode: 'note', arrow_style: 'none'
+    });
     if (error) { toast('Save failed: '+error.message,'err'); armedNote = text; return; }
     toast('Note placed','ok');
     await loadBalloons();
@@ -2459,7 +1884,7 @@ async function handleDrawingClick(e) {
       : `<label>Number</label><input id="bNum" type="number" value="${nextNum}" autofocus>
          <label>Label (optional)</label><input id="bLabel" placeholder="e.g. SignalTowerASSY">`}
     <label>Color</label>
-    <div class="color-row"><select id="bColor" onchange="document.getElementById('bColorCustom').value=hex6(this.value)">
+    <select id="bColor">
       <option value="${MODES[currentMode].color}">${MODES[currentMode].label} (default)</option>
       <option value="#e74c3c">🔴 Red</option>
       <option value="#2980b9">🔵 Blue</option>
@@ -2469,9 +1894,7 @@ async function handleDrawingClick(e) {
       <option value="#fbbf24">🟡 Yellow</option>
       <option value="#22d3ee">🔷 Cyan</option>
       <option value="#111">⚫ Black</option>
-    </select><input type="color" id="bColorCustom" class="color-pick" value="${hex6(MODES[currentMode].color)}" title="Custom background colour"></div>
-    <label>Text Color</label>
-    <div class="color-row"><select id="bTextMode" onchange="document.getElementById('bTextColorCustom').disabled=this.value!=='custom'"><option value="auto">Auto (contrast)</option><option value="custom">Custom</option></select><input type="color" id="bTextColorCustom" class="color-pick" value="#ffffff" disabled title="Custom text colour"></div>
+    </select>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveBalloon(${x_pct},${y_pct})">Place</button>
@@ -2490,17 +1913,17 @@ async function saveBalloon(x, y) {
     num = parseInt(document.getElementById('bNum').value);
   }
   const label = document.getElementById('bLabel').value.trim();
-  const color = document.getElementById('bColorCustom').value;
-  const _btm = document.getElementById('bTextMode');
-  const text_color = (_btm && _btm.value === 'custom') ? document.getElementById('bTextColorCustom').value : null;
+  const color = document.getElementById('bColor').value;
   if (!isCable && isNaN(num)) { toast('Enter a number','err'); return; }
   if (isCable && !label) { toast('Enter tag text','err'); return; }
   closeModal();
 
   // No leader by default — added on demand afterward via the "+" affordance.
-  const _arow = { drawing_id: currentDrawing.id, page: currentPage, number: num, x_pct: x, y_pct: y, label, color, mode: currentMode, arrow_style: 'none' };
-  if (text_color) _arow.text_color = text_color;
-  const { error } = await sb.from('deployops_balloons').insert(_arow);
+  const { error } = await sb.from('deployops_balloons').insert({
+    drawing_id: currentDrawing.id, page: currentPage,
+    number: num, x_pct: x, y_pct: y,
+    label, color, mode: currentMode, arrow_style: 'none'
+  });
   if (error) { toast('Save failed: '+error.message,'err'); return; }
   toast(`${MODES[currentMode].label} placed`,'ok');
   await loadBalloons();
@@ -2519,7 +1942,7 @@ function showBalloonActions(bid) {
       : `<label>Number</label><input id="ebNum" type="number" value="${b.number||''}">
          <label>Label</label><input id="ebLabel" value="${esc(balloonText(b))}">`}
     <label>Color</label>
-    <div class="color-row"><select id="ebColor" onchange="document.getElementById('ebColorCustom').value=hex6(this.value)">
+    <select id="ebColor">
       <option value="#e74c3c" ${b.color==='#e74c3c'?'selected':''}>🔴 Red</option>
       <option value="#2980b9" ${b.color==='#2980b9'?'selected':''}>🔵 Blue</option>
       <option value="#27ae60" ${b.color==='#27ae60'?'selected':''}>🟢 Green</option>
@@ -2528,9 +1951,7 @@ function showBalloonActions(bid) {
       <option value="#fbbf24" ${b.color==='#fbbf24'?'selected':''}>🟡 Yellow</option>
       <option value="#22d3ee" ${b.color==='#22d3ee'?'selected':''}>🔷 Cyan</option>
       <option value="#111" ${b.color==='#111'?'selected':''}>⚫ Black</option>
-    </select><input type="color" id="ebColorCustom" class="color-pick" value="${hex6(b.color)}" title="Custom background colour"></div>
-    <label>Text Color</label>
-    <div class="color-row"><select id="ebTextMode" onchange="document.getElementById('ebTextColorCustom').disabled=this.value!=='custom'"><option value="auto" ${!b.text_color?'selected':''}>Auto (contrast)</option><option value="custom" ${b.text_color?'selected':''}>Custom</option></select><input type="color" id="ebTextColorCustom" class="color-pick" value="${hex6(b.text_color||'#ffffff')}" ${b.text_color?'':'disabled'} title="Custom text colour"></div>
+    </select>
     ${(b.tip_x_pct != null && b.tip_y_pct != null) ? `
     <label>Leader Arrow <span style="text-transform:none;letter-spacing:0;color:var(--text2);font-weight:400">(pick “none” to remove)</span></label>
     <div class="arrow-style-row" id="arrowStyleRowEdit">
@@ -2557,9 +1978,7 @@ async function updateBalloon(bid, isCable) {
     num = parseInt(document.getElementById('ebNum').value);
   }
   const labelText = document.getElementById('ebLabel').value.trim();
-  const color = document.getElementById('ebColorCustom').value;
-  const _etm = document.getElementById('ebTextMode');
-  const _wantTC = (_etm && _etm.value === 'custom') ? document.getElementById('ebTextColorCustom').value : null;
+  const color = document.getElementById('ebColor').value;
   const styleEl = document.querySelector('#arrowStyleRowEdit .arrow-style-btn.active');
   const arrow_style = styleEl ? styleEl.dataset.style : 'none';
   closeModal();
@@ -2567,7 +1986,6 @@ async function updateBalloon(bid, isCable) {
   const _meta = _b ? balloonMeta(_b) : { curve:false, waypoints:[] };
   const label = serializeBalloonLabel(labelText, _meta.curve, _meta.waypoints);
   const patch = { number: num, label, color, arrow_style };
-  if (_wantTC) patch.text_color = _wantTC; else if (_b && _b.text_color) patch.text_color = null;
   // Removing the leader (style → none) also clears the tip so no orphan coords linger.
   if (arrow_style === 'none') { patch.tip_x_pct = null; patch.tip_y_pct = null; }
   await sb.from('deployops_balloons').update(patch).eq('id', bid);
@@ -2714,28 +2132,6 @@ function leaderControlsSVG(b, color, nodesPct, curve, vbW, vbH, toggleX, toggleY
 }
 
 // Loctite leader (box -> screw tip) drawn in the SVG layer.
-// Same controls (curve toggle + add-bend + bend handles) for one extra arrow.
-function xLeaderControlsSVG(b, xi, color, nodesPct, curve, vbW, vbH, toggleX, toggleY){
-  const wps = nodesPct.slice(1, -1);
-  let out = '<g class="xcurve-toggle" data-id="'+b.id+'" data-xi="'+xi+'" style="cursor:pointer">'
-    + '<circle cx="'+toggleX+'" cy="'+toggleY+'" r="9" fill="'+(curve?'#7c3aed':'#334155')+'" stroke="white" stroke-width="2"/>'
-    + '<text x="'+toggleX+'" y="'+toggleY+'" text-anchor="middle" dominant-baseline="central" fill="white" font-size="12" pointer-events="none">'+(curve?'\u219d':'\u2192')+'</text>'
-    + '<title>'+(curve?'Curved \u2014 click for straight':'Straight \u2014 click for curved')+'</title></g>';
-  const seg = longestSegPct(nodesPct);
-  const bAx = seg.mx/100*vbW, bAy = seg.my/100*vbH;
-  out += '<g class="xbend-add" data-id="'+b.id+'" data-xi="'+xi+'" style="cursor:pointer">'
-    + '<circle cx="'+bAx+'" cy="'+bAy+'" r="8" fill="#2563eb" stroke="white" stroke-width="2"/>'
-    + '<text x="'+bAx+'" y="'+bAy+'" text-anchor="middle" dominant-baseline="central" fill="white" font-size="12" font-weight="700" pointer-events="none">\uff0b</text>'
-    + '<title>Add a bend</title></g>';
-  wps.forEach((p, i) => {
-    const wx = p.x/100*vbW, wy = p.y/100*vbH;
-    out += '<g class="xwp-handle" data-id="'+b.id+'" data-xi="'+xi+'" data-i="'+i+'" style="cursor:grab"><circle cx="'+wx+'" cy="'+wy+'" r="7" fill="white" stroke="'+color+'" stroke-width="2.5"/></g>'
-      + '<g class="xwp-del" data-id="'+b.id+'" data-xi="'+xi+'" data-i="'+i+'" style="cursor:pointer"><circle cx="'+(wx+11)+'" cy="'+(wy-11)+'" r="6" fill="#dc2626" stroke="white" stroke-width="1.5"/>'
-      + '<text x="'+(wx+11)+'" y="'+(wy-11)+'" text-anchor="middle" dominant-baseline="central" fill="white" font-size="9" font-weight="700" pointer-events="none">\u00d7</text></g>';
-  });
-  return out;
-}
-
 function renderLoctorqueLeaderSVG(b, vbW, vbH){
   const m = ltMeta(b);
   if ((m.leader||'arrow') === 'none') return '';
@@ -2746,7 +2142,7 @@ function renderLoctorqueLeaderSVG(b, vbW, vbH){
   const pts = nodesPct.map(p => ({ x:p.x/100*vbW, y:p.y/100*vbH }));
   const ahId = 'ah_' + c.replace('#','');
   const d = leaderPathD(m.curve, pts, vbW);
-  let out = '<path class="leader-line" d="'+d+'" fill="none" stroke="'+c+'" stroke-width="1.6" marker-end="url(#'+ahId+')" stroke-linecap="round" stroke-linejoin="round"/>';
+  let out = '<path class="leader-line" d="'+d+'" fill="none" stroke="'+c+'" stroke-width="2.4" marker-end="url(#'+ahId+')" stroke-linecap="round" stroke-linejoin="round"/>';
   out += '<circle cx="'+(tipX/100*vbW)+'" cy="'+(tipY/100*vbH)+'" r="4.5" fill="'+c+'" stroke="#0b0e16" stroke-width="1.5"/>';
   if (isAdmin && b.id === selectedBalloonId){
     out += '<g class="tip-handle selected" data-id="'+b.id+'" data-role="tip"><circle cx="'+(tipX/100*vbW)+'" cy="'+(tipY/100*vbH)+'" r="6" fill="white" stroke="'+c+'" stroke-width="2"/></g>';
@@ -2777,6 +2173,8 @@ function loctorqueHTML(b){
   let tools = '';
   if (sel){
     tools = '<div class="lt-tools admin-only">'
+      + '<button class="lt-scale" data-id="'+b.id+'" data-d="-0.1" title="Smaller">−</button>'
+      + '<button class="lt-scale" data-id="'+b.id+'" data-d="0.1" title="Bigger">＋</button>'
       + '<button class="lt-dup" data-id="'+b.id+'" title="Duplicate">⧉</button>'
       + (arrowOn ? '<button class="lt-curve'+(m.curve?' on':'')+'" data-id="'+b.id+'" title="Curve / straight">'+(m.curve?'↝':'→')+'</button>' : '')
       + '<button class="lt-arrow'+(arrowOn?'':' off')+'" data-id="'+b.id+'" title="Arrow on / off">➤</button>'
@@ -2784,7 +2182,7 @@ function loctorqueHTML(b){
       + '<button class="lt-del" data-id="'+b.id+'" title="Delete">×</button>'
       + '</div>';
   }
-  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale(calc(var(--dwg-u,846) / 846 * '+ltViewScale(m.scale)+'))">'
+  return '<div class="lt-callout'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+bx+'%;top:'+by+'%;border-color:'+c+';transform:translate(-50%,-50%) scale('+(m.scale||0.8)+')">'
     + '<span class="lt-grip" data-id="'+b.id+'">⠿</span>'
     + '<div class="lt-body">'
     + '<div class="lt-grade"><span class="lt-dot" style="background:'+c+'"></span>'+gradeUI+'</div>'
@@ -2796,16 +2194,15 @@ function steptableHTML(b){
   const m = stMeta(b);
   const sel = b.id === selectedBalloonId;
   const rows = m.rows.map((r, ri) => ({ r, ri })).sort((a, z) => (a.r.skip ? 1 : 0) - (z.r.skip ? 1 : 0)).map(({ r, ri }) => {
-    const did = stepDisplayId(m.rows, ri);
-    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+';width:auto;min-width:22px;padding:0 5px">'+did+'</span>';
+    const chip = r.skip ? '<span class="mk-cell x">✕</span>' : '<span class="mk-cell step" style="background:'+stepColor(r.n)+'">'+r.n+'</span>';
     const arrowBtn = '<button class="st-arrow-btn admin-only" data-id="'+b.id+'" data-ri="'+ri+'" style="border-color:'+(r.skip?'#dc2626':stepColor(r.n))+';color:'+(r.skip?'#dc2626':stepColor(r.n))+'" title="Drop a balloon + arrow for this step">➤</button>';
     return '<tr><td class="st-num">'+chip+'</td>'
-      + '<td class="st-ins" style="max-width:'+(240*tableColW).toFixed(0)+'px;min-width:'+(160*tableColW).toFixed(0)+'px"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
+      + '<td class="st-ins"><span class="st-ic" '+(sel?'contenteditable':'')+' data-id="'+b.id+'" data-ri="'+ri+'">'+esc(r.text)+'</span></td>'
       + '<td class="st-arrow admin-only">'+arrowBtn+'</td></tr>';
   }).join('');
-  const tools = sel ? '<span class="dt-tools admin-only"><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
-  const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="parallel" title="Add a parallel sub-step (1a, 1b…) to the last step">＋ Parallel</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
-  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale(calc(var(--dwg-u,1000) / 1000 * '+stViewScale(m.scale)+'))">'
+  const tools = sel ? '<span class="dt-tools admin-only"><button class="st-scale" data-id="'+b.id+'" data-d="-0.1">−</button><button class="st-scale" data-id="'+b.id+'" data-d="0.1">＋</button><button class="st-tdel" data-id="'+b.id+'" title="Remove table">×</button></span>' : '';
+  const addRow = sel ? '<div class="st-addrow admin-only"><button class="st-add" data-id="'+b.id+'" data-kind="step">＋ Step</button><button class="st-add" data-id="'+b.id+'" data-kind="skip">＋ ✕ Do-not-install</button></div>' : '';
+  return '<div class="dwg-table step-table'+(sel?' sel':'')+'" data-id="'+b.id+'" style="left:'+b.x_pct+'%;top:'+b.y_pct+'%;transform:scale('+(m.scale||0.9)+')">'
     + '<div class="dt-bar" data-id="'+b.id+'"><span class="dt-grip-ico">⠿</span><span class="dt-title">'+esc(m.title)+'</span>'+tools+'</div>'
     + '<table class="dt-table"><thead><tr><th>Step</th><th>Assembly instruction</th><th class="admin-only">Arrow</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + addRow + '</div>';
@@ -2846,12 +2243,7 @@ async function ltUpdate(b, m){
 function ltSetGrade(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.loctite=val; delete m.color; ltUpdate(b,m); }
 function ltSetColor(id, c){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.color=c; ltUpdate(b,m); }
 function ltSetTorque(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); if((m.torque||'')===val)return; m.torque=val; ltUpdate(b,m); }
-function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.scale=Math.max(0.4,Math.min(1.6,+(((m.scale||0.8)+d)).toFixed(2))); ltUpdate(b,m); }
-// Effective on-screen size. Untouched widgets (still carrying the old default)
-// render at the new, smaller default so existing drawings shrink automatically;
-// anything the user explicitly scaled keeps its custom value.
-function ltViewScale(s){ return ((s==null||s===0.8)?0.62:s) * loctiteSize; }
-function stViewScale(s){ return ((s==null||s===0.9)?0.68:s) * tableSize; }
+function ltScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.scale=Math.max(0.6,Math.min(1.6,+(((m.scale||0.8)+d)).toFixed(2))); ltUpdate(b,m); }
 function ltToggleArrow(id){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.leader=(m.leader||'arrow')==='none'?'arrow':'none'; ltUpdate(b,m); }
 async function dupLT(id){
   const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b);
@@ -2865,8 +2257,8 @@ async function dupLT(id){
 function stSerialize(m){ return JSON.stringify({ title:m.title, scale:m.scale, rows:m.rows }); }
 async function stUpdate(b, m){ b.label = stSerialize(m); renderOverlay(); try { await sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id); } catch(e){ console.error(e); } }
 function stCommit(id, ri, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(!m.rows[ri]||(m.rows[ri].text||'')===val)return; m.rows[ri].text=val; stUpdate(b,m); }
-function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.4,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
-function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); const steps=m.rows.filter(x=>!x.skip); if(kind==='skip') m.rows.push({skip:true,text:''}); else if(kind==='parallel'){ const lastN = steps.length ? steps[steps.length-1].n : 1; m.rows.push({n:lastN,text:''}); } else { const maxN = steps.length ? Math.max(...steps.map(x=>x.n||0)) : 0; m.rows.push({n:maxN+1,text:''}); } stUpdate(b,m); }
+function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.6,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
+function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(kind==='skip') m.rows.push({skip:true,text:''}); else { const n=m.rows.filter(x=>!x.skip).length+1; m.rows.push({n,text:''}); } stUpdate(b,m); }
 
 // Independent caution size — stored per-caution in the label's extra (_extra.s).
 async function scaleCaution(bid, dir) {
@@ -2890,19 +2282,16 @@ async function deleteAnnotation(id){
 async function spawnFromStep(tableId, ri){
   const tbl=balloons.find(x=>x.id===tableId); if(!tbl)return; const m=stMeta(tbl); const r=m.rows[ri]; if(!r)return;
   const isX=!!r.skip;
-  const did=stepDisplayId(m.rows, ri);
-  const sl=isX ? '' : did.replace(/^[0-9]+/, '');
-  const dup=balloons.filter(x=>{ try{ const o=JSON.parse(x.label||'{}'); return o&&o.ft===tableId&&o.fr===ri; }catch{return false;} }).length;
-  // (dedupe removed — a row may spawn multiple arrows; staggered below)
-  const off=dup*5;
-  const bx=Math.min(92,(tbl.x_pct||0)+24+off), by=Math.min(86,(tbl.y_pct||0)+8+(((r.n||1)%5)*4)+off);
+  const existing=balloons.find(x=>{ if((x.mode)!==(isX?'x':'step'))return false; try{ const o=JSON.parse(x.label||'{}'); return o&&o.ft===tableId&&o.fr===ri; }catch{return false;} });
+  if(existing){ selectedBalloonId=existing.id; paintAnnotations(); if(typeof showBalloonActions==='function') showBalloonActions(existing.id); return; }
+  const bx=Math.min(92,(tbl.x_pct||0)+24), by=Math.min(86,(tbl.y_pct||0)+8+(((r.n||1)%5)*4));
   const tx=Math.max(2,Math.min(98,bx+11)), ty=Math.max(2,Math.min(98,by+7));
-  const label=JSON.stringify({ t:'', c:defaultArrowCurve(), w:[], ft:tableId, fr:ri, sl });
+  const label=JSON.stringify({ t:'', c:defaultArrowCurve(), w:[], ft:tableId, fr:ri });
   try {
     const { data, error } = await sb.from('deployops_balloons').insert({ drawing_id:currentDrawing.id, page:currentPage, number:isX?0:(r.n||1), x_pct:bx, y_pct:by, tip_x_pct:tx, tip_y_pct:ty, label, color:isX?'#f87171':stepColor(r.n), mode:isX?'x':'step', arrow_style:'solid' }).select().single();
     if (error) throw error;
     if (layerVis[isX?'x':'step']===false){ layerVis[isX?'x':'step']=true; saveLayerVis(); }
-    await loadBalloons(); selectedBalloonId = data ? data.id : null; paintAnnotations(); toast(dup?('Arrow #'+(dup+1)+' added — drag its tip onto the next screw'):'Balloon spawned — drag its tip onto the screw','ok');
+    await loadBalloons(); selectedBalloonId = data ? data.id : null; paintAnnotations(); toast('Balloon spawned — drag its tip onto the screw','ok');
   } catch(e){ console.error(e); toast('Spawn failed: '+(e.message||e),'err'); }
 }
 
@@ -3022,8 +2411,6 @@ function renderBalloonsSVG() {
     const shape = (MODES[bmode] && MODES[bmode].shape) || (isCable ? 'note' : 'circle');
     const isTag = isCable || shape === 'note' || shape === 'caution';
     const isCaution = shape === 'caution';
-    const isSymbol = shape === 'symbol';
-    const boxLike = isTag || isSymbol;
     const cautionScale = isCaution ? ((+balloonMeta(b)._extra.s) || 1) : 1;
     const style = b.arrow_style || (b.tip_x_pct!=null?'solid':'none');
     const ahId = 'ah_' + color.replace('#','');
@@ -3037,13 +2424,6 @@ function renderBalloonsSVG() {
       tagH = 18 * markerSize * cautionScale;
     }
 
-    if (isSymbol) {
-      const stext = balloonText(b) || '★';
-      const SZ = symbolSize, fs = 11 * SZ;
-      tagH = 20 * SZ;
-      tagW = Math.max(30 * SZ, [...stext].length * fs * 0.78 + 16 * SZ);
-    }
-
     // Leader (only if tip exists & style != none). Straight legacy leaders keep
     // the exact <line> render; curved / multi-bend leaders become an SVG <path>.
     if (b.tip_x_pct != null && b.tip_y_pct != null && style !== 'none') {
@@ -3052,15 +2432,15 @@ function renderBalloonsSVG() {
       const meta = balloonMeta(b);
       const hasRoute = meta.curve || (meta.waypoints && meta.waypoints.length);
 
-      let strokeW = 1.3, dash = '', marker = `url(#${ahId})`;
+      let strokeW = 2, dash = '', marker = `url(#${ahId})`;
       if (style === 'dashed') { dash = '6 4'; }
-      else if (style === 'thick') { strokeW = 2.4; marker = `url(#${ahId}_big)`; }
+      else if (style === 'thick') { strokeW = 3.5; marker = `url(#${ahId}_big)`; }
       else if (style === 'dot') { marker = ''; }
 
       if (!hasRoute) {
         // Edge-trimmed straight line — unchanged behaviour.
         let sx, sy;
-        if (boxLike) {
+        if (isTag) {
           [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
         } else {
           const dx = tx - cx, dy = ty - cy;
@@ -3084,7 +2464,6 @@ function renderBalloonsSVG() {
 
       // Tip handle (admin only, only when this balloon is selected)
       if (isAdmin && b.id === selectedBalloonId) {
-        html += `<g class="leader-split" data-id="${b.id}" style="cursor:pointer"><circle cx="${tx-13}" cy="${ty-13}" r="7" fill="#0e7490" stroke="white" stroke-width="1.5"/><text x="${tx-13}" y="${ty-13}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="9" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">Y</text><title>Split this arrow into two</title></g>`;
         html += `<g class="tip-handle selected" data-id="${b.id}" data-role="tip">
           <circle cx="${tx}" cy="${ty}" r="6" fill="white" stroke="${color}" stroke-width="2"/>
         </g>`;
@@ -3092,34 +2471,6 @@ function renderBalloonsSVG() {
     }
 
     // Balloon body
-    // Extra leaders (multiple arrows from one balloon) — drawn under the body.
-    extraTips(b).forEach((xt, xi) => {
-      const xtx = (xt.x||0)/100*vbW, xty = (xt.y||0)/100*vbH;
-      const exStyle = b.arrow_style || 'solid';
-      let exSW = 1.3, exDash = '', exMarker = `url(#${ahId})`;
-      if (exStyle === 'dashed') exDash = '6 4';
-      else if (exStyle === 'thick'){ exSW = 2.4; exMarker = `url(#${ahId}_big)`; }
-      else if (exStyle === 'dot') exMarker = '';
-      const xwps = Array.isArray(xt.w) ? xt.w : [];
-      if (xt.c || xwps.length){
-        const pts = [{x:b.x_pct,y:b.y_pct}, ...xwps, {x:xt.x,y:xt.y}].map(p => ({ x:p.x/100*vbW, y:p.y/100*vbH }));
-        html += `<path class="leader-line" d="${leaderPathD(!!xt.c, pts, vbW)}" fill="none" stroke="${color}" stroke-width="${exSW}" ${exDash?`stroke-dasharray="${exDash}"`:''} ${exMarker?`marker-end="${exMarker}"`:''} stroke-linecap="round" stroke-linejoin="round"/>`;
-      } else {
-        let sx, sy;
-        if (boxLike){ [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, xtx, xty); }
-        else { const dx = xtx-cx, dy = xty-cy, dist = Math.sqrt(dx*dx+dy*dy)||1; sx = cx+dx/dist*r; sy = cy+dy/dist*r; }
-        html += `<line class="leader-line" x1="${sx}" y1="${sy}" x2="${xtx}" y2="${xty}" stroke="${color}" stroke-width="${exSW}" ${exDash?`stroke-dasharray="${exDash}"`:''} ${exMarker?`marker-end="${exMarker}"`:''} stroke-linecap="round"/>`;
-      }
-      if (exStyle === 'dot') html += `<circle class="leader-line" cx="${xtx}" cy="${xty}" r="4" fill="${color}"/>`;
-      if (isAdmin && b.id === selectedBalloonId){
-        html += `<g class="xtip-handle" data-id="${b.id}" data-xi="${xi}" data-role="xtip"><circle cx="${xtx}" cy="${xty}" r="6" fill="white" stroke="${color}" stroke-width="2"/></g>`;
-        html += `<g class="xtip-del" data-id="${b.id}" data-xi="${xi}" style="cursor:pointer"><circle cx="${xtx+12}" cy="${xty-12}" r="7" fill="#dc2626" stroke="white" stroke-width="1.5"/><text x="${xtx+12}" y="${xty-12}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">×</text></g>`;
-        const xnodes = [{x:b.x_pct,y:b.y_pct}, ...xwps, {x:xt.x,y:xt.y}];
-        const xToggleX = Math.max(14, xtx - 16), xToggleY = Math.min(vbH - 14, xty + 16);
-        html += xLeaderControlsSVG(b, xi, color, xnodes, !!xt.c, vbW, vbH, xToggleX, xToggleY);
-        html += `<g class="xleader-split" data-id="${b.id}" data-xi="${xi}" style="cursor:pointer"><circle cx="${xtx-13}" cy="${xty-13}" r="7" fill="#0e7490" stroke="white" stroke-width="1.5"/><text x="${xtx-13}" y="${xty-13}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="9" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">Y</text><title>Split this arrow into two</title></g>`;
-      }
-    });
     html += `<g class="balloon-g${sel}" data-id="${b.id}" data-role="body">`;
     if (isTag) {
       // Box tag — white background, coloured border. Cable/note show a chip on
@@ -3144,23 +2495,12 @@ function renderBalloonsSVG() {
             <circle cx="70" cy="106" r="9" fill="#1a1a1a"/>
           </g>
           <text x="${txtX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#7c2d12" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
-      } else if (shape === 'note') {
-        const ps = pillStyle(color, b.text_color);
-        html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="${Math.min(tagH/2,10)}" fill="${ps.fill}" stroke="${ps.stroke}" stroke-width="${1.5*markerSize}"/>
-          <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="${ps.text}" font-size="${fs}" font-weight="700" font-family="DM Sans,'Noto Sans JP',sans-serif">${text}</text>`;
       } else {
-        const chip = '#27ae60';
+        const chip = shape === 'note' ? color : '#27ae60';
         html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="3" fill="white" stroke="${color}" stroke-width="${1.5*markerSize}"/>
           <rect x="${indX}" y="${indY}" width="${indSize}" height="${indSize}" rx="1" fill="${chip}"/>
           <text x="${textX}" y="${cy}" text-anchor="start" dominant-baseline="central" fill="#111" font-size="${fs}" font-weight="700" font-family="DM Sans,sans-serif">${text}</text>`;
       }
-    } else if (isSymbol) {
-      const stext = esc(balloonText(b) || '★');
-      const fs = 11 * symbolSize;
-      const x0 = cx - tagW/2, y0 = cy - tagH/2;
-      const ps = pillStyle(color, b.text_color);
-      html += `<rect class="b-main" x="${x0}" y="${y0}" width="${tagW}" height="${tagH}" rx="${tagH/2}" fill="${ps.fill}" stroke="${ps.stroke}" stroke-width="1.5"/>
-        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="${ps.text}" font-size="${fs}" font-weight="700" font-family="DM Sans, 'Noto Sans JP', sans-serif">${stext}</text>`;
     } else if (shape === 'x') {
       // No-install — filled red circle, white ✕, no number.
       html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
@@ -3171,20 +2511,20 @@ function renderBalloonsSVG() {
       const s = r * 1.8, x0 = cx - s/2, y0 = cy - s/2;
       html += `<rect x="${x0-3}" y="${y0-3}" width="${s+6}" height="${s+6}" rx="5" fill="white" opacity="0.9" class="b-halo"/>
         <rect class="b-main" x="${x0}" y="${y0}" width="${s}" height="${s}" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
-        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${(b.number||'')+stepSubLetter(b)}</text>`;
+        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + r + 10, esc(_c)); }
     } else if (shape === 'triangle') {
       const h = r * 2.1, w = r * 2.3;
       const p1 = `${cx},${cy - h*0.6}`, p2 = `${cx + w/2},${cy + h*0.4}`, p3 = `${cx - w/2},${cy + h*0.4}`;
       html += `<polygon points="${cx},${cy-h*0.6-3} ${cx+w/2+3},${cy+h*0.4+3} ${cx-w/2-3},${cy+h*0.4+3}" fill="white" opacity="0.9" class="b-halo"/>
         <polygon class="b-main" points="${p1} ${p2} ${p3}" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="${cx}" y="${cy + h*0.08}" text-anchor="middle" dominant-baseline="central" fill="#111" font-size="${r*0.95}" font-weight="700" font-family="DM Sans,sans-serif">${(b.number||'')+stepSubLetter(b)}</text>`;
+        <text x="${cx}" y="${cy + h*0.08}" text-anchor="middle" dominant-baseline="central" fill="#111" font-size="${r*0.95}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + h*0.4 + 12, esc(_c)); }
     } else {
       html += `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="white" opacity="0.9" class="b-halo"/>
         <circle class="b-main" cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="1.5"/>
         <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white"
-              font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${(b.number||'')+stepSubLetter(b)}</text>`;
+              font-size="${r*1.1}" font-weight="700" font-family="DM Sans,sans-serif">${b.number||''}</text>`;
       { const _c = balloonText(b); if (_c) html += labelTag(cx, cy + r + 10, esc(_c)); }
     }
     html += `</g>`;
@@ -3202,12 +2542,9 @@ function renderBalloonsSVG() {
     if (isAdmin && b.id === selectedBalloonId && bmode !== 'table' &&
         b.tip_x_pct != null && b.tip_y_pct != null) {
       const meta = balloonMeta(b);
-      const ctX = Math.max(14, cx - (boxLike ? tagW/2 : r) - 16);
-      const ctY = Math.min(vbH - 14, cy + (boxLike ? tagH/2 : r) + 16);
+      const ctX = Math.max(14, cx - (isTag ? tagW/2 : r) - 16);
+      const ctY = Math.min(vbH - 14, cy + (isTag ? tagH/2 : r) + 16);
       html += leaderControlsSVG(b, color, leaderNodesPct(b, meta), meta.curve, vbW, vbH, ctX, ctY);
-      const axx = Math.min(vbW - 12, cx + (boxLike ? tagW/2 : r) + 14);
-      const ayy = Math.max(12, cy - (boxLike ? tagH/2 : r) - 14);
-      html += `<g class="add-xleader" data-id="${b.id}" style="cursor:pointer"><circle cx="${axx}" cy="${ayy}" r="9" fill="#0e7490" stroke="white" stroke-width="2"/><text x="${axx}" y="${ayy}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="13" font-weight="700" font-family="DM Sans,sans-serif" pointer-events="none">+</text><title>Add another arrow from this balloon</title></g>`;
     }
 
     // "Add leader" affordance — only on the selected marker when it has no leader yet.
@@ -3215,7 +2552,7 @@ function renderBalloonsSVG() {
     // dragged out on demand. Tables are excluded.
     if (isAdmin && b.id === selectedBalloonId && bmode !== 'table' &&
         (b.tip_x_pct == null || b.tip_y_pct == null)) {
-      const off = (boxLike ? tagW/2 : r) + 22;
+      const off = (isTag ? tagW/2 : r) + 22;
       const ax = Math.min(vbW - 12, cx + off);
       const ay = Math.max(12, cy - off);
       html += `<g class="add-leader" data-id="${b.id}" data-role="add-leader" style="cursor:pointer">
@@ -3235,15 +2572,6 @@ function renderBalloonsSVG() {
     svg.querySelectorAll('.tip-handle').forEach(g => {
       g.addEventListener('pointerdown', startTipDrag);
     });
-    svg.querySelectorAll('.xtip-handle').forEach(g => { g.addEventListener('pointerdown', startXTipDrag); });
-    svg.querySelectorAll('.xtip-del').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); deleteExtraLeader(g.dataset.id, +g.dataset.xi); }); });
-    svg.querySelectorAll('.xcurve-toggle').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); toggleXLeaderCurve(g.dataset.id, +g.dataset.xi); }); });
-    svg.querySelectorAll('.xbend-add').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addXLeaderBend(g.dataset.id, +g.dataset.xi); }); });
-    svg.querySelectorAll('.xwp-handle').forEach(g => { g.addEventListener('pointerdown', startXWaypointDrag); });
-    svg.querySelectorAll('.xwp-del').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); deleteXLeaderBend(g.dataset.id, +g.dataset.xi, +g.dataset.i); }); });
-    svg.querySelectorAll('.leader-split').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); splitLeader(g.dataset.id); }); });
-    svg.querySelectorAll('.xleader-split').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); splitXLeader(g.dataset.id, +g.dataset.xi); }); });
-    svg.querySelectorAll('.add-xleader').forEach(g => { g.addEventListener('click', (e) => { e.stopPropagation(); addExtraLeader(g.dataset.id); }); });
     svg.querySelectorAll('.add-leader').forEach(g => {
       g.addEventListener('click', (e) => { e.stopPropagation(); addLeader(g.dataset.id); });
     });
@@ -3424,7 +2752,6 @@ async function deleteCurrentPage() {
     await sb.from('deployops_drawings').update({ page_count: total - 1 }).eq('id', currentDrawing.id);
 
     drawingCacheBust[currentDrawing.id] = Date.now();
-    pdfDocCache[currentDrawing.id] = 'none'; // page order in source.pdf no longer matches after a delete — fall back to PNG
     toast(`Page ${deletedPage} deleted`,'ok');
     await loadDrawings();
     currentDrawing = drawings.find(d => d.id === currentDrawing.id);
@@ -3460,7 +2787,7 @@ function drawLoctorqueCanvas(ctx, b, canvas){
     ctx.beginPath(); ctx.arc(tipX,tipY,u*0.006,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  const sc=ltViewScale(m.scale)*loctiteExportCal, fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
+  const sc=m.scale||0.8, fs=u*0.013*sc, pad=fs*0.7, grade=badgeFor(m.loctite), torque=((m.torque||'—')+' N·m');
   ctx.save(); ctx.font='700 '+fs+"px 'DM Sans',sans-serif";
   const w=Math.max(ctx.measureText(grade).width, ctx.measureText(torque).width)+pad*2+fs;
   const h=fs*3.4, x0=bx-w/2, y0=by-h/2;
@@ -3476,24 +2803,19 @@ function drawLoctorqueCanvas(ctx, b, canvas){
 }
 // §8 Assembly-steps table → export canvas (light card).
 function drawStepTableCanvas(ctx, b, canvas){
-  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H), scale=stViewScale(m.scale)*tableExportCal;
+  const m=stMeta(b), W=canvas.width, H=canvas.height, u=Math.min(W,H), scale=m.scale||0.9;
   const x0=b.x_pct/100*W, y0=b.y_pct/100*H;
-  const fs=u*0.012*scale, barH=fs*1.9, rh=fs*2.3, numW=fs*3, insW=u*0.17*scale*tableColW, W2=numW+insW;
-  const lineH=fs*1.35, padV=fs*0.5, textW=insW-fs*1.2;
+  const fs=u*0.012*scale, barH=fs*1.9, rh=fs*2.3, numW=fs*3, insW=u*0.17*scale, W2=numW+insW;
   ctx.save(); ctx.textBaseline='middle';
   ctx.fillStyle='#dbe5f3'; ctx.fillRect(x0,y0,W2,barH);
   ctx.fillStyle='#1d3a63'; ctx.font='700 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
   ctx.fillText('⠿ '+m.title, x0+fs*0.5, y0+barH/2);
-  // Measure-wrap each instruction so long text flows onto new lines (no truncation).
-  ctx.font='600 '+fs+"px 'DM Sans',sans-serif";
-  const wrapText=(text)=>{ const words=String(text||'').split(/\s+/).filter(Boolean); if(!words.length) return ['']; const lines=[]; let cur=words[0]; for(let i=1;i<words.length;i++){ const t=cur+' '+words[i]; if(ctx.measureText(t).width<=textW) cur=t; else { lines.push(cur); cur=words[i]; } } lines.push(cur); return lines; };
-  const rowData=[...m.rows].sort((a,z)=>(a.skip?1:0)-(z.skip?1:0)).map(r=>{ const lines=wrapText(r.text); const h=Math.max(rh, lines.length*lineH+padV*2); return {r,lines,h}; });
   let yy=y0+barH;
-  rowData.forEach(({r,lines,h})=>{
+  [...m.rows].sort((a,z)=>(a.skip?1:0)-(z.skip?1:0)).forEach(r=>{
     ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1;
-    ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,h);
-    ctx.strokeRect(x0,yy,numW,h); ctx.strokeRect(x0+numW,yy,insW,h);
-    const cs=fs*1.5, ccx=x0+numW/2, ccy=yy+h/2;
+    ctx.fillStyle='#fff'; ctx.fillRect(x0,yy,W2,rh);
+    ctx.strokeRect(x0,yy,numW,rh); ctx.strokeRect(x0+numW,yy,insW,rh);
+    const cs=fs*1.5, ccx=x0+numW/2, ccy=yy+rh/2;
     ctx.fillStyle=r.skip?'#dc2626':stepColor(r.n);
     ctx.beginPath();
     if(r.skip) ctx.arc(ccx,ccy,cs/2,0,Math.PI*2); else ctx.roundRect(ccx-cs/2,ccy-cs/2,cs,cs,cs*0.2);
@@ -3501,11 +2823,11 @@ function drawStepTableCanvas(ctx, b, canvas){
     ctx.fillStyle='#fff'; ctx.font='800 '+(fs*0.9)+"px 'JetBrains Mono',monospace"; ctx.textAlign='center';
     ctx.fillText(r.skip?'✕':String(r.n), ccx, ccy);
     ctx.fillStyle='#14171c'; ctx.font='600 '+fs+"px 'DM Sans',sans-serif"; ctx.textAlign='left';
-    const tx=x0+numW+fs*0.5, totalH=lines.length*lineH; let ly=ccy-totalH/2+lineH/2;
-    lines.forEach(line=>{ ctx.fillText(line, tx, ly); ly+=lineH; });
-    yy+=h;
+    ctx.save(); ctx.beginPath(); ctx.rect(x0+numW,yy,insW,rh); ctx.clip();
+    ctx.fillText(r.text||'', x0+numW+fs*0.5, ccy); ctx.restore();
+    yy+=rh;
   });
-  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y0,W2,barH+rowData.reduce((s,x)=>s+x.h,0));
+  ctx.strokeStyle='#b9c2d0'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y0,W2,barH+rh*m.rows.length);
   ctx.restore();
 }
 
@@ -3597,7 +2919,6 @@ async function exportAnnotatedPNG() {
     return layerVis[m] !== false;
   });
   const r = Math.min(canvas.width, canvas.height) * 0.018 * markerSize;
-  const rs = Math.min(canvas.width, canvas.height) * 0.018 * symbolSize;
   const shapeOf = (b) => {
     const m = b.mode || 'balloon';
     return (MODES[m] && MODES[m].shape) || (m === 'cable' ? 'note' : 'circle');
@@ -3618,7 +2939,6 @@ async function exportAnnotatedPNG() {
     const sh = shapeOf(b);
     const isCable = (b.mode||'balloon') === 'cable';
     const isTag = isCable || isTagShape(sh);
-    const isSymbol = sh === 'symbol';
 
     // Trim line to start at edge of balloon body (rect for tags, circle otherwise)
     const dx = tx-cx, dy = ty-cy;
@@ -3626,13 +2946,7 @@ async function exportAnnotatedPNG() {
     const _hasRoute = _meta.curve || (_meta.waypoints && _meta.waypoints.length);
     let ahAng = Math.atan2(dy, dx);
     let sx, sy;
-    if (isSymbol) {
-      const text = balloonText(b) || '★';
-      ctx.font = "bold " + (rs*0.7) + "px DM Sans, 'Noto Sans JP', sans-serif";
-      const tw = ctx.measureText(text).width;
-      const tagW = tw + rs, tagH = rs*1.3;
-      [sx, sy] = rectEdgePoint(cx, cy, tagW, tagH, tx, ty);
-    } else if (isTag) {
+    if (isTag) {
       const text = balloonText(b) || '?';
       ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
       const tw = ctx.measureText(text).width;
@@ -3692,58 +3006,6 @@ async function exportAnnotatedPNG() {
     ctx.restore();
   });
 
-  // Extra leaders (multiple arrows from one balloon) — straight line + arrowhead.
-  pageBalloons.forEach(b => {
-    if ((b.mode||'') === 'table') return;
-    const tips = extraTips(b); if (!tips.length) return;
-    const style = b.arrow_style || 'solid'; if (style === 'none') return;
-    const cx = b.x_pct/100 * canvas.width, cy = b.y_pct/100 * canvas.height;
-    const color = b.color || '#e74c3c';
-    const W = canvas.width, H = canvas.height;
-    tips.forEach(xt => {
-      const tx = (xt.x||0)/100 * W, ty = (xt.y||0)/100 * H;
-      // Follow the extra leader's OWN waypoints + curve flag (same as the SVG/UI
-      // renderer and the main-leader canvas path) so a split arrow rides the curved
-      // trunk and diverges only at its tip — instead of a straight chord.
-      const xwps = (Array.isArray(xt.w) ? xt.w : []).map(p => ({ x:p.x/100*W, y:p.y/100*H }));
-      const pts = [{x:cx,y:cy}, ...xwps, {x:tx,y:ty}];
-      const curved = !!xt.c;
-      ctx.save();
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (style === 'dashed'){ ctx.setLineDash([r*0.4, r*0.3]); ctx.lineWidth = r*0.15; }
-      else if (style === 'thick'){ ctx.lineWidth = r*0.25; }
-      else { ctx.lineWidth = r*0.15; }
-      ctx.beginPath();
-      if (!curved){
-        // straight polyline (start trimmed to the balloon edge for the first hop)
-        const dx0 = pts[1].x-cx, dy0 = pts[1].y-cy, d0 = Math.sqrt(dx0*dx0+dy0*dy0)||1;
-        ctx.moveTo(cx + dx0/d0*r, cy + dy0/d0*r);
-        for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
-      } else if (pts.length === 2){
-        const a=pts[0], b2=pts[1], mx=(a.x+b2.x)/2, my=(a.y+b2.y)/2, ddx=b2.x-a.x, ddy=b2.y-a.y, len=Math.hypot(ddx,ddy)||1, off=Math.min(len*0.3, W*0.2);
-        ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx-ddy/len*off, my+ddx/len*off, b2.x, b2.y);
-      } else {
-        ctx.moveTo(pts[0].x,pts[0].y);
-        for (let i=0;i<pts.length-1;i++){ const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];
-          ctx.bezierCurveTo(p1.x+(p2.x-p0.x)/6,p1.y+(p2.y-p0.y)/6,p2.x-(p3.x-p1.x)/6,p2.y-(p3.y-p1.y)/6,p2.x,p2.y); }
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Arrowhead angle = tangent of the last hop (the point feeding into the tip).
-      const prev = pts[pts.length-2] || {x:cx,y:cy};
-      const ang = Math.atan2(ty - prev.y, tx - prev.x);
-      if (style === 'dot'){ ctx.beginPath(); ctx.arc(tx, ty, r*0.28, 0, Math.PI*2); ctx.fill(); }
-      else {
-        const ahLen = style === 'thick' ? r*0.7 : r*0.55, ahW = style === 'thick' ? r*0.35 : r*0.28;
-        ctx.beginPath(); ctx.moveTo(tx, ty);
-        ctx.lineTo(tx - ahLen*Math.cos(ang) + ahW*Math.sin(ang), ty - ahLen*Math.sin(ang) - ahW*Math.cos(ang));
-        ctx.lineTo(tx - ahLen*Math.cos(ang) - ahW*Math.sin(ang), ty - ahLen*Math.sin(ang) + ahW*Math.cos(ang));
-        ctx.closePath(); ctx.fill();
-      }
-      ctx.restore();
-    });
-  });
-
   // Second pass: balloons / tags / no-install / tables
   pageBalloons.forEach(b => {
     const cx = b.x_pct/100 * canvas.width;
@@ -3762,59 +3024,30 @@ async function exportAnnotatedPNG() {
       drawStepTableCanvas(ctx, b, canvas);
     } else if (isCable || sh === 'note' || isCaution) {
       const text = balloonText(b) || (sh === 'note' ? 'Note' : isCaution ? 'Caution' : '?');
-      const cs = isCaution ? ((+(balloonMeta(b)?._extra?.s)) || 1) : 1;
-      const rr = r * cs;
-      ctx.font = `bold ${rr*0.85}px DM Sans, sans-serif`;
-      const fontPx = rr*0.85;
-      const triK = isCaution ? (fontPx*1.25)/125 : 0;
-      const icoW = 140 * triK;
-      const tw = isCaution ? (icoW + 6 + ctx.measureText(text).width) : ctx.measureText(text).width;
-      const indSize = rr*0.9;
-      const padX = rr*0.35, indGap = rr*0.3;
-      // caution shows the drawn warning triangle + text
+      ctx.font = `bold ${r*0.85}px DM Sans, sans-serif`;
+      const glyph = isCaution ? '⚠ ' : '';
+      const tw = ctx.measureText(glyph + text).width;
+      const indSize = r*0.9;
+      const padX = r*0.35, indGap = r*0.3;
+      // caution has no chip square — just glyph + text
       const w = isCaution ? (padX + tw + padX) : (padX + indSize + indGap + tw + padX);
-      const h = rr*1.5, rad = rr*0.25;
+      const h = r*1.5, rad = r*0.25;
       const x0 = cx - w/2, y0 = cy - h/2;
-      const _ps = (sh === 'note') ? pillStyle(color, b.text_color) : null;
-      ctx.fillStyle = isCaution ? '#fef9c3' : (_ps ? _ps.fill : 'white');
-      ctx.strokeStyle = isCaution ? '#f59e0b' : (_ps ? _ps.stroke : color);
-      ctx.lineWidth = Math.max(1.5, rr*0.08);
-      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad);
-      if (!(_ps && _ps.fill === 'none')) ctx.fill();
-      ctx.stroke();
-      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isCaution ? '#fff7ed' : 'white';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, r*0.08);
+      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); ctx.fill(); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       if (isCaution) {
-        ctx.textAlign = 'left';
-        const icoH = 125 * triK;
-        drawCautionTri(ctx, x0 + padX, cy - icoH/2, triK);
         ctx.fillStyle = '#7c2d12';
-        ctx.fillText(text, x0 + padX + icoW + 6, cy);
-      } else if (sh === 'note') {
-        ctx.textAlign = 'center';
-        ctx.fillStyle = _ps.text;
-        ctx.fillText(text, cx, cy);
+        ctx.fillText(glyph + text, x0 + padX, cy);
       } else {
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#27ae60';
+        ctx.fillStyle = sh === 'note' ? color : '#27ae60';
         const indX = x0 + padX, indY = cy - indSize/2;
         ctx.beginPath(); ctx.roundRect(indX, indY, indSize, indSize, r*0.1); ctx.fill();
         ctx.fillStyle = '#111';
         ctx.fillText(text, indX + indSize + indGap, cy);
       }
-    } else if (sh === 'symbol') {
-      const text = balloonText(b) || '★';
-      ctx.font = "bold " + (rs*0.7) + "px DM Sans, 'Noto Sans JP', sans-serif";
-      const tw = ctx.measureText(text).width;
-      const padX = rs*0.5, w = tw + padX*2, h = rs*1.3;
-      const x0 = cx - w/2, y0 = cy - h/2;
-      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, h/2);
-      const ps2 = pillStyle(color, b.text_color);
-      ctx.strokeStyle = ps2.stroke; ctx.lineWidth = Math.max(1.5, rs*0.08);
-      if (ps2.fill !== 'none') { ctx.fillStyle = ps2.fill; ctx.fill(); }
-      ctx.stroke();
-      ctx.fillStyle = ps2.text;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text, cx, cy);
     } else if (sh === 'x') {
       // No-install — red circle with white ✕, no number
       ctx.beginPath(); ctx.arc(cx, cy, r+4, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill();
@@ -3840,7 +3073,7 @@ async function exportAnnotatedPNG() {
       // Number
       ctx.fillStyle = 'white'; ctx.font = `bold ${r*1.3}px DM Sans, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(b.number||'')+stepSubLetter(b), cx, cy);
+      ctx.fillText(String(b.number||''), cx, cy);
       // Label
       if (balloonText(b)) {
         ctx.font = `${r*0.6}px DM Sans, sans-serif`;
@@ -5567,7 +4800,6 @@ function showPrintOptions(opts = {}) {
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
       <label class="radio-row"><input type="radio" name="destChoice" value="printer" checked> 🖨️ Printer</label>
       <label class="radio-row"><input type="radio" name="destChoice" value="pdf"> 📄 PDF <span style="color:var(--text2);font-size:11px">(downloads one file per section)</span></label>
-      <label class="radio-row"><input type="radio" name="destChoice" value="word"> 📝 Word (.doc) <span style="color:var(--text2);font-size:11px">(editable handover document)</span></label>
     </div>
 
     ${modeSection}
@@ -6073,8 +5305,6 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     };
     if (dest === 'pdf') {
       await generatePerSectionPdfZip(m, unitName, sectionDocs, lang, style, wsPrinterPath);
-    } else if (dest === 'word') {
-      exportWorksheetDoc(m, unitName, sectionDocs, lang, style);
     } else {
       wsPrinterPath();
     }
@@ -6198,38 +5428,6 @@ async function printFilledStatus(opts) {
   } else {
     printerPath();
   }
-}
-
-// ============================================================
-// WORD EXPORT — the same worksheet HTML wrapped in an MS-Word
-// HTML envelope. Downloads a .doc that opens directly in Word /
-// Google Docs as an editable document (tables, tints, checkboxes
-// preserved). No dependencies.
-// ============================================================
-function exportWorksheetDoc(m, unitName, sectionDocs, lang, style) {
-  const body = renderAllSectionsForPrint(m, unitName, sectionDocs, lang, style);
-  let html = buildWorksheetDoc(body, { style, forPdf: false });
-  // Strip scripts (print auto-fire) — Word must not see them.
-  html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
-  // Word reads mso @page setup; keep worksheet CSS as-is (it's already pt/mm based).
-  const inner = html.replace(/^[\s\S]*?<head[^>]*>/i, '').replace(/<\/html>\s*$/i, '');
-  const wordDoc =
-    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
-    '<head><meta charset="utf-8">' +
-    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->' +
-    '<style>@page WordSection1{size:210mm 297mm;margin:18mm 16mm 16mm 18mm;mso-page-orientation:portrait;} div.WordSection1{page:WordSection1;}</style>' +
-    inner.replace(/<body([^>]*)>/i, '<body$1><div class="WordSection1">').replace(/<\/body>/i, '</div></body>') +
-    '</html>';
-  const safe = s => (s || '').replace(/[\\/:*?"<>|]+/g, '-').trim();
-  const fname = `QC Worksheet - ${safe(pickField(m, 'name', lang) || m.name || 'Model')}${unitName ? ' - ' + safe(unitName) : ''}.doc`;
-  const blob = new Blob(['\ufeff', wordDoc], { type: 'application/msword' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast('Word document downloaded — opens in MS Word', 'ok');
 }
 
 function openPrintWindow(html) {
@@ -7381,7 +6579,7 @@ async function init() {
     else if (e.key === 'Escape' && brushPhase) { brushPhase = null; renderModels(); }  // G.2: Esc exits brush mode
   });
   document.body.dataset.tab = 'models';
-  await Promise.all([loadDrawings(), loadDrawingFolders(), loadModels(), loadSymbols()]);
+  await Promise.all([loadDrawings(), loadModels()]);
   window._modelsLoaded = true;
   // Drawings tab opens on its folder grid (currentDrawing stays null); no
   // auto-select. Deploy is model-based and no longer depends on currentDrawing.

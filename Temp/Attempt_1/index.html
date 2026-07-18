@@ -73,6 +73,17 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .tip-handle.selected circle{stroke:var(--cyan);stroke-width:3}
 .leader-line{pointer-events:none}
 
+/* GROUPING SHAPES (install-as-package boundary) */
+.shape-main{fill:none;stroke-linejoin:round;pointer-events:none}
+.shape-hit{fill:none;stroke:rgba(0,0,0,0);stroke-width:16;pointer-events:stroke;cursor:move}
+.balloon-svg-armed .shape-hit,.balloon-svg-armed .shape-chip{pointer-events:none}
+.shape-chip{cursor:move;pointer-events:all}
+.shape-chip-txt{font-family:'JetBrains Mono',monospace;font-weight:700;fill:#0b0e16;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.shape-handle{fill:#fff;stroke:#0b0e16;stroke-width:1.6;pointer-events:all}
+.shape-del{pointer-events:all;cursor:pointer}
+.shape-rubber{fill:none;stroke-width:2.5;stroke-dasharray:7 5;pointer-events:none}
+.shape-draw-surface{fill:transparent;pointer-events:all;cursor:crosshair}
+
 /* MODE PILLS */
 .mode-pills{display:inline-flex;gap:4px;background:#000;border-radius:999px;padding:3px;align-items:center}
 .mode-pill{padding:5px 12px;border-radius:999px;border:none;background:transparent;color:#aaa;font-size:11px;font-family:inherit;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
@@ -231,6 +242,12 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .torque-tbl tbody tr{cursor:pointer}
 .torque-tbl tbody tr:hover{background:var(--surface3)}
 .torque-tbl td.t-num,.torque-tbl th:last-child{text-align:right;font-family:'JetBrains Mono',monospace}
+.torque-tbl td.t-hl{width:20px;text-align:center;padding:2px}
+.t-hl-btn{background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:12px;line-height:1;padding:2px}
+.t-hl-btn:hover{color:#eab308}
+.torque-tbl tbody tr.t-hl-on{background:#fde047 !important;color:#0b0e16}
+.torque-tbl tbody tr.t-hl-on td{color:#0b0e16}
+.torque-tbl tbody tr.t-hl-on .t-hl-btn{color:#a16207}
 
 /* CHECKLIST BUILDER */
 .cl-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden}
@@ -1914,8 +1931,10 @@ function renderNoteTemplatesCard() {
 }
 
 function renderTorqueCard() {
-  const rows = TORQUE_TABLE.rows.map(r =>
-    `<tr onclick="armTorqueRow('${esc(r[1])}','${esc(r[2])}')" title="Arm note: ${esc(r[1])} · ${esc(r[2])} N·m">
+  const hl = new Set(getTorqueHl());
+  const rows = TORQUE_TABLE.rows.map((r,i) =>
+    `<tr class="${hl.has(i)?'t-hl-on':''}" onclick="armTorqueRow('${esc(r[1])}','${esc(r[2])}')" title="Arm note: ${esc(r[1])} · ${esc(r[2])} N·m">
+       <td class="t-hl"><button class="t-hl-btn" onclick="toggleTorqueHl(event,${i})" title="Highlight for wrench prep">▮</button></td>
        <td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="t-num">${esc(r[2])}</td>
      </tr>`).join('');
   return `<div class="dwg-card">
@@ -1924,12 +1943,25 @@ function renderTorqueCard() {
     </div>
     <table class="torque-tbl">
       <thead>
-        <tr><th>Hex bit</th><th colspan="2">${esc(TORQUE_TABLE.title)}</th></tr>
-        <tr><th></th><th>Screw</th><th>Torque N·m</th></tr>
+        <tr><th></th><th>Hex bit</th><th colspan="2">${esc(TORQUE_TABLE.title)}</th></tr>
+        <tr><th></th><th></th><th>Screw</th><th>Torque N·m</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
+}
+
+// ── Torque row highlight (localStorage, per drawing) — flags rows for wrench prep.
+// Separate from armTorqueRow (the row-body click), which authors note templates.
+function torqueHlKey(){ return 'deployops_torque_hl_' + (currentDrawing?.id || 'global'); }
+function getTorqueHl(){ try { return JSON.parse(localStorage.getItem(torqueHlKey())) || []; } catch { return []; } }
+function setTorqueHl(arr){ localStorage.setItem(torqueHlKey(), JSON.stringify(arr)); }
+function toggleTorqueHl(ev, i){
+  ev.stopPropagation();
+  const s = new Set(getTorqueHl());
+  s.has(i) ? s.delete(i) : s.add(i);
+  setTorqueHl([...s]);
+  refreshDrawingChrome();
 }
 
 // Toolbar pill / layer name → focus: make this the active tool AND isolate the
@@ -5567,7 +5599,6 @@ function showPrintOptions(opts = {}) {
     <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
       <label class="radio-row"><input type="radio" name="destChoice" value="printer" checked> 🖨️ Printer</label>
       <label class="radio-row"><input type="radio" name="destChoice" value="pdf"> 📄 PDF <span style="color:var(--text2);font-size:11px">(downloads one file per section)</span></label>
-      <label class="radio-row"><input type="radio" name="destChoice" value="word"> 📝 Word (.doc) <span style="color:var(--text2);font-size:11px">(editable handover document)</span></label>
     </div>
 
     ${modeSection}
@@ -6073,8 +6104,6 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     };
     if (dest === 'pdf') {
       await generatePerSectionPdfZip(m, unitName, sectionDocs, lang, style, wsPrinterPath);
-    } else if (dest === 'word') {
-      exportWorksheetDoc(m, unitName, sectionDocs, lang, style);
     } else {
       wsPrinterPath();
     }
@@ -6198,38 +6227,6 @@ async function printFilledStatus(opts) {
   } else {
     printerPath();
   }
-}
-
-// ============================================================
-// WORD EXPORT — the same worksheet HTML wrapped in an MS-Word
-// HTML envelope. Downloads a .doc that opens directly in Word /
-// Google Docs as an editable document (tables, tints, checkboxes
-// preserved). No dependencies.
-// ============================================================
-function exportWorksheetDoc(m, unitName, sectionDocs, lang, style) {
-  const body = renderAllSectionsForPrint(m, unitName, sectionDocs, lang, style);
-  let html = buildWorksheetDoc(body, { style, forPdf: false });
-  // Strip scripts (print auto-fire) — Word must not see them.
-  html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
-  // Word reads mso @page setup; keep worksheet CSS as-is (it's already pt/mm based).
-  const inner = html.replace(/^[\s\S]*?<head[^>]*>/i, '').replace(/<\/html>\s*$/i, '');
-  const wordDoc =
-    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
-    '<head><meta charset="utf-8">' +
-    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->' +
-    '<style>@page WordSection1{size:210mm 297mm;margin:18mm 16mm 16mm 18mm;mso-page-orientation:portrait;} div.WordSection1{page:WordSection1;}</style>' +
-    inner.replace(/<body([^>]*)>/i, '<body$1><div class="WordSection1">').replace(/<\/body>/i, '</div></body>') +
-    '</html>';
-  const safe = s => (s || '').replace(/[\\/:*?"<>|]+/g, '-').trim();
-  const fname = `QC Worksheet - ${safe(pickField(m, 'name', lang) || m.name || 'Model')}${unitName ? ' - ' + safe(unitName) : ''}.doc`;
-  const blob = new Blob(['\ufeff', wordDoc], { type: 'application/msword' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast('Word document downloaded — opens in MS Word', 'ok');
 }
 
 function openPrintWindow(html) {

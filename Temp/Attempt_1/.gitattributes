@@ -1,0 +1,9 @@
+# DeployOps line-ending policy
+# The deployed app is a single CRLF index.html. Lock it so editors,
+# patches, and any future auto-sync run can never drift it to LF or
+# produce mixed endings (the 312-line churn we just cleaned up).
+
+*.html text eol=crlf
+
+# Leave everything else to git's defaults. Add more lines here only
+# if a new tracked text type starts showing line-ending churn.

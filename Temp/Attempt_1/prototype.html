@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeployOps — Phase 2 Prototype</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root{--bg:#07090f;--surface:#0f1219;--surface2:#161c28;--surface3:#1e2538;--border:#2a3350;--text:#e2e8f0;--text2:#94a3b8;--accent:#60a5fa;--accent2:#818cf8;--red:#f87171;--green:#34d399;--orange:#fbbf24;--pink:#f472b6;--cyan:#22d3ee}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* PROTOTYPE BANNER */
+.proto-banner{background:linear-gradient(90deg,#fb923c,#f59e0b);color:#1a1a1a;padding:6px 14px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.5px;font-family:'JetBrains Mono',monospace}
+
+/* TOPBAR */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:200}
+.logo{font-size:18px;font-weight:700;color:var(--accent);white-space:nowrap}
+.logo span{color:var(--text2);font-weight:400;font-size:12px;margin-left:6px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.role-toggle{display:inline-flex;background:#000;border-radius:999px;padding:3px;gap:2px}
+.role-toggle button{padding:5px 12px;border-radius:999px;border:none;background:transparent;color:#aaa;font-size:11px;font-family:inherit;cursor:pointer;font-weight:600}
+.role-toggle button.active{background:var(--surface3);color:#fff}
+
+/* BUTTONS */
+.btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:inherit;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);background:var(--surface3)}
+.btn-primary{background:var(--accent);color:#000;font-weight:600;border-color:var(--accent)}
+.btn-primary:hover{opacity:.9}
+.btn-danger{border-color:var(--red);color:var(--red)}
+.btn-danger:hover{background:rgba(248,113,113,.1)}
+.btn-sm{padding:4px 8px;font-size:11px}
+.btn-green{background:var(--green);color:#000;border-color:var(--green);font-weight:600}
+.admin-only{display:none}
+.is-admin .admin-only{display:inline-flex}
+.is-admin .add-form.admin-only{display:flex}
+.is-admin div.admin-only{display:block}
+.is-admin .admin-only-inline{display:inline}
+
+/* TABS */
+.tabbar{display:flex;gap:2px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:12px 18px;background:none;border:none;color:var(--text2);font-size:13px;font-family:inherit;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-panel{display:none;padding:20px;max-width:1200px;margin:0 auto}
+.tab-panel.active{display:block}
+
+/* PAGE HEADER */
+.page-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.page-header h1{font-size:20px;flex:1;min-width:0}
+.crumbs{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-bottom:10px;font-family:'JetBrains Mono',monospace}
+.crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
+.crumbs a:hover{text-decoration:underline}
+.crumbs .sep{opacity:.4}
+
+/* MODEL CARDS */
+.models-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.model-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;position:relative}
+.model-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 20px rgba(96,165,250,.15)}
+.model-card .model-icon{font-size:28px;margin-bottom:6px}
+.model-card h3{font-size:16px;margin-bottom:2px}
+.model-card .ref{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);margin-bottom:8px}
+.model-card .desc{font-size:12px;color:var(--text2);margin-bottom:12px;min-height:30px;line-height:1.4}
+.model-card .stats{display:flex;gap:14px;font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;border-top:1px solid var(--border);padding-top:10px}
+.model-card .stats span{display:flex;flex-direction:column;gap:2px}
+.model-card .stats b{color:var(--text);font-size:14px}
+.model-card .card-actions{position:absolute;top:10px;right:10px;display:none;gap:4px}
+.is-admin .model-card:hover .card-actions{display:flex}
+
+/* CHECKLIST EDITOR */
+.phase-tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--surface);border-radius:10px;padding:4px;border:1px solid var(--border);max-width:440px}
+.phase-tab{flex:1;padding:10px 16px;border-radius:8px;border:none;background:transparent;color:var(--text2);font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+.phase-tab.active{background:var(--accent);color:#000}
+.phase-tab .count{font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.7}
+.phase-tab.active .count{opacity:1}
+
+.cl-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.cl-section-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.cl-section-header h3{font-size:14px;flex:1}
+.cl-section-body{padding:8px 12px}
+.cl-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:6px;transition:all .15s;margin:2px 0;border:1px solid transparent}
+.cl-item:hover{background:var(--surface2);border-color:var(--border)}
+.cl-item .order{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);min-width:24px}
+.cl-item .body{flex:1;min-width:0}
+.cl-item .label{font-size:13px}
+.cl-item .desc{font-size:11px;color:var(--text2);margin-top:2px}
+.cl-item .meta{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.badge-blue{background:rgba(96,165,250,.12);color:var(--accent)}
+.badge-red{background:rgba(248,113,113,.12);color:var(--red)}
+.badge-green{background:rgba(52,211,153,.12);color:var(--green)}
+.badge-orange{background:rgba(251,191,36,.12);color:var(--orange)}
+.badge-cyan{background:rgba(34,211,238,.12);color:var(--cyan)}
+.add-form{display:flex;gap:8px;flex-wrap:wrap;padding:12px;background:var(--surface3);border-radius:8px;margin-bottom:14px;align-items:center}
+.add-form input,.add-form select{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:7px 10px;border-radius:5px;font-size:12px;font-family:inherit}
+.add-form input{flex:1;min-width:140px}
+
+.row-actions{display:flex;gap:4px}
+
+/* PHASE TOOLBAR (above sections) */
+.phase-toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+
+/* INLINE ADD ROW (inside a section) */
+.add-item-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;background:transparent;border:1px dashed var(--border);border-radius:6px;color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s;margin:6px 0 2px}
+.add-item-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface2)}
+.cl-item-inline{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;background:var(--surface3);border:1px dashed var(--accent);border-radius:8px;margin:6px 0 2px;align-items:center}
+.cl-item-inline .inline-input{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:7px 10px;border-radius:5px;font-size:12px;font-family:inherit}
+.cl-item-inline .inline-input:focus{outline:none;border-color:var(--accent)}
+.cl-item-inline .inline-label{flex:1;min-width:160px}
+.cl-item-inline .inline-actions{display:flex;gap:4px;margin-left:auto;align-items:center}
+.cl-item-inline .hint{font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-right:4px;white-space:nowrap}
+.empty-section-hint{padding:8px 10px;font-size:11px;color:var(--text2);font-style:italic;text-align:center}
+
+/* UNIT CARDS */
+.units-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:8px}
+.unit-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all .2s;position:relative}
+.unit-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 16px rgba(96,165,250,.1)}
+.unit-card h3{font-size:15px;margin-bottom:4px}
+.unit-card .unit-meta{font-size:11px;color:var(--text2);margin-bottom:12px}
+.unit-card .phase-prog{margin-top:8px;font-size:11px}
+.unit-card .phase-prog .lbl{display:flex;justify-content:space-between;color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px;margin-bottom:3px}
+.unit-card .prog-bar{height:5px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.unit-card .prog-fill{height:100%;border-radius:3px;transition:width .3s}
+.unit-card .prog-fill.qc{background:linear-gradient(90deg,var(--accent),var(--cyan))}
+.unit-card .prog-fill.dep{background:linear-gradient(90deg,var(--orange),var(--green))}
+.unit-card .card-actions{position:absolute;top:10px;right:10px;display:none;gap:4px}
+.is-admin .unit-card:hover .card-actions{display:flex}
+
+/* DEPLOY UNIT DETAIL */
+.deploy-header{display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;flex-wrap:wrap}
+.deploy-header h2{font-size:18px;flex:1;min-width:0}
+.deploy-header .submeta{font-size:11px;color:var(--text2);width:100%;margin-top:2px;font-family:'JetBrains Mono',monospace}
+.phase-block{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.phase-block-header{padding:14px 16px;background:linear-gradient(180deg,var(--surface2),var(--surface));border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.phase-block-header .phase-name{font-size:15px;font-weight:700;flex:1}
+.phase-block-header .phase-name .phase-icon{margin-right:6px}
+.phase-block-header .phase-meta{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.phase-progress{width:100%;height:18px;background:var(--surface3);border-radius:5px;overflow:hidden;position:relative;margin-top:8px;flex-basis:100%}
+.phase-progress .fill{height:100%;border-radius:5px;transition:width .4s}
+.phase-progress.qc .fill{background:linear-gradient(90deg,var(--accent),var(--cyan))}
+.phase-progress.dep .fill{background:linear-gradient(90deg,var(--orange),var(--green))}
+.phase-progress .txt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.deploy-section{border-bottom:1px solid var(--border)}
+.deploy-section:last-child{border-bottom:none}
+.deploy-section-header{padding:10px 16px;background:var(--surface2);font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.deploy-section-header .chev{font-size:10px;color:var(--text2);transition:transform .2s}
+.deploy-section.collapsed .chev{transform:rotate(-90deg)}
+.deploy-section.collapsed .deploy-section-body{display:none}
+.deploy-section-header .sec-stat{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+.deploy-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-top:1px solid var(--border);transition:background .15s}
+.deploy-item:hover{background:var(--surface2)}
+.deploy-item input[type=checkbox]{width:22px;height:22px;accent-color:var(--green);cursor:pointer;flex-shrink:0;margin-top:1px}
+.deploy-item.checked .di-label{text-decoration:line-through;color:var(--text2)}
+.di-label{font-size:13px;flex:1}
+.di-label .sub{display:block;font-size:11px;color:var(--text2);margin-top:2px}
+.di-label .by{display:block;font-size:10px;color:var(--green);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.di-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--orange);min-width:48px;text-align:right}
+
+/* DEPLOY MODEL PICKER */
+.model-picker{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.model-picker label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.model-picker select{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px 12px;border-radius:6px;font-size:13px;font-family:inherit;min-width:200px}
+
+/* DRAWINGS LIST */
+.drawings-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.drawing-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .2s}
+.drawing-card:hover{border-color:var(--accent)}
+.drawing-card .icon{font-size:22px;margin-bottom:6px}
+.drawing-card h3{font-size:14px;margin-bottom:2px}
+.drawing-card .ref{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+.drawing-card .meta{font-size:11px;color:var(--text2);margin-top:8px;font-family:'JetBrains Mono',monospace}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:340px;max-width:520px;width:90%;max-height:90vh;overflow-y:auto}
+.modal h3{margin-bottom:14px;font-size:16px}
+.modal label{display:block;font-size:11px;color:var(--text2);margin:12px 0 4px;text-transform:uppercase;letter-spacing:1px}
+.modal input,.modal textarea,.modal select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px 10px;border-radius:6px;font-size:13px;font-family:inherit}
+.modal textarea{min-height:60px;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap}
+
+/* TOAST */
+.toast-wrap{position:fixed;top:80px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:8px;font-size:13px;color:white;animation:slideIn .3s ease}
+.toast-ok{background:#059669}
+.toast-err{background:#dc2626}
+.toast-info{background:#2563eb}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:48px 20px;color:var(--text2);background:var(--surface);border:1px dashed var(--border);border-radius:12px}
+.empty .icon{font-size:40px;margin-bottom:10px}
+.empty p{font-size:13px;margin-bottom:14px;line-height:1.5}
+
+/* MOBILE */
+@media(max-width:768px){
+  .topbar{flex-direction:column;align-items:stretch;gap:8px;padding:10px 14px}
+  .topbar-right{margin-left:0;justify-content:space-between}
+  .tab-panel{padding:14px}
+  .page-header h1{font-size:17px}
+  .models-grid,.units-grid,.drawings-list{grid-template-columns:1fr}
+  .phase-tabs{max-width:none}
+  .di-qty{min-width:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="proto-banner">⚠ PROTOTYPE — Phase 2 UI mockup, hardcoded data, no backend calls</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">⚙️ DeployOps<span>Phase 2 Prototype</span></div>
+  <div class="topbar-right">
+    <div class="role-toggle">
+      <button id="roleAdmin" class="active" onclick="setRole('admin')">👁 Admin</button>
+      <button id="roleTech" onclick="setRole('tech')">🔧 Shop floor</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tabbar">
+  <button class="tab active" data-tab="models" onclick="switchTab('models')">🤖 Models</button>
+  <button class="tab" data-tab="deploy" onclick="switchTab('deploy')">🚀 Deploy</button>
+  <button class="tab" data-tab="drawings" onclick="switchTab('drawings')">📐 Drawings</button>
+</div>
+
+<div id="modelsTab" class="tab-panel active"></div>
+<div id="deployTab" class="tab-panel"></div>
+<div id="drawingsTab" class="tab-panel"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ============================================================
+// SAMPLE DATA — hardcoded, mirrors the schema after Phase 1 migration
+// ============================================================
+const SAMPLE_MODELS = [
+  {
+    id: 'm1', name: 'Safety net', ref: '123', icon: '🛡',
+    description: 'Original retrofit kit — safety net deployment for first-gen TX robots.',
+    visible: true, created_at: '2025-09-12'
+  },
+  {
+    id: 'm2', name: 'CE DVT2', ref: 'CE-DVT2', icon: '🤖',
+    description: 'CE-marked second design verification build. Full assembly + shipping kit.',
+    visible: true, created_at: '2026-02-01'
+  }
+];
+
+// Items belong to a model + phase. Sections are just text labels.
+const SAMPLE_ITEMS = [
+  // ───── Safety net (m1) — backfill defaulted everything to assembly_qc
+  { id:'i101', model_id:'m1', phase:'assembly_qc', section:'Frame', sort:1, label:'Frame welds inspected', description:'Visual check for cracks at joint A/B' },
+  { id:'i102', model_id:'m1', phase:'assembly_qc', section:'Frame', sort:2, label:'Bearings seated correctly' },
+  { id:'i103', model_id:'m1', phase:'assembly_qc', section:'Electrical', sort:3, label:'Wiring harness tagged', description:'All cables labeled per drawing' },
+
+  // ───── CE DVT2 (m2) — Assembly QC
+  { id:'i201', model_id:'m2', phase:'assembly_qc', section:'Mechanical', sort:1, label:'Frame torque check', description:'All M6 bolts at 9 Nm' },
+  { id:'i202', model_id:'m2', phase:'assembly_qc', section:'Mechanical', sort:2, label:'Wheel alignment ≤ 0.5mm runout' },
+  { id:'i203', model_id:'m2', phase:'assembly_qc', section:'Mechanical', sort:3, label:'Gripper smooth-open test' },
+  { id:'i204', model_id:'m2', phase:'assembly_qc', section:'Electrical', sort:4, label:'PCB seated and screwed' },
+  { id:'i205', model_id:'m2', phase:'assembly_qc', section:'Electrical', sort:5, label:'Battery terminals clean & torqued' },
+  { id:'i206', model_id:'m2', phase:'assembly_qc', section:'Software', sort:6, label:'Firmware v2.3.1 loaded', description:'Verify boot banner shows v2.3.1' },
+  { id:'i207', model_id:'m2', phase:'assembly_qc', section:'Software', sort:7, label:'Self-test passes' },
+
+  // ───── CE DVT2 (m2) — Pre-Deploy (shipping kit / pre-ship)
+  { id:'i251', model_id:'m2', phase:'pre_deploy', section:'Hardware Kit', sort:1, label:'M6×20 hex screws', part_number:'HX-M6-20', qty:8,  tool:'5mm Allen' },
+  { id:'i252', model_id:'m2', phase:'pre_deploy', section:'Hardware Kit', sort:2, label:'M4×10 cap screws',  part_number:'CAP-M4-10', qty:12, tool:'3mm Allen' },
+  { id:'i253', model_id:'m2', phase:'pre_deploy', section:'Hardware Kit', sort:3, label:'Cable clamps',       part_number:'CC-12',     qty:4 },
+  { id:'i254', model_id:'m2', phase:'pre_deploy', section:'Cables',       sort:4, label:'USB-C cable, 1m',    part_number:'CBL-USBC-1', qty:2 },
+  { id:'i255', model_id:'m2', phase:'pre_deploy', section:'Cables',       sort:5, label:'Power cord (region-specific)', qty:1 },
+  { id:'i256', model_id:'m2', phase:'pre_deploy', section:'Documentation', sort:6, label:'Quick-start sheet', qty:1 },
+  { id:'i257', model_id:'m2', phase:'pre_deploy', section:'Documentation', sort:7, label:'Calibration certificate signed' }
+];
+
+const SAMPLE_UNITS = [
+  { id:'u1', model_id:'m1', name:'TX-001', notes:'First test unit, lab',          created_at:'2025-09-15' },
+  { id:'u2', model_id:'m2', name:'CE-001', notes:'Pilot build — Tokyo',           created_at:'2026-02-10' },
+  { id:'u3', model_id:'m2', name:'CE-002', notes:'Production line A — slot 4',    created_at:'2026-03-02' },
+  { id:'u4', model_id:'m2', name:'CE-003', notes:'Production line B — slot 1',    created_at:'2026-04-12' }
+];
+
+// unit_id → array of { item_id, checked, checked_by, checked_at }
+const SAMPLE_CHECKS = {
+  u1: [
+    { item_id:'i101', checked:true, checked_by:'aniket@telexistence', checked_at:'2025-09-16' },
+    { item_id:'i102', checked:true, checked_by:'aniket@telexistence', checked_at:'2025-09-16' }
+  ],
+  u2: [
+    { item_id:'i201', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-12' },
+    { item_id:'i202', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-12' },
+    { item_id:'i204', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-13' },
+    { item_id:'i205', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-13' },
+    { item_id:'i206', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-14' },
+    { item_id:'i207', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-14' },
+    { item_id:'i251', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-20' },
+    { item_id:'i252', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-02-20' }
+  ],
+  u3: [
+    { item_id:'i201', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-03-04' },
+    { item_id:'i202', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-03-04' },
+    { item_id:'i204', checked:true, checked_by:'aniket@telexistence', checked_at:'2026-03-05' }
+  ],
+  u4: []
+};
+
+const SAMPLE_DRAWINGS = [
+  { id:'d1', drawing_ref:'TX-FRAME-A1', name:'Frame assembly',          page_count:3, balloon_count:14, uploaded_by:'aniket@telexistence', uploaded_at:'2025-09-10' },
+  { id:'d2', drawing_ref:'CE-WIRING',  name:'CE DVT2 wiring harness',   page_count:2, balloon_count:22, uploaded_by:'aniket@telexistence', uploaded_at:'2026-02-05' },
+  { id:'d3', drawing_ref:'CE-EXPLODED',name:'CE DVT2 exploded view',    page_count:5, balloon_count:48, uploaded_by:'aniket@telexistence', uploaded_at:'2026-02-08' }
+];
+
+// ============================================================
+// MUTABLE STATE (mockup-local only, no persistence)
+// ============================================================
+let models = JSON.parse(JSON.stringify(SAMPLE_MODELS));
+let items  = JSON.parse(JSON.stringify(SAMPLE_ITEMS));
+let units  = JSON.parse(JSON.stringify(SAMPLE_UNITS));
+let checks = JSON.parse(JSON.stringify(SAMPLE_CHECKS));
+let drawings = JSON.parse(JSON.stringify(SAMPLE_DRAWINGS));
+
+let activeTab = 'models';
+let modelView = null;        // model.id when looking inside a model
+let modelPhase = 'assembly_qc';
+let deployModelId = 'm2';    // pre-selected so demo shows interesting data
+let deployUnit = null;       // unit.id when viewing a unit
+
+let collapsedSections = {};  // key = `${unit.id}:${phase}:${section}` → bool
+
+// Inline-add state (model checklist editor)
+let inlineAddSection = null;        // section name with inline-add row open (for current modelView+phase)
+let draftSections = {};             // key = `${modelId}:${phase}` → [sectionName,...] empty sections waiting for first item
+
+// ============================================================
+// AUTH ROLE TOGGLE (prototype)
+// ============================================================
+function setRole(r) {
+  document.getElementById('roleAdmin').classList.toggle('active', r === 'admin');
+  document.getElementById('roleTech').classList.toggle('active', r === 'tech');
+  document.body.classList.toggle('is-admin', r === 'admin');
+  render();
+}
+
+// Default: admin view
+document.body.classList.add('is-admin');
+
+// ============================================================
+// TOAST + MODAL
+// ============================================================
+function toast(msg, type='info') {
+  const d = document.createElement('div');
+  d.className = 'toast toast-' + type;
+  d.textContent = msg;
+  document.getElementById('toastWrap').appendChild(d);
+  setTimeout(() => d.remove(), 2800);
+}
+function showModal(html) {
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// ============================================================
+// HELPERS
+// ============================================================
+function uid() { return 'x' + Math.random().toString(36).slice(2,8); }
+function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function modelById(id) { return models.find(m => m.id === id); }
+function unitById(id) { return units.find(u => u.id === id); }
+function itemsFor(modelId, phase) {
+  return items.filter(i => i.model_id === modelId && (!phase || i.phase === phase))
+              .sort((a,b) => (a.sort||0) - (b.sort||0));
+}
+function unitsFor(modelId) { return units.filter(u => u.model_id === modelId); }
+function progressFor(unitId, modelId, phase) {
+  const phaseItems = itemsFor(modelId, phase);
+  const ck = checks[unitId] || [];
+  const done = phaseItems.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+  return { done, total: phaseItems.length, pct: phaseItems.length ? Math.round(done/phaseItems.length*100) : 0 };
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(tab + 'Tab').classList.add('active');
+  render();
+}
+
+function render() {
+  if (activeTab === 'models')   renderModelsTab();
+  if (activeTab === 'deploy')   renderDeployTab();
+  if (activeTab === 'drawings') renderDrawingsTab();
+}
+
+// ============================================================
+// MODELS TAB
+// ============================================================
+function renderModelsTab() {
+  const el = document.getElementById('modelsTab');
+  if (modelView) { renderModelDetail(el); return; }
+
+  let html = `
+    <div class="page-header">
+      <h1>🤖 Models</h1>
+      <button class="btn btn-primary admin-only" onclick="showAddModel()">➕ New Model</button>
+    </div>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
+      Each robot model has its own checklist split into two phases — <b>Assembly QC</b> (post-build) and
+      <b>Pre-Deploy</b> (pre-shipping). Click a model to edit its checklist or to manage its units.
+    </p>
+  `;
+
+  if (models.length === 0) {
+    html += `<div class="empty"><div class="icon">🤖</div><p>No models yet.</p>
+      <button class="btn btn-primary admin-only" onclick="showAddModel()">Add your first model</button></div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  html += `<div class="models-grid">`;
+  models.forEach(m => {
+    const total = itemsFor(m.id).length;
+    const qcN   = itemsFor(m.id, 'assembly_qc').length;
+    const depN  = itemsFor(m.id, 'pre_deploy').length;
+    const uN    = unitsFor(m.id).length;
+    html += `
+      <div class="model-card" onclick="openModel('${m.id}')">
+        <div class="card-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-sm" onclick="showRenameModel('${m.id}')" title="Rename">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteModel('${m.id}')" title="Delete">🗑️</button>
+        </div>
+        <div class="model-icon">${m.icon || '🤖'}</div>
+        <h3>${esc(m.name)}</h3>
+        <div class="ref">REF · ${esc(m.ref)}</div>
+        <div class="desc">${esc(m.description || '')}</div>
+        <div class="stats">
+          <span><b>${uN}</b>units</span>
+          <span><b>${qcN}</b>QC items</span>
+          <span><b>${depN}</b>kit items</span>
+        </div>
+      </div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function openModel(id) { modelView = id; modelPhase = 'assembly_qc'; inlineAddSection = null; render(); }
+function backToModels() { modelView = null; inlineAddSection = null; render(); }
+function setModelPhase(p) { modelPhase = p; inlineAddSection = null; render(); }
+
+function renderModelDetail(el) {
+  const m = modelById(modelView);
+  if (!m) { modelView = null; renderModelsTab(); return; }
+
+  const phaseItems = itemsFor(m.id, modelPhase);
+
+  // Build section map preserving insertion order from sorted items
+  const sections = {};
+  const sectionOrder = [];
+  phaseItems.forEach(i => {
+    if (!sections[i.section]) { sections[i.section] = []; sectionOrder.push(i.section); }
+    sections[i.section].push(i);
+  });
+  // Append draft (empty) sections at the end
+  const drafts = (draftSections[m.id+':'+modelPhase] || []);
+  drafts.forEach(s => {
+    if (!sections[s]) { sections[s] = []; sectionOrder.push(s); }
+  });
+
+  const qcN  = itemsFor(m.id, 'assembly_qc').length;
+  const depN = itemsFor(m.id, 'pre_deploy').length;
+
+  let html = `
+    <div class="crumbs">
+      <a onclick="backToModels()">← Models</a>
+      <span class="sep">/</span>
+      <span>${esc(m.name)}</span>
+    </div>
+    <div class="page-header">
+      <h1>${m.icon||'🤖'} ${esc(m.name)} <span style="color:var(--text2);font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:400">· ${esc(m.ref)}</span></h1>
+      <button class="btn btn-sm admin-only" onclick="showRenameModel('${m.id}')">✏️ Edit</button>
+    </div>
+
+    <div class="phase-tabs">
+      <button class="phase-tab ${modelPhase==='assembly_qc'?'active':''}" onclick="setModelPhase('assembly_qc')">
+        🔬 Assembly QC <span class="count">(${qcN})</span>
+      </button>
+      <button class="phase-tab ${modelPhase==='pre_deploy'?'active':''}" onclick="setModelPhase('pre_deploy')">
+        📦 Pre-Deploy <span class="count">(${depN})</span>
+      </button>
+    </div>
+
+    <p style="color:var(--text2);font-size:12px;margin-bottom:14px;line-height:1.5">
+      ${modelPhase==='assembly_qc'
+        ? '<b>Assembly QC</b> — checks performed after the unit is built. Was it assembled correctly?'
+        : '<b>Pre-Deploy</b> — pre-shipping checks. Are all screws, cables, and parts in the box?'}
+    </p>
+
+    <div class="phase-toolbar admin-only">
+      <button class="btn btn-primary btn-sm" onclick="showNewSection()">➕ New Section</button>
+      <button class="btn btn-sm" onclick="openBulkAdd()">📋 Bulk add</button>
+    </div>
+  `;
+
+  if (sectionOrder.length === 0) {
+    html += `<div class="empty"><div class="icon">${modelPhase==='assembly_qc'?'🔬':'📦'}</div>
+      <p>No sections yet for this phase.<br>Click <b>+ New Section</b> above to start.</p></div>`;
+  }
+
+  sectionOrder.forEach(secName => {
+    const secItems = sections[secName];
+    html += `
+      <div class="cl-section">
+        <div class="cl-section-header">
+          <h3>${esc(secName)}</h3>
+          <span class="badge badge-blue">${secItems.length}</span>
+        </div>
+        <div class="cl-section-body">`;
+
+    if (secItems.length === 0) {
+      html += `<div class="empty-section-hint">Empty section — add the first item below ↓</div>`;
+    }
+
+    secItems.forEach((it, idx) => {
+      html += `<div class="cl-item">
+        <span class="order">${it.sort || idx+1}</span>
+        <div class="body">
+          <div class="label">${esc(it.label)}</div>
+          ${it.description ? `<div class="desc">${esc(it.description)}</div>` : ''}
+        </div>
+        <div class="meta">
+          ${it.part_number ? `<span class="badge badge-blue">${esc(it.part_number)}</span>` : ''}
+          ${it.qty         ? `<span class="badge badge-orange">×${it.qty}</span>` : ''}
+          ${it.tool        ? `<span class="badge badge-green">${esc(it.tool)}</span>` : ''}
+        </div>
+        <div class="row-actions admin-only">
+          <button class="btn btn-sm" onclick="moveItem('${it.id}',-1)" title="Up">▲</button>
+          <button class="btn btn-sm" onclick="moveItem('${it.id}',1)"  title="Down">▼</button>
+          <button class="btn btn-sm" onclick="editItem('${it.id}')"    title="Edit">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')" title="Delete">✕</button>
+        </div>
+      </div>`;
+    });
+
+    // Inline add row OR the "+ Add item" button at the bottom of the section (admin only)
+    if (inlineAddSection === secName) {
+      html += renderInlineAddRow(secName);
+    } else {
+      html += `<button class="add-item-btn admin-only" data-sec="${esc(secName)}" onclick="openInlineAdd(this.dataset.sec)">➕ Add item</button>`;
+    }
+
+    html += `</div></div>`;
+  });
+
+  el.innerHTML = html;
+
+  // Auto-focus the inline label input if a row is open
+  if (inlineAddSection) {
+    setTimeout(() => {
+      const inp = document.getElementById('inline-label');
+      if (inp) inp.focus();
+    }, 20);
+  }
+}
+
+function renderInlineAddRow(secName) {
+  const isKit = modelPhase === 'pre_deploy';
+  return `
+    <div class="cl-item-inline">
+      <input id="inline-label" class="inline-input inline-label" placeholder="Item label"
+             onkeydown="inlineKey(event)">
+      ${isKit ? `
+        <input id="inline-pn"   class="inline-input" placeholder="Part #"  style="flex:0 1 110px;min-width:90px"  onkeydown="inlineKey(event)">
+        <input id="inline-qty"  class="inline-input" placeholder="Qty"     style="flex:0 1 70px;min-width:60px"   type="number" onkeydown="inlineKey(event)">
+        <input id="inline-tool" class="inline-input" placeholder="Tool"    style="flex:0 1 100px;min-width:80px"  onkeydown="inlineKey(event)">
+      ` : `
+        <input id="inline-desc" class="inline-input" placeholder="Description (optional)" style="flex:1 1 200px"  onkeydown="inlineKey(event)">
+      `}
+      <div class="inline-actions">
+        <span class="hint">↵ save · esc cancel</span>
+        <button class="btn btn-sm" onclick="closeInlineAdd()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveInlineItem()">Save</button>
+      </div>
+    </div>
+  `;
+}
+
+function inlineKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); saveInlineItem(); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeInlineAdd(); }
+}
+
+function openInlineAdd(secName) {
+  inlineAddSection = secName;
+  render();
+}
+
+function closeInlineAdd() {
+  const m = modelById(modelView);
+  const sec = inlineAddSection;
+  inlineAddSection = null;
+  // If the section was a draft and ended up empty, drop the draft so it doesn't ghost-render
+  if (m && sec) {
+    const dkey = m.id + ':' + modelPhase;
+    if (draftSections[dkey] && draftSections[dkey].includes(sec)) {
+      const itemsInSec = items.filter(i => i.model_id === m.id && i.phase === modelPhase && i.section === sec).length;
+      if (itemsInSec === 0) {
+        draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
+      }
+    }
+  }
+  render();
+}
+
+function saveInlineItem() {
+  const m = modelById(modelView); if (!m) return;
+  const sec = inlineAddSection; if (!sec) return;
+  const labelEl = document.getElementById('inline-label');
+  if (!labelEl) return;
+  const label = labelEl.value.trim();
+  if (!label) {
+    // Empty label: don't save, but stay focused so user can keep typing
+    labelEl.focus();
+    return;
+  }
+  const isKit = modelPhase === 'pre_deploy';
+  const maxSort = Math.max(0, ...itemsFor(m.id, modelPhase).map(i => i.sort||0));
+  const it = { id: uid(), model_id: m.id, phase: modelPhase, section: sec, label, sort: maxSort + 1 };
+  if (isKit) {
+    it.part_number = document.getElementById('inline-pn').value.trim()  || null;
+    const q = document.getElementById('inline-qty').value;
+    it.qty  = q ? (parseInt(q) || null) : null;
+    it.tool = document.getElementById('inline-tool').value.trim() || null;
+  } else {
+    it.description = document.getElementById('inline-desc').value.trim() || null;
+  }
+  items.push(it);
+
+  // If section was a draft, it now has a real item — drop from drafts
+  const dkey = m.id + ':' + modelPhase;
+  if (draftSections[dkey]) {
+    draftSections[dkey] = draftSections[dkey].filter(s => s !== sec);
+  }
+
+  toast('Item added', 'ok');
+  // Keep the inline row open in the same section for rapid entry
+  render();
+}
+
+function showNewSection() {
+  showModal(`
+    <h3>➕ New Section</h3>
+    <label>Section name</label>
+    <input id="newSecName" placeholder="e.g. Pillar" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewSection()}">
+    <p style="font-size:11px;color:var(--text2);margin-top:6px">A new section will be created and the inline-add row will open so you can start typing items right away.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmNewSection()">Create</button>
+    </div>
+  `);
+  setTimeout(() => { const i = document.getElementById('newSecName'); if (i) i.focus(); }, 30);
+}
+
+function confirmNewSection() {
+  const m = modelById(modelView); if (!m) return;
+  const name = document.getElementById('newSecName').value.trim();
+  if (!name) { toast('Enter a section name', 'err'); return; }
+  const existing = new Set(itemsFor(m.id, modelPhase).map(i => i.section));
+  const dkey = m.id + ':' + modelPhase;
+  (draftSections[dkey] || []).forEach(s => existing.add(s));
+  if (existing.has(name)) { toast('Section already exists — opening it', 'info'); }
+  else {
+    draftSections[dkey] = draftSections[dkey] || [];
+    draftSections[dkey].push(name);
+  }
+  inlineAddSection = name;
+  closeModal();
+  render();
+}
+
+// ===== Bulk add =====
+function openBulkAdd() {
+  const m = modelById(modelView); if (!m) return;
+  const real  = [...new Set(itemsFor(m.id, modelPhase).map(i => i.section))];
+  const dkey  = m.id + ':' + modelPhase;
+  const dft   = (draftSections[dkey] || []);
+  const all   = [...new Set([...real, ...dft])];
+
+  const isKit = modelPhase === 'pre_deploy';
+  const fmt   = isKit
+    ? '<code>label | part_number | qty | tool</code> — everything after <code>label</code> is optional'
+    : '<code>label | description</code> — description is optional';
+  const sample = isKit
+    ? "M6×20 hex screws | HX-M6-20 | 8 | 5mm Allen\nM4×10 cap screws | CAP-M4-10 | 12 | 3mm Allen\nUSB-C cable 1m | CBL-USBC-1 | 2"
+    : "Frame welds inspected | Visual check at joint A/B\nBearings seated correctly\nWiring harness tagged | All cables labeled per drawing";
+
+  showModal(`
+    <h3>📋 Bulk Add — ${modelPhase==='assembly_qc'?'Assembly QC':'Pre-Deploy'}</h3>
+    <label>Section</label>
+    <select id="bulkSec">
+      ${all.length === 0 ? '<option value="__new">+ New Section…</option>' : ''}
+      ${all.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+      ${all.length > 0 ? '<option value="__new">+ New Section…</option>' : ''}
+    </select>
+    <input id="bulkNewSec" placeholder="New section name" style="display:${all.length===0?'block':'none'};margin-top:6px">
+    <label>Items (one per line)</label>
+    <textarea id="bulkText" rows="9" placeholder="${esc(sample)}"></textarea>
+    <p style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5">Format: ${fmt}</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyBulkAdd()">Add Items</button>
+    </div>
+  `);
+  const sel = document.getElementById('bulkSec');
+  const newSecInput = document.getElementById('bulkNewSec');
+  sel.addEventListener('change', () => {
+    newSecInput.style.display = sel.value === '__new' ? 'block' : 'none';
+    if (sel.value === '__new') setTimeout(() => newSecInput.focus(), 10);
+  });
+  setTimeout(() => document.getElementById('bulkText').focus(), 30);
+}
+
+function applyBulkAdd() {
+  const m = modelById(modelView); if (!m) return;
+  let secName = document.getElementById('bulkSec').value;
+  if (secName === '__new') {
+    secName = document.getElementById('bulkNewSec').value.trim();
+    if (!secName) { toast('Enter a section name', 'err'); return; }
+  }
+  const text = document.getElementById('bulkText').value;
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) { toast('Paste at least one line', 'err'); return; }
+
+  const isKit = modelPhase === 'pre_deploy';
+  let maxSort = Math.max(0, ...itemsFor(m.id, modelPhase).map(i => i.sort||0));
+  let added = 0;
+
+  lines.forEach(line => {
+    const parts = line.split('|').map(p => p.trim());
+    const label = parts[0];
+    if (!label) return;
+    maxSort++;
+    const it = { id: uid(), model_id: m.id, phase: modelPhase, section: secName, label, sort: maxSort };
+    if (isKit) {
+      it.part_number = parts[1] || null;
+      it.qty         = parts[2] ? (parseInt(parts[2]) || null) : null;
+      it.tool        = parts[3] || null;
+    } else {
+      it.description = parts[1] || null;
+    }
+    items.push(it); added++;
+  });
+
+  // Section now has items — drop it from drafts if it was there
+  const dkey = m.id + ':' + modelPhase;
+  if (draftSections[dkey]) {
+    draftSections[dkey] = draftSections[dkey].filter(s => s !== secName);
+  }
+
+  closeModal();
+  toast(`Added ${added} item${added===1?'':'s'} to "${secName}"`, 'ok');
+  render();
+}
+
+function showAddModel() {
+  showModal(`
+    <h3>➕ New Model</h3>
+    <label>Name</label>            <input id="mName" placeholder="e.g. CE DVT3">
+    <label>Reference / Part #</label><input id="mRef"  placeholder="e.g. CE-DVT3">
+    <label>Icon (emoji)</label>     <input id="mIcon" placeholder="🤖" maxlength="2">
+    <label>Description</label>      <textarea id="mDesc" placeholder="Short description"></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="addModel()">Create</button>
+    </div>
+  `);
+}
+function addModel() {
+  const name = document.getElementById('mName').value.trim();
+  const ref  = document.getElementById('mRef').value.trim();
+  if (!name || !ref) { toast('Name and ref are required', 'err'); return; }
+  models.push({
+    id: uid(), name, ref,
+    icon: document.getElementById('mIcon').value.trim() || '🤖',
+    description: document.getElementById('mDesc').value.trim(),
+    visible: true, created_at: new Date().toISOString().slice(0,10)
+  });
+  closeModal(); toast(`Model "${name}" created`, 'ok'); render();
+}
+
+function showRenameModel(id) {
+  const m = modelById(id); if (!m) return;
+  showModal(`
+    <h3>Edit Model</h3>
+    <label>Name</label>            <input id="mName" value="${esc(m.name)}">
+    <label>Reference / Part #</label><input id="mRef"  value="${esc(m.ref)}">
+    <label>Icon</label>             <input id="mIcon" value="${esc(m.icon||'')}" maxlength="2">
+    <label>Description</label>      <textarea id="mDesc">${esc(m.description||'')}</textarea>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="deleteModel('${m.id}')">🗑️ Delete</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveModel('${m.id}')">Save</button>
+    </div>
+  `);
+}
+function saveModel(id) {
+  const m = modelById(id); if (!m) return;
+  m.name = document.getElementById('mName').value.trim() || m.name;
+  m.ref  = document.getElementById('mRef').value.trim()  || m.ref;
+  m.icon = document.getElementById('mIcon').value.trim() || m.icon;
+  m.description = document.getElementById('mDesc').value.trim();
+  closeModal(); toast('Model updated', 'ok'); render();
+}
+function deleteModel(id) {
+  const m = modelById(id); if (!m) return;
+  const uN = unitsFor(id).length, iN = itemsFor(id).length;
+  if (!confirm(`Delete model "${m.name}"?\n${uN} unit(s) and ${iN} checklist item(s) will be unlinked.`)) return;
+  models = models.filter(x => x.id !== id);
+  items  = items.filter(x => x.model_id !== id);
+  units  = units.filter(x => x.model_id !== id);
+  modelView = null; closeModal(); toast('Model deleted', 'info'); render();
+}
+
+function deleteItem(id) {
+  if (!confirm('Delete this item?')) return;
+  items = items.filter(i => i.id !== id);
+  // also wipe any unit checks that reference it
+  Object.keys(checks).forEach(uId => { checks[uId] = checks[uId].filter(c => c.item_id !== id); });
+  toast('Item deleted', 'info'); render();
+}
+function editItem(id) {
+  const it = items.find(i => i.id === id); if (!it) return;
+  const isKit = it.phase === 'pre_deploy';
+  showModal(`
+    <h3>Edit Item</h3>
+    <label>Section</label> <input id="eiSection" value="${esc(it.section)}">
+    <label>Label</label>   <input id="eiLabel"   value="${esc(it.label)}">
+    ${isKit ? `
+      <label>Part Number</label> <input id="eiPN"   value="${esc(it.part_number||'')}">
+      <label>Qty</label>          <input id="eiQty"  type="number" value="${it.qty||''}">
+      <label>Tool</label>         <input id="eiTool" value="${esc(it.tool||'')}">
+    ` : `
+      <label>Description</label>  <input id="eiDesc" value="${esc(it.description||'')}">
+    `}
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="deleteItem('${it.id}')">🗑️ Delete</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem('${it.id}',${isKit})">Save</button>
+    </div>
+  `);
+}
+function saveItem(id, isKit) {
+  const it = items.find(i => i.id === id); if (!it) return;
+  it.section = document.getElementById('eiSection').value.trim() || it.section;
+  it.label   = document.getElementById('eiLabel').value.trim()   || it.label;
+  if (isKit) {
+    it.part_number = document.getElementById('eiPN').value.trim()  || null;
+    it.qty         = parseInt(document.getElementById('eiQty').value) || null;
+    it.tool        = document.getElementById('eiTool').value.trim() || null;
+  } else {
+    it.description = document.getElementById('eiDesc').value.trim() || null;
+  }
+  closeModal(); toast('Item updated', 'ok'); render();
+}
+function moveItem(id, dir) {
+  const it = items.find(i => i.id === id); if (!it) return;
+  const list = itemsFor(it.model_id, it.phase);
+  const idx = list.findIndex(x => x.id === id);
+  const swapIdx = idx + dir;
+  if (swapIdx < 0 || swapIdx >= list.length) return;
+  const a = list[idx], b = list[swapIdx];
+  const tmp = a.sort; a.sort = b.sort; b.sort = tmp;
+  render();
+}
+
+// ============================================================
+// DEPLOY TAB
+// ============================================================
+function renderDeployTab() {
+  const el = document.getElementById('deployTab');
+  if (deployUnit) { renderUnitDetail(el); return; }
+
+  let html = `
+    <div class="page-header">
+      <h1>🚀 Deploy</h1>
+      <button class="btn btn-primary admin-only" onclick="showAddUnit()">➕ Add Unit</button>
+    </div>
+
+    <div class="model-picker">
+      <label>Model:</label>
+      <select onchange="deployModelId=this.value;render()">
+        ${models.map(m => `<option value="${m.id}" ${m.id===deployModelId?'selected':''}>${esc(m.icon||'🤖')} ${esc(m.name)} · ${esc(m.ref)}</option>`).join('')}
+      </select>
+    </div>
+  `;
+
+  const m = modelById(deployModelId);
+  const us = unitsFor(deployModelId);
+
+  if (!m) { html += `<div class="empty"><p>Pick a model.</p></div>`; el.innerHTML = html; return; }
+
+  if (us.length === 0) {
+    html += `<div class="empty"><div class="icon">🤖</div>
+      <p>No units yet for <b>${esc(m.name)}</b>.</p>
+      <button class="btn btn-primary admin-only" onclick="showAddUnit()">Add the first one</button></div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  html += `<div class="units-grid">`;
+  us.forEach(u => {
+    const qc  = progressFor(u.id, m.id, 'assembly_qc');
+    const dep = progressFor(u.id, m.id, 'pre_deploy');
+    html += `
+      <div class="unit-card" onclick="openUnit('${u.id}')">
+        <div class="card-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-sm btn-danger admin-only" onclick="deleteUnit('${u.id}')" title="Delete">🗑️</button>
+        </div>
+        <h3>🤖 ${esc(u.name)}</h3>
+        <div class="unit-meta">${esc(u.notes||'')}</div>
+
+        <div class="phase-prog">
+          <div class="lbl"><span>🔬 Assembly QC</span><span>${qc.done}/${qc.total}</span></div>
+          <div class="prog-bar"><div class="prog-fill qc" style="width:${qc.pct}%"></div></div>
+        </div>
+        <div class="phase-prog">
+          <div class="lbl"><span>📦 Pre-Deploy</span><span>${dep.done}/${dep.total}</span></div>
+          <div class="prog-bar"><div class="prog-fill dep" style="width:${dep.pct}%"></div></div>
+        </div>
+      </div>`;
+  });
+  html += `</div>`;
+
+  el.innerHTML = html;
+}
+
+function showAddUnit() {
+  const m = modelById(deployModelId);
+  showModal(`
+    <h3>➕ Add Unit</h3>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">For model: <b>${esc(m?.name||'')}</b></p>
+    <label>Unit Name / Serial</label> <input id="uName" placeholder="e.g. CE-004">
+    <label>Notes</label>              <textarea id="uNotes" placeholder="Location, batch, etc."></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="addUnit()">Add</button>
+    </div>
+  `);
+}
+function addUnit() {
+  const name = document.getElementById('uName').value.trim();
+  if (!name) { toast('Enter a name', 'err'); return; }
+  units.push({
+    id: uid(), model_id: deployModelId, name,
+    notes: document.getElementById('uNotes').value.trim(),
+    created_at: new Date().toISOString().slice(0,10)
+  });
+  closeModal(); toast(`Unit "${name}" created`, 'ok'); render();
+}
+function deleteUnit(id) {
+  const u = unitById(id);
+  if (!u || !confirm(`Delete unit "${u.name}" and its check data?`)) return;
+  units = units.filter(x => x.id !== id);
+  delete checks[id];
+  toast('Unit deleted', 'info'); render();
+}
+
+function openUnit(id) { deployUnit = id; render(); }
+function backToUnits() { deployUnit = null; render(); }
+
+function renderUnitDetail(el) {
+  const u = unitById(deployUnit);
+  if (!u) { deployUnit = null; renderDeployTab(); return; }
+  const m = modelById(u.model_id);
+
+  const qc  = progressFor(u.id, m.id, 'assembly_qc');
+  const dep = progressFor(u.id, m.id, 'pre_deploy');
+
+  let html = `
+    <div class="crumbs">
+      <a onclick="backToUnits()">← Units</a>
+      <span class="sep">/</span>
+      <span>${esc(m.name)}</span>
+      <span class="sep">/</span>
+      <span>${esc(u.name)}</span>
+    </div>
+    <div class="deploy-header">
+      <button class="btn btn-sm" onclick="backToUnits()">← Back</button>
+      <h2>🤖 ${esc(u.name)}</h2>
+      <button class="btn btn-sm" onclick="printUnit()">🖨️ Print</button>
+      <div class="submeta">${esc(m.icon||'')} ${esc(m.name)} · ${esc(m.ref)}${u.notes?' · '+esc(u.notes):''}</div>
+    </div>
+  `;
+
+  html += renderPhaseBlock(u, m, 'assembly_qc', '🔬', 'Assembly QC', 'Was it built correctly?', qc, 'qc');
+  html += renderPhaseBlock(u, m, 'pre_deploy',  '📦', 'Pre-Deploy',  'Are all parts in the box?',  dep, 'dep');
+
+  if (qc.total === 0 && dep.total === 0) {
+    html += `<div class="empty"><p>No checklist items defined for this model yet.<br>Open the <a onclick="modelView='${m.id}';modelPhase='assembly_qc';switchTab('models')" style="color:var(--accent);cursor:pointer">Models tab</a> to add some.</p></div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function renderPhaseBlock(u, m, phase, icon, title, subtitle, prog, klass) {
+  const phaseItems = itemsFor(m.id, phase);
+  if (phaseItems.length === 0) {
+    return `
+      <div class="phase-block">
+        <div class="phase-block-header">
+          <div class="phase-name"><span class="phase-icon">${icon}</span>${title}</div>
+          <span class="phase-meta">no items defined</span>
+        </div>
+      </div>`;
+  }
+
+  const sections = {};
+  phaseItems.forEach(i => { (sections[i.section] ||= []).push(i); });
+  const ck = checks[u.id] || [];
+
+  let html = `
+    <div class="phase-block">
+      <div class="phase-block-header">
+        <div class="phase-name"><span class="phase-icon">${icon}</span>${title}</div>
+        <span class="phase-meta">${subtitle}</span>
+        <div class="phase-progress ${klass}">
+          <div class="fill" style="width:${prog.pct}%"></div>
+          <div class="txt">${prog.done} / ${prog.total} · ${prog.pct}%</div>
+        </div>
+      </div>`;
+
+  Object.entries(sections).forEach(([secName, secItems]) => {
+    const key = `${u.id}:${phase}:${secName}`;
+    const collapsed = collapsedSections[key];
+    const secDone = secItems.filter(i => ck.some(c => c.item_id === i.id && c.checked)).length;
+
+    html += `
+      <div class="deploy-section ${collapsed?'collapsed':''}">
+        <div class="deploy-section-header" onclick="toggleSection('${key}')">
+          <span class="chev">▼</span>
+          <span>${esc(secName)}</span>
+          <span class="sec-stat">${secDone}/${secItems.length}</span>
+        </div>
+        <div class="deploy-section-body">`;
+
+    secItems.forEach(item => {
+      const c = ck.find(x => x.item_id === item.id);
+      const checked = c?.checked || false;
+      html += `
+        <div class="deploy-item ${checked?'checked':''}">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleCheck('${u.id}','${item.id}',this.checked)">
+          <div class="di-label">
+            ${esc(item.label)}
+            ${item.description ? `<span class="sub">${esc(item.description)}</span>` : ''}
+            ${item.part_number ? `<span class="sub" style="color:var(--accent)">${esc(item.part_number)}${item.tool?' · '+esc(item.tool):''}</span>` : ''}
+            ${checked && c?.checked_by ? `<span class="by">✓ ${esc(c.checked_by)} · ${esc(c.checked_at||'')}</span>` : ''}
+          </div>
+          ${item.qty ? `<div class="di-qty">×${item.qty}</div>` : ''}
+        </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+function toggleSection(key) {
+  collapsedSections[key] = !collapsedSections[key];
+  render();
+}
+
+function toggleCheck(unitId, itemId, checked) {
+  const ck = (checks[unitId] ||= []);
+  const existing = ck.find(c => c.item_id === itemId);
+  if (existing) {
+    existing.checked = checked;
+    existing.checked_by = 'you@telexistence';
+    existing.checked_at = checked ? new Date().toISOString().slice(0,10) : null;
+  } else {
+    ck.push({ item_id: itemId, checked, checked_by: 'you@telexistence', checked_at: checked ? new Date().toISOString().slice(0,10) : null });
+  }
+  render();
+}
+
+function printUnit() { toast('Print preview — wired in Phase 4', 'info'); }
+
+// ============================================================
+// DRAWINGS TAB (demoted, standalone)
+// ============================================================
+function renderDrawingsTab() {
+  const el = document.getElementById('drawingsTab');
+  let html = `
+    <div class="page-header">
+      <h1>📐 Drawings</h1>
+      <button class="btn btn-primary admin-only" onclick="toast('Upload flow stays the same — Phase 5','info')">📤 Upload PDF</button>
+    </div>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
+      Drawings are reference attachments — independent of models and checklists. Use them
+      to balloon-annotate assembly drawings, exploded views, and wiring diagrams.
+    </p>
+    <div class="drawings-list">
+  `;
+  drawings.forEach(d => {
+    html += `
+      <div class="drawing-card" onclick="toast('Drawing viewer is unchanged — Phase 5','info')">
+        <div class="icon">📐</div>
+        <h3>${esc(d.name)}</h3>
+        <div class="ref">${esc(d.drawing_ref)}</div>
+        <div class="meta">${d.page_count} page${d.page_count===1?'':'s'} · ${d.balloon_count} balloons</div>
+      </div>`;
+  });
+  html += `</div>
+    <div style="margin-top:24px;padding:14px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5">
+      <b style="color:var(--text)">Note:</b> The actual drawing/balloon editor isn't redrawn for this prototype —
+      it's the same UI as today, just moved to its own tab. Phase 5 will wire it back up here.
+    </div>
+  `;
+  el.innerHTML = html;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+render();
+</script>
+</body>
+</html>
