@@ -5537,18 +5537,18 @@ let _printCtx = null;
 
 const WS_STYLE_KEY = 'deployops_ws_style';
 const WS_STYLES = ['word', 'plain', 'deployops'];
-const WS_DENSITY_KEY = 'deployops_ws_density';
-const WS_DENSITIES = ['compact', 'normal', 'roomy'];
-function savedWsDensity() {
-  const v = localStorage.getItem(WS_DENSITY_KEY);
-  return WS_DENSITIES.includes(v) ? v : 'normal';
+const WS_PAD_KEY = 'deployops_ws_pad';
+// Word-export row spacing: user-set pt values above/below the text.
+function savedWsPad() {
+  try { const v = JSON.parse(localStorage.getItem(WS_PAD_KEY)); if (v && isFinite(v.top) && isFinite(v.bottom)) return { top: +v.top, bottom: +v.bottom }; } catch(e) {}
+  return { top: 4, bottom: 4 };
 }
-// Word-export row spacing. cell = padding on #/OP/QC cells, item =
-// padding on the ITEM / NOTES text cells. Larger = taller rows.
-function wsWordDensity(level) {
-  if (level === 'compact') return { cell: '0pt 6pt', item: '1pt 10pt' };
-  if (level === 'roomy')   return { cell: '8pt 6pt', item: '10pt 10pt' };
-  return { cell: '3pt 6pt', item: '4pt 10pt' };
+// cell = padding on #/OP/QC cells, item = the ITEM / NOTES text cells,
+// band = group sub-header rows. Accepts {top,bottom} in pt.
+function wsWordDensity(pad) {
+  const p = pad && isFinite(pad.top) && isFinite(pad.bottom) ? pad : savedWsPad();
+  const t = Math.max(0, Math.min(30, +p.top)), b = Math.max(0, Math.min(30, +p.bottom));
+  return { cell: `${t}pt 6pt ${b}pt`, item: `${t}pt 10pt ${b}pt`, band: `${Math.max(2, t)}pt 10pt ${Math.max(2, b)}pt` };
 }
 function savedWsStyle() {
   const v = localStorage.getItem(WS_STYLE_KEY);
@@ -5559,7 +5559,7 @@ function showPrintOptions(opts = {}) {
   _printCtx = opts;
   const lockedMode = opts.lockedMode;
   const wsStyle = savedWsStyle();
-  const wsDensity = savedWsDensity();
+  const wsPad = savedWsPad();
 
   const modeSection = lockedMode ? '' : `
     <label>Output</label>
@@ -5613,11 +5613,10 @@ function showPrintOptions(opts = {}) {
       <label class="radio-row"><input type="radio" name="styleChoice" value="deployops"${wsStyle==='deployops'?' checked':''}> DeployOps-branded <span style="color:var(--text2);font-size:11px">(logo + form ID — audit copy)</span></label>
     </div>
 
-    <label>Row spacing <span style="color:var(--text2);font-size:11px">(Word export)</span></label>
-    <div style="display:flex;gap:6px;flex-direction:column;margin-top:6px">
-      <label class="radio-row"><input type="radio" name="densityChoice" value="compact"${wsDensity==='compact'?' checked':''}> Compact <span style="color:var(--text2);font-size:11px">(tight rows, most per page)</span></label>
-      <label class="radio-row"><input type="radio" name="densityChoice" value="normal"${wsDensity==='normal'?' checked':''}> Normal</label>
-      <label class="radio-row"><input type="radio" name="densityChoice" value="roomy"${wsDensity==='roomy'?' checked':''}> Roomy <span style="color:var(--text2);font-size:11px">(more breathing room)</span></label>
+    <label>Row spacing <span style="color:var(--text2);font-size:11px">(Word export — space above/below text, pt)</span></label>
+    <div style="display:flex;gap:14px;margin-top:6px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px">Above <input type="number" id="wsPadTop" min="0" max="30" step="0.5" value="${wsPad.top}" style="width:64px"></label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px">Below <input type="number" id="wsPadBottom" min="0" max="30" step="0.5" value="${wsPad.bottom}" style="width:64px"></label>
     </div>
 
     <label>Language</label>
@@ -5648,9 +5647,10 @@ function doPrint() {
   try { localStorage.setItem(WS_STYLE_KEY, wsStyle); } catch(e) {}
   const lang = document.querySelector('input[name="langChoice"]:checked')?.value || 'en';
   const dest  = document.querySelector('input[name="destChoice"]:checked')?.value || 'printer';
-  const densRaw = document.querySelector('input[name="densityChoice"]:checked')?.value;
-  const wsDensity = WS_DENSITIES.includes(densRaw) ? densRaw : 'normal';
-  try { localStorage.setItem(WS_DENSITY_KEY, wsDensity); } catch(e) {}
+  const padTop = parseFloat(document.getElementById('wsPadTop')?.value);
+  const padBottom = parseFloat(document.getElementById('wsPadBottom')?.value);
+  const wsPad = { top: isFinite(padTop) ? padTop : 4, bottom: isFinite(padBottom) ? padBottom : 4 };
+  try { localStorage.setItem(WS_PAD_KEY, JSON.stringify(wsPad)); } catch(e) {}
   const phaseFilter = phase === 'both' ? null : phase;
   // Legacy hand-write/filled templates only know plain vs branded;
   // word/deployops both fall back to branded there.
@@ -5663,7 +5663,7 @@ function doPrint() {
     const unitId = ctx.unitId !== undefined ? ctx.unitId : deployUnitId;
     const content = document.querySelector('input[name="contentChoice"]:checked')?.value || 'empty';
     const emptyRows = content === 'empty';
-    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang, dest, wsStyle, wsDensity });
+    printBlankWorkOrder(modelId, unitId, { phaseFilter, plain, emptyRows, lang, dest, wsStyle, wsPad });
   } else {
     printFilledStatus({ phaseFilter, plain, lang, dest });
   }
@@ -6036,7 +6036,7 @@ async function generatePerSectionPdfZip(model, unitName, sections, lang, style, 
 // PRINT — printers
 // ============================================================
 async function printBlankWorkOrder(modelId, unitId, opts) {
-  const { phaseFilter, plain = false, emptyRows = false, lang = 'en', dest = 'printer', wsStyle = 'word', wsDensity = 'normal' } = opts || {};
+  const { phaseFilter, plain = false, emptyRows = false, lang = 'en', dest = 'printer', wsStyle = 'word', wsPad = null } = opts || {};
   const m = modelById(modelId);
   if (!m) { toast('Model not found', 'err'); return; }
 
@@ -6104,7 +6104,7 @@ async function printBlankWorkOrder(modelId, unitId, opts) {
     if (dest === 'pdf') {
       await generatePerSectionPdfZip(m, unitName, sectionDocs, lang, style, wsPrinterPath);
     } else if (dest === 'word') {
-      exportWorksheetDoc(m, unitName, sectionDocs, lang, style, wsDensity);
+      exportWorksheetDoc(m, unitName, sectionDocs, lang, style, wsPad);
     } else {
       wsPrinterPath();
     }
@@ -6267,7 +6267,7 @@ function wsWordCb(size, bw, color) {
 }
 
 function renderSectionDocWord(model, unitName, section, lang, style, T, P) {
-  P = P || wsWordDensity('normal');
+  P = P || wsWordDensity(null);
   const word = style === 'word';
   const titlePrefix = lang === 'ja' ? 'QCチェックリスト - ' : 'QC Checklist - ';
   // Word has no text-transform — uppercase in JS (no-op for JA strings).
@@ -6318,7 +6318,7 @@ function renderSectionDocWord(model, unitName, section, lang, style, T, P) {
       const td = (extra) => `style="border:${T.hairBd};${wTop}background:${bg};padding:${P.cell};vertical-align:middle;${extra || ''}"`;
       const grp = wsSplitGroup(pickField(it, 'label', lang) || '').group;
       const prevGrp = i > 0 ? wsSplitGroup(pickField(list[i - 1], 'label', lang) || '').group : null;
-      const bandRow = (grp && grp !== prevGrp) ? `<tr><td colspan="5" style="border:${T.hairBd};background:${word ? '#f1f1ec' : '#eef1f5'};padding:5pt 10pt 4pt;font-family:${T.font};font-size:10pt;font-weight:bold;color:${T.rule}">${esc(grp)}</td></tr>` : '';
+      const bandRow = (grp && grp !== prevGrp) ? `<tr><td colspan="5" style="border:${T.hairBd};background:${word ? '#f1f1ec' : '#eef1f5'};padding:${P.band};font-family:${T.font};font-size:10pt;font-weight:bold;color:${T.rule}">${esc(grp)}</td></tr>` : '';
       const label = esc(wsSplitGroup(pickField(it, 'label', lang) || '').text);
       const desc = esc(pickField(it, 'description', lang) || '');
       let itemCell = `<span style="font-size:11.5pt;font-weight:${t.cls === 'w' ? 'bold' : '600'};color:${T.rule}">${label}</span>`;
