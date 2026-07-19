@@ -1148,7 +1148,7 @@ const SECTION_ICONS = [
   '💨', '🔍', '👁️', '📡'
 ];
 const PHASE_META = {
-  pre_install_qc: { icon: '🛡️', label: 'Pre-Install QC', short: 'Pre-Install' },
+  pre_install_qc: { icon: '🛡️', label: 'After-Installation QC', short: 'After-Install' },
   pre_test_qc:    { icon: '🧪', label: 'Pre-Test QC',    short: 'Pre-Test' },
   pre_deploy:     { icon: '📦', label: 'Pre-Deploy',     short: 'Pre-Deploy' },
 };
@@ -3920,8 +3920,8 @@ const PRINT_I18N = {
     partNumber: 'Part #', qty: 'Qty', tool: 'Tool',
     checkedByAt: 'Checked by / at',
     progress: 'Progress', phase: 'Phase', section: 'Section',
-    preInstallQC: 'Pre-Install QC', preTestQC: 'Pre-Test QC', preDeploy: 'Pre-Deploy',
-    preInstallShort: 'Pre-Install', preTestShort: 'Pre-Test',
+    preInstallQC: 'After-Installation QC', preTestQC: 'Pre-Test QC', preDeploy: 'Pre-Deploy',
+    preInstallShort: 'After-Install', preTestShort: 'Pre-Test',
     deployChecklist: 'Deploy Checklist',
     complete: 'complete', all: 'All', bothPhases: 'Both Phases',
     // G.2 brush-mode chrome ({phase} substituted with phaseLabel()).
@@ -4995,7 +4995,7 @@ function wsGroupBySection(items, lang) {
 // ("Pre-install QC" / "Pre-test QC" — lowercase second word). JA falls back
 // to whatever phaseLabel() returns (SQL-managed JA translations).
 const WS_PHASE_TITLES_EN = {
-  pre_install_qc: 'Pre-install QC',
+  pre_install_qc: 'After-installation QC',
   pre_test_qc:    'Pre-test QC',
   pre_deploy:     'Pre-deploy'
 };
@@ -5238,7 +5238,7 @@ async function renderDeploy() {
         <h3>🤖 ${esc(u.unit_name||u.name||'(unnamed)')}</h3>
         ${notes?`<div class="unit-meta">${esc(notes)}</div>`:'<div class="unit-meta">&nbsp;</div>'}
         <div class="phase-prog">
-          <div class="lbl"><span>🛡️ Pre-Install QC</span><span>${qc1.done}/${qc1.total}</span></div>
+          <div class="lbl"><span>🛡️ After-Installation QC</span><span>${qc1.done}/${qc1.total}</span></div>
           <div class="prog-bar"><div class="prog-fill qc" style="width:${qc1.pct}%"></div></div>
         </div>
         <div class="phase-prog">
@@ -5349,7 +5349,7 @@ function renderDeployUnitDetail(el) {
     </div>
   `;
 
-  html += renderDeployPhaseBlock(u, 'pre_install_qc', '🛡️', 'Pre-Install QC', 'Was it built correctly?',  qc1, 'qc');
+  html += renderDeployPhaseBlock(u, 'pre_install_qc', '🛡️', 'After-Installation QC', 'Was it built correctly?',  qc1, 'qc');
   html += renderDeployPhaseBlock(u, 'pre_test_qc',    '🧪', 'Pre-Test QC',    'Ready for power-on?',      qc2, 'qc');
   html += renderDeployPhaseBlock(u, 'pre_deploy',     '📦', 'Pre-Deploy',     'Are all parts in the box?', dep, 'dep');
 
@@ -6328,7 +6328,7 @@ async function renderModels() {
       <button class="btn btn-primary admin-only" onclick="showAddModel()">➕ New Model</button>
     </div>
     <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
-      Each robot model has its own checklist split across phases — <b>Pre-Install QC</b> (post-build),
+      Each robot model has its own checklist split across phases — <b>After-Installation QC</b> (post-build),
       <b>Pre-Test QC</b> (pre power-on) and <b>Pre-Deploy</b> (pre-shipping). An item can belong to
       more than one phase. Click a model to edit its checklist.
     </p>
@@ -6540,7 +6540,7 @@ async function renderModelDetail(el) {
 
     <div class="phase-tabs">
       <button class="phase-tab ${modelPhase==='pre_install_qc'?'active':''}" onclick="setModelPhase('pre_install_qc')">
-        🛡️ Pre-Install QC <span class="count">(${qcN})</span>
+        🛡️ After-Installation QC <span class="count">(${qcN})</span>
       </button>
       <button class="phase-tab ${modelPhase==='pre_test_qc'?'active':''}" onclick="setModelPhase('pre_test_qc')">
         🧪 Pre-Test QC <span class="count">(${testN})</span>
@@ -6553,7 +6553,7 @@ async function renderModelDetail(el) {
 
     <p style="color:var(--text2);font-size:12px;margin-bottom:14px;line-height:1.5">
       ${modelPhase==='pre_install_qc'
-        ? '<b>Pre-Install QC</b> — checks performed after the unit is built. Was it assembled correctly?'
+        ? '<b>After-Installation QC</b> — checks performed after the unit is built. Was it assembled correctly?'
         : modelPhase==='pre_test_qc'
         ? '<b>Pre-Test QC</b> — checks before power-on. Is the unit ready to be energised and tested?'
         : '<b>Pre-Deploy</b> — pre-shipping checks. Are all screws, cables, and parts in the box?'}
@@ -7061,7 +7061,7 @@ function openBulkAdd() {
     : "Frame welds inspected | Visual check at joint A/B\nBearings seated correctly\nWiring harness tagged | All cables labeled per drawing";
 
   showModal(`
-    <h3>📋 Bulk Add — ${modelPhase==='pre_install_qc'?'Pre-Install QC':'Pre-Deploy'}</h3>
+    <h3>📋 Bulk Add — ${modelPhase==='pre_install_qc'?'After-Installation QC':'Pre-Deploy'}</h3>
     <label>Section</label>
     <select id="bulkSec">
       ${all.length === 0 ? '<option value="__new">+ New Section…</option>' : ''}
