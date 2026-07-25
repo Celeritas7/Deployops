@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="docx-export.js" defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap');
 :root{--bg:#07090f;--surface:#0f1219;--surface2:#161c28;--surface3:#1e2538;--border:#2a3350;--text:#e2e8f0;--text2:#94a3b8;--accent:#60a5fa;--accent2:#818cf8;--red:#f87171;--green:#34d399;--orange:#fbbf24;--pink:#f472b6;--cyan:#22d3ee}
@@ -35,54 +36,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .is-admin .admin-only{display:inline-flex}
 .is-admin .add-form.admin-only{display:flex}
 .is-admin div.mode-indicator.admin-only{display:inline-block}
-/* LOGIN GATE + ROLES */
-.op-only{display:none}
-.is-operator .op-only{display:inline-flex}
-body:not(.is-operator) .deploy-item input[type=checkbox]{opacity:.35;cursor:not-allowed}
-body.gated .topbar,body.gated .tabbar,body.gated .tab-panel{display:none!important}
-#loginGate{display:none;position:fixed;inset:0;z-index:1000;background:var(--bg);overflow:auto;align-items:center;justify-content:center;padding:34px;background-image:linear-gradient(rgba(96,165,250,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,.045) 1px,transparent 1px),linear-gradient(rgba(96,165,250,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,.025) 1px,transparent 1px);background-size:120px 120px,120px 120px,24px 24px,24px 24px}
-body.gated #loginGate{display:flex}
-.lg-sheet{position:relative;width:1040px;max-width:100%;background:var(--surface);border:2px solid #3b4770;box-shadow:0 30px 80px rgba(0,0,0,.6);margin:auto}
-.lg-sheet::after{content:'';position:absolute;inset:10px;border:1px solid var(--border);pointer-events:none}
-.lg-zone{position:absolute;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text2);letter-spacing:1px;opacity:.75}
-.lg-tick{position:absolute;background:#3b4770}
-.lg-inner{position:relative;display:flex;margin:10px;min-height:600px}
-.lg-brand{flex:1.15;padding:46px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--border);position:relative}
-.lg-word{font-size:46px;font-weight:700;letter-spacing:-1.5px;line-height:1.04}
-.lg-word small{display:block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;color:var(--accent);letter-spacing:3px;margin-top:12px}
-.lg-callouts{position:relative;margin:40px 0 0;padding:34px 20px 24px 24px}
-.lg-callouts svg.lg-ell{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.lg-co{display:flex;align-items:center;gap:0;position:relative;padding:11px 0}
-.lg-balloon{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;border:2px solid #0b0e16;box-shadow:0 0 0 1.5px currentColor;z-index:1}
-.lg-balloon i{font-style:normal;color:#0b0e16}
-.lg-leader{height:2px;width:34px;flex-shrink:0;position:relative;color:inherit}
-.lg-leader::after{content:'';position:absolute;right:-1px;top:-4px;border-left:8px solid;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left-color:inherit}
-.lg-co .lg-txt{font-size:13.5px;color:var(--text);padding-left:12px}
-.lg-kit-chip{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#a78bfa;color:#0b0e16;border:1.5px solid #0b0e16;border-radius:11px;padding:3px 14px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:.5px;z-index:2;white-space:nowrap}
-.lg-form{flex:1;padding:46px 48px;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(180deg,rgba(22,28,40,.5),transparent 30%)}
-.lg-form-head{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--accent);margin-bottom:10px}
-.lg-form h2{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-.4px}
-.lg-hint{color:var(--text2);font-size:12.5px;margin:0 0 26px;line-height:1.55}
-.lg-btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border-radius:7px;border:1px solid #3b4770;background:var(--surface2);color:var(--text);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s}
-.lg-btn-google:hover{border-color:var(--accent);background:var(--surface3)}
-.lg-btn-google img{width:16px;height:16px}
-.lg-div{display:flex;align-items:center;gap:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:9.5px;margin:20px 0;letter-spacing:1.5px}
-.lg-div::before,.lg-div::after{content:'';flex:1;height:1px;background:var(--border)}
-.lg-label{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:600;color:var(--text2);letter-spacing:1.5px;margin:0 0 6px}
-.lg-form input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:11px 13px;border-radius:7px;font-size:13.5px;font-family:'JetBrains Mono',monospace;margin-bottom:15px;outline:none;transition:all .15s}
-.lg-form input::placeholder{color:#4a5670}
-.lg-form input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,.15)}
-.lg-btn-primary{width:100%;padding:12px;border-radius:7px;border:1px solid var(--accent);background:var(--accent);color:#04070d;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:1.5px;cursor:pointer;transition:all .15s;margin-top:4px}
-.lg-btn-primary:hover{filter:brightness(1.12);box-shadow:0 0 24px rgba(96,165,250,.35)}
-.lg-btn-primary:disabled{opacity:.7;cursor:default}
-.lg-foot{margin-top:20px;font-size:11.5px;color:var(--text2);text-align:center;line-height:1.55}
-.lg-alert{display:none;align-items:flex-start;gap:9px;padding:11px 13px;border-radius:7px;font-size:12.5px;line-height:1.5;margin-bottom:18px}
-.lg-alert.show{display:flex}
-.lg-alert.err{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.45);color:#fca5a5}
-.lg-alert.ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.45);color:#6ee7b7}
-.lg-spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(4,7,13,.35);border-top-color:#04070d;border-radius:50%;animation:lgsp .7s linear infinite;vertical-align:-2px;margin-right:8px}
-@keyframes lgsp{to{transform:rotate(360deg)}}
-@media(max-width:900px){.lg-inner{flex-direction:column}.lg-brand{border-right:none;border-bottom:1px solid var(--border)}}
 body[data-tab="models"] #drawingSelect,
 body[data-tab="models"] #uploadPdfBtn,
 body[data-tab="deploy"] #drawingSelect,
@@ -549,47 +502,7 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 }
 </style>
 </head>
-<body data-tab="models" class="gated">
-
-<!-- LOGIN GATE -->
-<div id="loginGate">
-<div class="lg-sheet">
-  <span class="lg-zone" style="top:-16px;left:16%">1</span><span class="lg-zone" style="top:-16px;left:50%">2</span><span class="lg-zone" style="top:-16px;left:83%">3</span>
-  <span class="lg-zone" style="bottom:-16px;left:16%">1</span><span class="lg-zone" style="bottom:-16px;left:50%">2</span><span class="lg-zone" style="bottom:-16px;left:83%">3</span>
-  <span class="lg-zone" style="left:-14px;top:24%">A</span><span class="lg-zone" style="left:-14px;top:60%">B</span>
-  <span class="lg-zone" style="right:-14px;top:24%">A</span><span class="lg-zone" style="right:-14px;top:60%">B</span>
-  <span class="lg-tick" style="top:-2px;left:33%;width:2px;height:12px"></span><span class="lg-tick" style="top:-2px;left:66%;width:2px;height:12px"></span>
-  <span class="lg-tick" style="bottom:-2px;left:33%;width:2px;height:12px"></span><span class="lg-tick" style="bottom:-2px;left:66%;width:2px;height:12px"></span>
-  <span class="lg-tick" style="left:-2px;top:46%;width:12px;height:2px"></span><span class="lg-tick" style="right:-2px;top:46%;width:12px;height:2px"></span>
-  <div class="lg-inner">
-    <div class="lg-brand">
-      <div class="lg-word">DeployOps<small>DEPLOYMENT OPERATIONS</small></div>
-      <div class="lg-callouts">
-        <svg class="lg-ell" viewBox="0 0 400 190" preserveAspectRatio="none"><ellipse cx="200" cy="95" rx="196" ry="91" fill="none" stroke="#a78bfa" stroke-width="2.5"></ellipse></svg>
-        <span class="lg-kit-chip">CREW KIT</span>
-        <div class="lg-co"><span class="lg-balloon" style="background:#60a5fa;color:#60a5fa"><i>1</i></span><span class="lg-leader" style="background:#60a5fa;color:#60a5fa"></span><span class="lg-txt">Annotated drawings</span></div>
-        <div class="lg-co"><span class="lg-balloon" style="background:#34d399;color:#34d399"><i>2</i></span><span class="lg-leader" style="background:#34d399;color:#34d399"></span><span class="lg-txt">Phase checklists</span></div>
-        <div class="lg-co"><span class="lg-balloon" style="background:#fbbf24;color:#fbbf24"><i>3</i></span><span class="lg-leader" style="background:#fbbf24;color:#fbbf24"></span><span class="lg-txt">Deployment units</span></div>
-      </div>
-    </div>
-    <div class="lg-form">
-      <div class="lg-form-head">// ACCESS</div>
-      <h2>Sign in</h2>
-      <p class="lg-hint">Invitation-only. Sign in with your invited account.</p>
-      <div class="lg-alert err" id="lgErrBox"><span>⛔</span><span id="lgErrTxt"></span></div>
-      <div class="lg-alert ok" id="lgOkBox"><span>✔</span><span id="lgOkTxt"></span></div>
-      <button class="lg-btn-google" onclick="gateGoogle()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="">Continue with Google</button>
-      <div class="lg-div">OR WITH EMAIL</div>
-      <label for="lgEmail" class="lg-label">EMAIL</label>
-      <input id="lgEmail" type="email" placeholder="email" autocomplete="username" onkeydown="if(event.key==='Enter')gateEmail()">
-      <label for="lgPass" class="lg-label">PASSWORD</label>
-      <input id="lgPass" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')gateEmail()">
-      <button class="lg-btn-primary" id="lgSignBtn" onclick="gateEmail()">SIGN IN →</button>
-      <div class="lg-foot">No account? Ask an admin to add you.</div>
-    </div>
-  </div>
-</div>
-</div>
+<body data-tab="models">
 
 <!-- TOPBAR -->
 <div class="topbar">
@@ -600,7 +513,9 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
   <button id="uploadPdfBtn" class="btn btn-primary admin-only btn-sm" onclick="triggerPDFFilePicker()">📤 Upload PDF</button>
   <div class="topbar-right">
     <button id="uiLangToggle" class="btn btn-sm" onclick="toggleUiLang()" title="Switch UI language">🌐 EN</button>
-    
+    <div id="loginArea">
+      <button class="btn" onclick="handleLogin()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:14px;height:14px"> Sign In</button>
+    </div>
     <div id="userBadge" class="user-badge" style="display:none">
       <span id="userName"></span>
       <button class="btn btn-sm" onclick="handleLogout()" style="padding:2px 6px;font-size:10px">✕</button>
@@ -647,13 +562,15 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 // ============================================================
 const SUPABASE_URL = 'https://wylxvmkcrexwfpjpbhyy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bHh2bWtjcmV4d2ZwanBiaHl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzkxMDYsImV4cCI6MjA4NDIxNTEwNn0.6Bxo42hx4jwlJGWnfjiTpiDUsYfc1QLTN3YtrU1efak';
+const GIS_CLIENT_ID = '1088099187141-ut0dn0scqt3h99htf3rg8gsrg2oo1ad8.apps.googleusercontent.com';
+const ADMIN_EMAILS = ['mangaonkaraniket@gmail.com','anikettelexistence@gmail.com'];
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ============================================================
 // STATE
 // ============================================================
-let currentUser = null, isAdmin = false, isOperator = false, currentRole = null;
+let currentUser = null, isAdmin = false;
 let drawings = [], currentDrawing = null, currentPage = 1;
 let drawingPath = []; // folder-view state: [] = root grid; ['Crawler v2','CRW-FRAME-ASSY'] = browsing that nested path
 let drawingFolders = []; // explicitly-created folders (incl. empty ones): [{id, path, ...}]
@@ -1254,73 +1171,59 @@ function itemInPhase(it, phase) { return itemPhases(it).includes(phase); }
 // ============================================================
 // AUTH
 // ============================================================
-let _appStarted = false, _resolvingFor = null;
-
 function initAuth() {
-  sb.auth.onAuthStateChange((event, session) => {
-    if (session?.user) resolveProfile(session.user);
-    else showGate();
+  const stored = localStorage.getItem('deployops_token');
+  if (stored) {
+    try {
+      const cred = JSON.parse(stored);
+      if (!cred.expMs || cred.expMs <= Date.now()) {
+        localStorage.removeItem('deployops_token');
+      } else {
+        setUser(cred);
+      }
+    } catch(e) { localStorage.removeItem('deployops_token'); }
+  }
+}
+
+function handleLogin() {
+  if (typeof google === 'undefined') { toast('Google Sign-In not loaded yet','err'); return; }
+  google.accounts.id.initialize({
+    client_id: GIS_CLIENT_ID,
+    callback: (resp) => {
+      const payload = JSON.parse(atob(resp.credential.split('.')[1]));
+      const SESSION_HOURS = 12;
+      const cred = { email: payload.email, name: payload.name, picture: payload.picture,
+                     expMs: Date.now() + SESSION_HOURS * 3600 * 1000 };
+      localStorage.setItem('deployops_token', JSON.stringify(cred));
+      setUser(cred);
+      toast('Signed in as ' + cred.name, 'ok');
+    }
+  });
+  google.accounts.id.prompt((n) => {
+    if (n.isNotDisplayed() || n.isSkippedMoment()) {
+      google.accounts.id.renderButton(document.createElement('div'), { theme: 'outline' });
+      google.accounts.id.prompt();
+    }
   });
 }
 
-async function resolveProfile(user) {
-  if (_resolvingFor === user.id && currentUser) return; // ignore repeated TOKEN_REFRESHED events
-  _resolvingFor = user.id;
-  const { data: prof, error } = await sb.from('authentication_mode_user_roles').select('role,name,email').eq('email', (user.email || '').toLowerCase()).maybeSingle();
-  if (error) { console.error(error); gateError('Could not verify access: ' + error.message); return; }
-  if (!prof) {
-    _resolvingFor = null;
-    await sb.auth.signOut();
-    gateError("This account isn't on the DeployOps access list. Ask an admin to invite " + (user.email || 'you') + '.');
-    return;
-  }
-  setUser({ email: prof.email || user.email, name: prof.name || user.user_metadata?.full_name || user.email, role: prof.role });
-}
-
-function setUser(u) {
-  currentUser = u; currentRole = u.role;
-  isAdmin = u.role === 'admin';
-  isOperator = isAdmin || u.role === 'operator';
-  document.body.classList.toggle('is-admin', isAdmin);
-  document.body.classList.toggle('is-operator', isOperator);
-  document.getElementById('userBadge').style.display = 'flex';
-  document.getElementById('userName').textContent = u.name + ' · ' + u.role.toUpperCase();
-  document.body.classList.remove('gated');
-  if (!_appStarted) { _appStarted = true; enterApp(); }
-}
-
-function showGate() {
-  if (_appStarted) { location.reload(); return; } // drop loaded data on sign-out
-  currentUser = null; currentRole = null; isAdmin = false; isOperator = false;
-  document.body.classList.remove('is-admin', 'is-operator');
-  document.body.classList.add('gated');
+function handleLogout() {
+  localStorage.removeItem('deployops_token');
+  currentUser = null; isAdmin = false;
+  document.getElementById('loginArea').style.display = '';
   document.getElementById('userBadge').style.display = 'none';
+  document.body.classList.remove('is-admin');
+  toast('Signed out','info');
 }
 
-async function handleLogout() { await sb.auth.signOut(); }
-
-function gateClear() { document.getElementById('lgErrBox').classList.remove('show'); document.getElementById('lgOkBox').classList.remove('show'); }
-function gateError(t) {
-  gateClear();
-  document.getElementById('lgErrTxt').textContent = t;
-  document.getElementById('lgErrBox').classList.add('show');
-  const b = document.getElementById('lgSignBtn'); b.disabled = false; b.textContent = 'SIGN IN →';
-}
-async function gateGoogle() {
-  gateClear();
-  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
-  if (error) gateError(error.message);
-}
-async function gateEmail() {
-  gateClear();
-  const email = document.getElementById('lgEmail').value.trim();
-  const pass = document.getElementById('lgPass').value;
-  if (!email || !pass) { gateError('Enter your email and password.'); return; }
-  const b = document.getElementById('lgSignBtn');
-  b.disabled = true; b.innerHTML = '<span class="lg-spin"></span>AUTHENTICATING…';
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) gateError(error.message);
-  // success → onAuthStateChange fires → resolveProfile
+function setUser(cred) {
+  currentUser = cred;
+  isAdmin = ADMIN_EMAILS.includes(cred.email);
+  document.getElementById('loginArea').style.display = 'none';
+  document.getElementById('userBadge').style.display = 'flex';
+  document.getElementById('userName').textContent = cred.name;
+  if (isAdmin) document.body.classList.add('is-admin');
+  else document.body.classList.remove('is-admin');
 }
 
 // ============================================================
@@ -5528,7 +5431,7 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
       const checked = !!(c && c.checked);
       html += `
         <div class="deploy-item ${checked?'checked':''}" data-item-id="${item.id}" data-phase="${phase}" data-sec-key="${esc(secKey)}">
-          <input type="checkbox" ${checked?'checked':''} ${isOperator?'':'disabled'} onchange="toggleDeployCheck('${u.id}','${item.id}','${phase}',this.checked,this)">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleDeployCheck('${u.id}','${item.id}','${phase}',this.checked,this)">
           <div class="di-label">
             ${esc(item.label)}
             ${item.description?`<span class="sub">${esc(item.description)}</span>`:''}
@@ -5556,7 +5459,6 @@ function cssEsc(s) {
 }
 
 async function toggleDeployCheck(unitId, itemId, phase, checked, checkboxEl) {
-  if (!isOperator) { if (checkboxEl) checkboxEl.checked = !checked; toast('Only operators and admins can tick items', 'err'); return; }
   const now = new Date().toISOString();
   const by  = currentUser?.email || 'unknown';
 
@@ -7518,18 +7420,17 @@ async function deleteModel(id) {
 // INIT
 // ============================================================
 async function init() {
+  initAuth();
   setUiLangButton();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
     else if (e.key === 'Escape' && brushPhase) { brushPhase = null; renderModels(); }  // G.2: Esc exits brush mode
   });
   document.body.dataset.tab = 'models';
-  initAuth(); // no data loads until a session + profile resolve → enterApp()
-}
-
-async function enterApp() {
   await Promise.all([loadDrawings(), loadDrawingFolders(), loadModels(), loadSymbols()]);
   window._modelsLoaded = true;
+  // Drawings tab opens on its folder grid (currentDrawing stays null); no
+  // auto-select. Deploy is model-based and no longer depends on currentDrawing.
   renderModels();
 }
 
