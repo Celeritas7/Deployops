@@ -1401,6 +1401,7 @@ async function selectDrawing(id) {
   armedNote = null;
   loadLayerVis();
   if (currentDrawing) {
+    await ensureDrawingUrls(currentDrawing);
     await loadBalloons();
   } else {
     balloons = [];
@@ -1656,6 +1657,7 @@ async function deleteDrawing(id) {
       const { error: rmErr } = await sb.storage.from('deployops-drawings').remove(paths);
       if (rmErr) throw rmErr;
     }
+    invalidateDrawingUrls(ref);
 
     // 2. Delete its balloons (FK to drawing_id).
     const { error: bErr } = await sb.from('deployops_balloons').delete().eq('drawing_id', id);
@@ -1796,6 +1798,7 @@ async function confirmPDFUpload() {
       const { error: stErr } = await sb.storage.from('deployops-drawings').upload(path, blob, { contentType: 'image/png', upsert: true });
       if (stErr) throw stErr;
     }
+    invalidateDrawingUrls(ref);
 
     toast(`Drawing "${ref}" uploaded (${pageCount} pages)`,'ok');
     await loadDrawings();
@@ -1810,17 +1813,66 @@ async function confirmPDFUpload() {
 // ============================================================
 // DRAWING VIEW + BALLOON EDITOR
 // ============================================================
+// ── Signed storage URLs ──────────────────────────────────────
+// The deployops-drawings bucket is private, so every page PNG and source PDF
+// needs a short-lived signed URL. We sign a whole drawing's pages in one
+// request and cache them, because renderDrawing() reads URLs synchronously.
+const SIGNED_TTL = 3600;            // 1 hour
+const SIGN_REFRESH_MS = 300000;     // re-sign when <5 min of life left
+const signedUrls = {};              // storage path -> { url, expAt }
+const drawingCacheBust = {};
+
+function cachedSigned(path) {
+  const hit = signedUrls[path];
+  if (hit && hit.expAt - Date.now() > SIGN_REFRESH_MS) return hit.url;
+  return null;
+}
+
+// Sign many paths in one round-trip. Missing objects come back with an error
+// and are simply skipped (legacy drawings without source.pdf).
+async function signPaths(paths) {
+  const want = paths.filter(p => !cachedSigned(p));
+  if (!want.length) return;
+  const { data, error } = await sb.storage.from('deployops-drawings')
+    .createSignedUrls(want, SIGNED_TTL);
+  if (error) { console.warn('sign failed', error); return; }
+  const expAt = Date.now() + SIGNED_TTL * 1000;
+  (data || []).forEach(r => {
+    if (r && r.signedUrl && !r.error) signedUrls[r.path] = { url: r.signedUrl, expAt };
+  });
+}
+
+// Sign every page of a drawing plus its source PDF. Call before renderDrawing().
+async function ensureDrawingUrls(drawing) {
+  if (!drawing) return;
+  const paths = [`${drawing.drawing_ref}/source.pdf`];
+  for (let p = 1; p <= (drawing.page_count || 1); p++) {
+    paths.push(`${drawing.drawing_ref}/page_${p}.png`);
+  }
+  await signPaths(paths);
+}
+
+// Drop cached URLs for a drawing after upload / page delete / reorder.
+function invalidateDrawingUrls(ref) {
+  Object.keys(signedUrls).forEach(k => { if (k.startsWith(ref + '/')) delete signedUrls[k]; });
+}
+
 function getPageURL(pageNum) {
   if (!currentDrawing) return '';
   const path = `${currentDrawing.drawing_ref}/page_${pageNum}.png`;
-  const { data } = sb.storage.from('deployops-drawings').getPublicUrl(path);
-  // Cache-bust after page deletion: pages get shifted in storage but the URL stays the
-  // same, so the browser would serve the old image. The bumped stamp forces a fresh fetch.
+  const url = cachedSigned(path);
+  if (!url) {
+    // Not signed yet (or just expired) — sign in the background and re-render.
+    const d = currentDrawing;
+    signPaths([path]).then(() => { if (currentDrawing === d) renderDrawing(); });
+    return '';
+  }
+  // Cache-bust after page deletion: pages shift in storage but the path stays
+  // the same, so the browser would serve the stale image. Signed URLs already
+  // have a query string, so append with &.
   const bust = drawingCacheBust[currentDrawing.id];
-  return bust ? `${data.publicUrl}?v=${bust}` : data.publicUrl;
+  return bust ? `${url}&v=${bust}` : url;
 }
-
-const drawingCacheBust = {};
 
 function renderDrawing() {
   const el = document.getElementById('drawingContent');
@@ -2384,8 +2436,11 @@ async function loadPdfDoc(drawing) {
   const id = drawing.id;
   if (pdfDocCache[id] === 'none') return null;
   if (pdfDocCache[id]) { try { return await pdfDocCache[id]; } catch (e) { return null; } }
-  const { data } = sb.storage.from('deployops-drawings').getPublicUrl(`${drawing.drawing_ref}/source.pdf`);
-  const p = pdfjsLib.getDocument(data.publicUrl).promise;
+  const path = `${drawing.drawing_ref}/source.pdf`;
+  let url = cachedSigned(path);
+  if (!url) { await signPaths([path]); url = cachedSigned(path); }
+  if (!url) { pdfDocCache[id] = 'none'; return null; }   // legacy: no PDF stored
+  const p = pdfjsLib.getDocument(url).promise;
   pdfDocCache[id] = p;
   try { return await p; }
   catch (e) { pdfDocCache[id] = 'none'; return null; }  // no PDF stored (legacy) — fall back to PNG
@@ -3530,6 +3585,7 @@ async function deleteCurrentPage() {
     await sb.from('deployops_drawings').update({ page_count: total - 1 }).eq('id', currentDrawing.id);
 
     drawingCacheBust[currentDrawing.id] = Date.now();
+    invalidateDrawingUrls(ref);
     pdfDocCache[currentDrawing.id] = 'none'; // page order in source.pdf no longer matches after a delete — fall back to PNG
     toast(`Page ${deletedPage} deleted`,'ok');
     await loadDrawings();
