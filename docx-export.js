@@ -90,7 +90,7 @@
         + p([run(strip(tr(lang, ldKey)), { sz: 8, color: T.rule, font: F })]),
         { w: lw, fill, mar: { t: 80, b: 80 }, va: 'top' });
     };
-    out.push(p([run('\u25A0 ', { b: 1, sz: 10, color: T.vBar }), run(strip(tr(lang, 'ws_legend_verify_title')) + ' \u2014 ' + strip(tr(lang, 'ws_verification_mark')) + '      ', { sz: 8.5, color: T.ink2, font: F }), run('\u25A0 ', { b: 1, sz: 10, color: T.rBar }), run(strip(tr(lang, 'ws_legend_review_title')) + ' \u2014 ' + (lang === 'ja' ? '\u76E3\u7763\u8005\u306E\u78BA\u8A8D' : 'supervisor sign-off') + '      ', { sz: 8.5, color: T.ink2, font: F }), run('\u25A0 ', { b: 1, sz: 10, color: T.wBar }), run(strip(tr(lang, 'ws_legend_witness_title')) + ' \u2014 ' + (lang === 'ja' ? '\u7ACB\u4F1A\u5FC5\u9808\u30FB\u5358\u72EC\u4F5C\u696D\u7981\u6B62' : 'witness required \u2014 never alone'), { sz: 8.5, color: T.ink2, font: F })], { after: 40 }));
+    out.push(tbl(trow(lgTd('plain', '\u2705', 'ws_legend_plain_title', 'ws_legend_plain_desc') + lgTd('v', '\uD83D\uDD0D', 'ws_legend_verify_title', 'ws_legend_verify_desc') + lgTd('r', '\u26A0', 'ws_legend_review_title', 'ws_legend_review_desc') + lgTd('w', '\u26D4', 'ws_legend_witness_title', 'ws_legend_witness_desc')), [lw, lw, lw, lw], { bdr: gridBdr }));
     out.push(spacer(160));
 
     // Phase tables
