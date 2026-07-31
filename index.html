@@ -714,6 +714,11 @@ function badgeFor(g){ return g==='none' ? 'NO LOCTITE' : 'LOCTITE '+g; }
 function setLtGradeColor(g, c){ ltColors[g]=c; saveLtColors(); refreshDrawingChrome(); }
 function addGrade(raw){ const g=(raw||'').trim().replace(/[^0-9a-zA-Z]/g,''); if(!g||ltGrades.includes(g))return; ltColors[g]=ltColors[g]||NEW_GRADE_COLORS[ltGrades.length%NEW_GRADE_COLORS.length]; ltGrades.push(g); saveLtGrades(); saveLtColors(); refreshDrawingChrome(); }
 function delGrade(g){ if(g==='none')return; ltGrades=ltGrades.filter(x=>x!==g); saveLtGrades(); refreshDrawingChrome(); }
+// XSS: index-based indirection so the grade string never lands inside an inline
+// handler's JS context, where esc() would not make it safe. The sidebar
+// re-renders on every mutation, so indices stay in step with ltGrades.
+function delGradeAt(i){ const g = ltGrades[i]; if (g == null) return; delGrade(g); }
+function setLtGradeColorAt(i, c){ const g = ltGrades[i]; if (g == null) return; setLtGradeColor(g, c); }
 function resetGrades(){ ltGrades=LOCTITE_DEFAULT_GRADES.slice(); ltColors=Object.assign({},LOCTITE_DEFAULT_COLORS); saveLtGrades(); saveLtColors(); refreshDrawingChrome(); }
 function ltMeta(b){ try { const o=JSON.parse(b.label||'{}'); return { loctite:o.loctite||'none', torque:o.torque||'', color:o.color, leader:o.leader||'arrow', curve:!!o.curve, waypoints:Array.isArray(o.waypoints)?o.waypoints:[], bx:o.bx, by:o.by, scale:(+o.scale)||0.8 }; } catch { return { loctite:'none', torque:'', leader:'arrow', curve:false, waypoints:[], scale:0.8 }; } }
 function ltSerialize(m){ return JSON.stringify(m); }
@@ -1134,6 +1139,21 @@ let symbolSize = parseFloat(localStorage.getItem('deployops_symbol_size')) || 2;
 const SYMBOL_COLORS = ['#0ea5e9','#ef4444','#f59e0b','#22c55e','#8b5cf6','#ec4899','#14b8a6','#111827'];
 function pickTextColor(hex){ try { const h=(hex||'').replace('#',''); const n=h.length===3?h.split('').map(c=>c+c).join(''):h; const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16); return (0.299*r+0.587*g+0.114*b)>150 ? '#111' : '#fff'; } catch { return '#fff'; } }
 function hex6(c){ try { let h=(c||'').trim(); if(/^#([0-9a-f]{3})$/i.test(h)){ h='#'+h.slice(1).split('').map(x=>x+x).join(''); } return /^#([0-9a-f]{6})$/i.test(h)?h.toLowerCase():'#888888'; } catch { return '#888888'; } }
+// Colour values reach `style="…"` attributes, where esc() is NOT sufficient:
+// `red;background:url(x)` contains no escapable character and survives intact.
+// Style attributes need value-level validation, not entity escaping.
+// `transparent` / `none` are legitimate stored values (deployops_symbols.color
+// and the note-template colour both persist the transparent sentinel) and are
+// CSS keywords with no delimiter characters, so they pass through as-is.
+// Applies at the sink only — never mutate the stored value, or pillStyle's
+// transparent branch stops seeing it. hex6() remains the helper for
+// <input type="color"> values, which require exactly 6 digits.
+// The {3,8} bound is load-bearing: #111 is live in deployops_balloons.
+function safeColor(c){
+  const v = String(c == null ? '' : c);
+  if (v === 'transparent' || v === 'none') return v;
+  return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : '#888';
+}
 
 function pillStyle(color, textColor){ const tc = (textColor && textColor !== 'auto') ? textColor : null; if(color==='transparent'||color==='none'||!color){ return { fill:'none', stroke:'#94a3b8', text: tc || '#111' }; } return { fill:color, stroke:'#ffffff', text: tc || pickTextColor(color) }; }
 const TRANSPARENT_BG = 'repeating-conic-gradient(#b9c0cc 0% 25%, #fff 0% 50%) 0 / 10px 10px';
@@ -1185,7 +1205,7 @@ function setSymbolSize(v){
 function renderSymbolsCard(){
   const chips = symbols.map(s => {
     const tc = pickTextColor(s.color);
-    return `<span class="sym-chip ${armedSymbol&&armedSymbol.id===s.id?'armed':''}" style="background:${s.color}">
+    return `<span class="sym-chip ${armedSymbol&&armedSymbol.id===s.id?'armed':''}" style="background:${safeColor(s.color)}">
       <button class="sym-chip-text" style="color:${tc}" onclick="armSymbol('${s.id}')" title="Arm — next click drops this symbol">${esc(s.text)}</button>
       <button class="sym-chip-del admin-only" onclick="deleteSymbol('${s.id}')" title="Delete symbol">✕</button>
     </span>`;
@@ -1992,7 +2012,7 @@ function renderSizesCard() {
 }
 
 function renderPaletteRows(){
-  const sw=(arr,which,fn)=>arr.map((c,i)=>`<label class="sp-sw" style="background:${c}" title="#${i+1}"><span>${i+1}</span><input type="color" value="${c}" onchange="${fn}(${i}, this.value)">${arr.length>1?`<button class="sp-del" title="Remove colour #${i+1}" onclick="event.preventDefault();event.stopPropagation();delPaletteColor('${which}',${i})">×</button>`:''}</label>`).join('')+`<button class="sp-sw sp-add" title="Add a colour to the sequence" onclick="addPaletteColor('${which}')">＋</button>`;
+  const sw=(arr,which,fn)=>arr.map((c,i)=>`<label class="sp-sw" style="background:${safeColor(c)}" title="#${i+1}"><span>${i+1}</span><input type="color" value="${hex6(c)}" onchange="${fn}(${i}, this.value)">${arr.length>1?`<button class="sp-del" title="Remove colour #${i+1}" onclick="event.preventDefault();event.stopPropagation();delPaletteColor('${which}',${i})">×</button>`:''}</label>`).join('')+`<button class="sp-sw sp-add" title="Add a colour to the sequence" onclick="addPaletteColor('${which}')">＋</button>`;
   return `<div class="step-pal admin-only">
     <div class="sp-lbl">BOM colour sequence</div>
     <div class="sp-swatches">${sw(bomPalette,'bom','setBomColor')}</div>
@@ -2014,11 +2034,11 @@ function renderStepsCard(){
   </div>`;
 }
 function renderLoctiteCard(){
-  const gradeOpts = ltGrades.map(g=>`<option value="${g}">${badgeFor(g)}</option>`).join('');
-  const palette = ltGrades.map(g=>`<div class="lt-pal-sw">
-    <label class="lt-pal-chip" style="background:${ltColor(g)}" title="Set colour for ${badgeFor(g)}"><input type="color" value="${ltColor(g)}" onchange="setLtGradeColor('${g}', this.value)"></label>
-    <span class="lt-pal-name">${g==='none'?'None':g}</span>
-    ${g!=='none'?`<button class="lt-pal-del" title="Remove ${badgeFor(g)}" onclick="delGrade('${g}')">×</button>`:''}
+  const gradeOpts = ltGrades.map(g=>`<option value="${esc(g)}">${esc(badgeFor(g))}</option>`).join('');
+  const palette = ltGrades.map((g,i)=>`<div class="lt-pal-sw">
+    <label class="lt-pal-chip" style="background:${safeColor(ltColor(g))}" title="Set colour for ${esc(badgeFor(g))}"><input type="color" value="${hex6(ltColor(g))}" onchange="setLtGradeColorAt(${i}, this.value)"></label>
+    <span class="lt-pal-name">${g==='none'?'None':esc(g)}</span>
+    ${g!=='none'?`<button class="lt-pal-del" title="Remove ${esc(badgeFor(g))}" onclick="delGradeAt(${i})">×</button>`:''}
   </div>`).join('');
   return `<div class="dwg-card admin-only">
     <div class="dwg-card-head"><span>Loctite + Torque</span></div>
@@ -2050,7 +2070,7 @@ function renderNoteTemplatesCard() {
   const tpls = loadNoteTemplates();
   const chips = tpls.map((t,i) => {
     const c = t.color;
-    const bg = (!c) ? '' : (c === 'transparent' ? ('background:' + TRANSPARENT_BG + ';color:var(--text);') : ('background:' + c + ';'));
+    const bg = (!c) ? '' : (c === 'transparent' ? ('background:' + TRANSPARENT_BG + ';color:var(--text);') : ('background:' + safeColor(c) + ';'));
     const tc = (!c || c === 'transparent') ? 'var(--text)' : pickTextColor(c);
     return `<span class="tpl-chip ${armedNote===t.text?'armed':''}" style="${bg}">
       <button class="tpl-chip-text" style="color:${tc}" onclick="armNoteTemplate(${i})" title="Arm — next click drops this note">${esc(t.text)}</button>
@@ -2927,14 +2947,17 @@ function renderOverlay(){
 
 function loctorqueHTML(b){
   const m = ltMeta(b);
-  const bx = (m.bx==null?b.x_pct:m.bx), by = (m.by==null?b.y_pct:m.by);
+  // Geometry must never be a string: ltMeta passes o.bx/o.by through raw from
+  // the label JSON, so a crafted label could inject into the style attribute.
+  const bx = Number(m.bx==null?b.x_pct:m.bx) || 0, by = Number(m.by==null?b.y_pct:m.by) || 0;
   const c = m.color || ltColor(m.loctite);
+  const cs = safeColor(c);
   const sel = b.id === selectedBalloonId;
   const arrowOn = (m.leader||'arrow') !== 'none';
   const grades = ltGrades.includes(m.loctite) ? ltGrades : [m.loctite, ...ltGrades];
   const gradeUI = sel
-    ? '<select class="lt-grade-sel" data-id="'+b.id+'">'+grades.map(g=>'<option value="'+g+'"'+(g===m.loctite?' selected':'')+'>'+badgeFor(g)+'</option>').join('')+'</select>'
-    : '<span>'+badgeFor(m.loctite)+'</span>';
+    ? '<select class="lt-grade-sel" data-id="'+b.id+'">'+grades.map(g=>'<option value="'+esc(g)+'"'+(g===m.loctite?' selected':'')+'>'+esc(badgeFor(g))+'</option>').join('')+'</select>'
+    : '<span>'+esc(badgeFor(m.loctite))+'</span>';
   let tools = '';
   if (sel){
     tools = '<div class="lt-tools admin-only">'
@@ -4639,7 +4662,7 @@ const WS_CSS = `
   }
   .section-band:first-child { border-top: none; }
   .row + .section-band { border-top: 0.5pt solid var(--hair); }
-  .group-band{padding:5pt 10pt 4pt;background:#eef1f5;border-bottom:0.5pt solid var(--hair);font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;font-size:9.5pt;font-weight:700;color:var(--rule);break-inside:avoid}
+  .group-band{padding:4.5pt 10pt;background:var(--rule);color:#fff;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;break-inside:avoid}.group-band::before{content:'▸  ';white-space:pre}
   .row + .group-band{border-top:0.5pt solid var(--hair)}
 
   /* Per-section document paging. Each section's content is wrapped in

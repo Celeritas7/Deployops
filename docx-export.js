@@ -107,7 +107,7 @@
         const t = wsTier(it);
         const grp = wsSplitGroup(pickField(it, 'label', lang) || '').group;
         const prevGrp = i > 0 ? wsSplitGroup(pickField(list[i - 1], 'label', lang) || '').group : null;
-        if (grp && grp !== prevGrp) rows.push(trow(tc(p([run(grp, { b: 1, sz: 10, color: T.rule, font: F })]), { span: 5, fill: word ? '#f1f1ec' : '#eef1f5', mar: { t: Math.max(40, mt), b: Math.max(40, mb) } })));
+        if (grp && grp !== prevGrp) rows.push(trow(tc(p([run('\u25B8  ' + String(grp).toUpperCase(), { b: 1, sz: 8.5, color: '#ffffff', font: FM, spc: 28 })]), { span: 5, fill: T.rule, mar: { t: Math.max(50, mt), b: Math.max(50, mb) } })));
         const fill = t.cls === 'v' ? T.vFill : t.cls === 'r' ? T.rFill : t.cls === 'w' ? T.wFill : '#ffffff';
         const wTopBdr = t.cls === 'w' ? bd('top', 1.75, T.wBar) : '';
         const label = wsSplitGroup(pickField(it, 'label', lang) || '').text;
