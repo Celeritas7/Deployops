@@ -4662,7 +4662,7 @@ const WS_CSS = `
   }
   .section-band:first-child { border-top: none; }
   .row + .section-band { border-top: 0.5pt solid var(--hair); }
-  .group-band{padding:4.5pt 10pt;background:var(--rule);color:#fff;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;break-inside:avoid}.group-band::before{content:'▸  ';white-space:pre}
+  .group-band{display:flex;align-items:flex-start;gap:8pt;padding:5pt 10pt 4pt;background:#e9ecf1;color:var(--rule);font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;font-size:12pt;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;line-height:1.15;break-inside:avoid}.group-band::after{content:'';flex:1;height:5pt;margin-top:6.5pt;border-top:1.5pt solid var(--rule);border-right:1.5pt solid var(--rule)}
   .row + .group-band{border-top:0.5pt solid var(--hair)}
 
   /* Per-section document paging. Each section's content is wrapped in
