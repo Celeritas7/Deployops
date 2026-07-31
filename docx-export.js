@@ -90,7 +90,7 @@
         + p([run(strip(tr(lang, ldKey)), { sz: 8, color: T.rule, font: F })]),
         { w: lw, fill, mar: { t: 80, b: 80 }, va: 'top' });
     };
-    out.push(tbl(trow(lgTd('plain', '✅', 'ws_legend_plain_title', 'ws_legend_plain_desc') + lgTd('v', '🔍', 'ws_legend_verify_title', 'ws_legend_verify_desc') + lgTd('r', '⚠', 'ws_legend_review_title', 'ws_legend_review_desc') + lgTd('w', '⛔', 'ws_legend_witness_title', 'ws_legend_witness_desc')), [lw, lw, lw, lw], { bdr: gridBdr }));
+    out.push(p([run('\u25A0 ', { b: 1, sz: 10, color: T.vBar }), run(strip(tr(lang, 'ws_legend_verify_title')) + ' \u2014 ' + strip(tr(lang, 'ws_verification_mark')) + '      ', { sz: 8.5, color: T.ink2, font: F }), run('\u25A0 ', { b: 1, sz: 10, color: T.rBar }), run(strip(tr(lang, 'ws_legend_review_title')) + ' \u2014 ' + (lang === 'ja' ? '\u76E3\u7763\u8005\u306E\u78BA\u8A8D' : 'supervisor sign-off') + '      ', { sz: 8.5, color: T.ink2, font: F }), run('\u25A0 ', { b: 1, sz: 10, color: T.wBar }), run(strip(tr(lang, 'ws_legend_witness_title')) + ' \u2014 ' + (lang === 'ja' ? '\u7ACB\u4F1A\u5FC5\u9808\u30FB\u5358\u72EC\u4F5C\u696D\u7981\u6B62' : 'witness required \u2014 never alone'), { sz: 8.5, color: T.ink2, font: F })], { after: 40 }));
     out.push(spacer(160));
 
     // Phase tables
@@ -110,12 +110,13 @@
         if (grp && grp !== prevGrp) rows.push(trow(tc(p([run(String(grp).toUpperCase(), { b: 1, sz: 10, color: T.rule, font: FM, spc: 28 })]), { span: 5, fill: '#e9ecf1', bdr: bd('bottom', 1.5, T.rule), mar: { t: Math.max(50, mt), b: Math.max(50, mb) } })));
         const fill = t.cls === 'v' ? T.vFill : t.cls === 'r' ? T.rFill : t.cls === 'w' ? T.wFill : '#ffffff';
         const wTopBdr = t.cls === 'w' ? bd('top', 1.75, T.wBar) : '';
+        const edgeBar = t.cls === 'v' ? bd('left', 3, T.vBar) : t.cls === 'r' ? bd('left', 3, T.rBar) : t.cls === 'w' ? bd('left', 3, T.wBar) : '';
         const label = wsSplitGroup(pickField(it, 'label', lang) || '').text;
         const desc = pickField(it, 'description', lang) || '';
         const mkTc = (content, o) => tc(content, Object.assign({ fill, bdr: wTopBdr || undefined, mar: { t: mt, b: mb } }, o));
         let itemP = p([run(label, { b: 1, sz: 11.5, color: T.rule, font: F })]);
         let stopP = '';
-        if (t.cls === 'r' || t.cls === 'w') stopP = p([run(String(strip(tr(lang, t.cls === 'w' ? 'ws_stop_witness' : 'ws_stop_review'))).toUpperCase(), { b: 1, sz: 7.5, color: t.cls === 'w' ? T.wBar : T.rBar, font: FM, spc: 16 })], { before: desc ? 20 : 0 });
+        if (t.cls === 'r' || t.cls === 'w') { const stopTag = t.cls === 'w' ? (lang === 'ja' ? '\u25A0 \u505C\u6B62 \u2014 \u7ACB\u4F1A\u5FC5\u9808\u30FB\u5358\u72EC\u4F5C\u696D\u7981\u6B62' : '\u25A0 STOP \u2014 WITNESS REQUIRED') : (lang === 'ja' ? '\u25A0 \u505C\u6B62 \u2014 \u76E3\u7763\u8005\u306E\u78BA\u8A8D' : '\u25A0 STOP \u2014 SUP SIGN-OFF'); stopP = p([run(stopTag, { b: 1, sz: 8.5, color: t.cls === 'w' ? T.wBar : T.rBar, font: FM, spc: 16 })], { before: desc ? 20 : 0 }); }
         let notesP;
         if (t.cls === 'v') notesP = p([run('☐ ', { sz: 11, color: T.vBar, font: 'Segoe UI Symbol' }), run(desc || strip(tr(lang, 'ws_verification_mark')), { i: 1, sz: 9, color: T.ink2, font: F })]);
         else notesP = (desc ? p([run(desc, { sz: 9.5, color: T.ink2, font: F })]) : (stopP ? '' : p([]))) + stopP;
@@ -133,7 +134,7 @@
           qcTc = mkTc(p([cb(13, T.rule)], { jc: 'center' }), { w: CW[4], mar: { t: mt, b: mb, l: 20, r: 20 } });
         }
         rows.push(trow(
-          mkTc(p([run(String(i + 1).padStart(2, '0'), { b: 1, sz: 11, color: T.rule, font: FM })], { jc: 'center' }), { w: CW[0], mar: { t: mt, b: mb, l: 20, r: 20 } })
+          mkTc(p([run(String(i + 1).padStart(2, '0'), { b: 1, sz: 11, color: T.rule, font: FM })], { jc: 'center' }), { w: CW[0], bdr: (edgeBar + wTopBdr) || undefined, mar: { t: mt, b: mb, l: 20, r: 20 } })
           + mkTc(itemP, { w: CW[1] })
           + mkTc(notesP, { w: CW[2] })
           + opTc + qcTc));
