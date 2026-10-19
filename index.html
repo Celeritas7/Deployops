@@ -35,10 +35,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .is-admin .admin-only{display:inline-flex}
 .is-admin .add-form.admin-only{display:flex}
 .is-admin div.mode-indicator.admin-only{display:inline-block}
+/* component rules (e.g. .folder-card{display:flex}) would otherwise un-hide admin controls */
+body:not(.is-admin) .admin-only{display:none!important}
 /* LOGIN GATE + ROLES */
 .op-only{display:none}
 .is-operator .op-only{display:inline-flex}
+body:not(.is-operator) .op-only{display:none!important}
 body:not(.is-operator) .deploy-item input[type=checkbox]{opacity:.35;cursor:not-allowed}
+body:not(.is-operator) .deploy-item{cursor:default}
 body.gated .topbar,body.gated .tabbar,body.gated .tab-panel{display:none!important}
 #loginGate{display:none;position:fixed;inset:0;z-index:1000;background:var(--bg);overflow:auto;align-items:center;justify-content:center;padding:34px;background-image:linear-gradient(rgba(96,165,250,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,.045) 1px,transparent 1px),linear-gradient(rgba(96,165,250,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,.025) 1px,transparent 1px);background-size:120px 120px,120px 120px,24px 24px,24px 24px}
 body.gated #loginGate{display:flex}
@@ -83,6 +87,8 @@ body.gated #loginGate{display:flex}
 .lg-spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(4,7,13,.35);border-top-color:#04070d;border-radius:50%;animation:lgsp .7s linear infinite;vertical-align:-2px;margin-right:8px}
 @keyframes lgsp{to{transform:rotate(360deg)}}
 @media(max-width:900px){.lg-inner{flex-direction:column}.lg-brand{border-right:none;border-bottom:1px solid var(--border)}}
+/* phones: keep the sign-in form on the first screen */
+@media(max-width:600px){#loginGate{padding:20px 14px}.lg-brand{padding:24px 22px}.lg-word{font-size:34px}.lg-callouts{display:none}}
 body[data-tab="models"] #drawingSelect,
 body[data-tab="models"] #uploadPdfBtn,
 body[data-tab="deploy"] #drawingSelect,
@@ -443,14 +449,57 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 .deploy-progress .txt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:600}
 .deploy-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden}
 .deploy-section-header{padding:12px 16px;background:var(--surface2);font-weight:600;font-size:13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
-.deploy-item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .15s}
+.deploy-item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer}
 .deploy-item:last-child{border-bottom:none}
 .deploy-item:hover{background:var(--surface2)}
 .deploy-item input[type=checkbox]{width:20px;height:20px;accent-color:var(--green);cursor:pointer;flex-shrink:0;margin-top:2px}
-.deploy-item.checked .di-label{text-decoration:line-through;color:var(--text2)}
+.deploy-item.checked .di-text{text-decoration:line-through}
+.deploy-item.checked .di-label{color:var(--text2)}
 .di-label{font-size:13px;flex:1}
 .di-label .sub{display:block;font-size:11px;color:var(--text2);margin-top:2px}
+.di-label .by{display:block;font-size:11px;color:var(--green);margin-top:3px;font-family:'JetBrains Mono',monospace}
 .di-qty{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--orange);min-width:40px;text-align:right}
+/* tier markers — hold points must stand out on the shop floor */
+.di-tier{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.3px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px;text-transform:uppercase}
+.di-tier.t-verify{background:rgba(96,165,250,.15);color:var(--accent)}
+.di-tier.t-review{background:rgba(251,191,36,.15);color:var(--orange)}
+.di-tier.t-witness{background:rgba(248,113,113,.18);color:var(--red)}
+.deploy-item.tier-review{box-shadow:inset 3px 0 var(--orange)}
+.deploy-item.tier-witness{box-shadow:inset 3px 0 var(--red)}
+.hide-done .deploy-item.checked{display:none}
+@media (pointer:coarse), (max-width:820px){
+  .deploy-item{padding:12px 16px;min-height:52px}
+  .deploy-item input[type=checkbox]{width:26px;height:26px;margin-top:0}
+}
+/* unit detail — phase header + progress */
+.deploy-header{flex-wrap:wrap}
+.deploy-header h2{min-width:0}
+.deploy-header .submeta{flex-basis:100%;font-size:12px;color:var(--text2)}
+.phase-block{margin:22px 0 8px}
+.phase-block-header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:10px}
+.phase-name{font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px}
+.phase-meta{font-size:12px;color:var(--text2)}
+.phase-progress{flex-basis:100%;height:22px;background:var(--surface3);border-radius:6px;overflow:hidden;position:relative;margin-top:4px}
+.phase-progress .fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:6px;transition:width .4s}
+.phase-progress.dep .fill{background:linear-gradient(90deg,var(--orange),var(--green))}
+.phase-progress .txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+/* unit cards — labels + delete out of the thumb path */
+.unit-card{position:relative}
+.unit-card h3{padding-right:44px}
+.unit-card .card-actions{position:absolute;top:12px;right:12px}
+.unit-card .phase-prog{margin-top:10px}
+.unit-card .phase-prog .lbl{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--text2)}
+.unit-card .phase-prog .lbl span:last-child{font-family:'JetBrains Mono',monospace}
+.unit-card .prog-fill.dep{background:linear-gradient(90deg,var(--orange),var(--green))}
+.model-picker select{font-size:15px;padding:8px 10px;border-radius:8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);min-height:40px;max-width:100%}
+.pt-short{display:none}
+@media (max-width:640px){
+  .pt-long{display:none}.pt-short{display:inline}
+  .phase-tab{padding:8px 4px;font-size:12px;flex-direction:column;gap:2px;white-space:nowrap}
+  .models-intro{display:none}
+  .deploy-header h2{flex-basis:100%;order:-1}
+  .deploy-header .btn{flex:1 1 0;justify-content:center}
+}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center}
@@ -5528,6 +5577,7 @@ function renderDeployUnitDetail(el) {
     <div class="deploy-header">
       <button class="btn btn-sm no-print" onclick="backToDeployUnits()">← Back</button>
       <h2>🤖 ${esc(u.unit_name||u.name||'')}</h2>
+      <button class="btn btn-sm no-print" id="hideDoneBtn" onclick="toggleHideDone()">${document.body.classList.contains('hide-done') ? '👁 Show done' : '✓ Hide done'}</button>
       <button class="btn btn-sm no-print" onclick="showPrintOptions()">🖨️ Print / PDF</button>
       <div class="submeta">${esc(m?.icon||'')} ${esc(mName)}${m?.ref?' · '+esc(m.ref):''}${uNotes?' · '+esc(uNotes):''}</div>
     </div>
@@ -5605,23 +5655,42 @@ function renderDeployPhaseBlock(u, phase, icon, title, subtitle, prog, klass) {
     secItems.forEach(item => {
       const c = ck.find(x => x.item_id === item.id && x.phase === phase);
       const checked = !!(c && c.checked);
+      const tier = TIER_NAMES[item.tier] ? item.tier : null;
+      // <label> so the whole row is the tap target, not just the 20px box
       html += `
-        <div class="deploy-item ${checked?'checked':''}" data-item-id="${item.id}" data-phase="${phase}" data-sec-key="${esc(secKey)}">
+        <label class="deploy-item ${checked?'checked':''} ${tier?'tier-'+tier:''}" data-item-id="${item.id}" data-phase="${phase}" data-sec-key="${esc(secKey)}">
           <input type="checkbox" ${checked?'checked':''} ${isOperator?'':'disabled'} onchange="toggleDeployCheck('${u.id}','${item.id}','${phase}',this.checked,this)">
           <div class="di-label">
-            ${esc(item.label)}
+            <span class="di-text">${esc(item.label)}</span>${tier?`<span class="di-tier t-${tier}">${TIER_NAMES[tier]}</span>`:''}
             ${item.description?`<span class="sub">${esc(item.description)}</span>`:''}
             ${item.part_number?`<span class="sub" style="color:var(--accent)">${esc(item.part_number)}${item.tool?' · '+esc(item.tool):''}</span>`:''}
-            ${checked && c?.checked_by ? `<span class="by">✓ ${esc(c.checked_by)} · ${esc(formatDate(c.checked_at))}</span>` : ''}
+            ${checked && c?.checked_by ? checkedByHTML(c.checked_by, c.checked_at) : ''}
           </div>
           ${item.qty?`<div class="di-qty">×${item.qty}</div>`:''}
-        </div>`;
+        </label>`;
     });
     html += `</div></div>`;
   });
 
   html += `</div>`;
   return html;
+}
+
+const TIER_NAMES = { verify: '🔍 Verify', review: '⚠ Review', witness: '⛔ Witness' };
+
+// Compact "who · when" for checklist rows; full email + timestamp stay in the tooltip.
+function checkedByHTML(by, at) {
+  const who = String(by || '').split('@')[0];
+  const d = at ? new Date(at) : null;
+  const pad = n => String(n).padStart(2, '0');
+  const when = d && !isNaN(d) ? `${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+  return `<span class="by" title="${esc(by)} · ${esc(formatDate(at))}">✓ ${esc(who)}${when ? ' · ' + when : ''}</span>`;
+}
+
+function toggleHideDone() {
+  const on = document.body.classList.toggle('hide-done');
+  const b = document.getElementById('hideDoneBtn');
+  if (b) b.textContent = on ? '👁 Show done' : '✓ Hide done';
 }
 
 function toggleDeploySection(secKey) {
@@ -5661,7 +5730,7 @@ async function toggleDeployCheck(unitId, itemId, phase, checked, checkboxEl) {
     const labelEl = row.querySelector('.di-label');
     let byEl = labelEl?.querySelector('.by');
     if (checked) {
-      const html = `<span class="by">✓ ${esc(by)} · ${esc(formatDate(now))}</span>`;
+      const html = checkedByHTML(by, now);
       if (byEl) byEl.outerHTML = html;
       else if (labelEl) labelEl.insertAdjacentHTML('beforeend', html);
     } else if (byEl) byEl.remove();
@@ -6512,7 +6581,7 @@ async function renderModels() {
       <h1>🤖 Models</h1>
       <button class="btn btn-primary admin-only" onclick="showAddModel()">➕ New Model</button>
     </div>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
+    <p class="models-intro" style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.5">
       Each robot model has its own checklist split across phases — <b>After-Installation QC</b> (post-build),
       <b>Pre-Test QC</b> (pre power-on) and <b>Pre-Deploy</b> (pre-shipping). An item can belong to
       more than one phase. Click a model to edit its checklist.
@@ -6725,7 +6794,7 @@ async function renderModelDetail(el) {
 
     <div class="phase-tabs">
       <button class="phase-tab ${modelPhase==='pre_install_qc'?'active':''}" onclick="setModelPhase('pre_install_qc')">
-        🛡️ After-Installation QC <span class="count">(${qcN})</span>
+        🛡️ <span class="pt-long">After-Installation QC</span><span class="pt-short">After-Install</span> <span class="count">(${qcN})</span>
       </button>
       <button class="phase-tab ${modelPhase==='pre_test_qc'?'active':''}" onclick="setModelPhase('pre_test_qc')">
         🧪 Pre-Test QC <span class="count">(${testN})</span>
