@@ -1204,7 +1204,7 @@ function safeColor(c){
   return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : '#888';
 }
 
-function pillStyle(color, textColor){ const tc = (textColor && textColor !== 'auto') ? textColor : null; if(color==='transparent'||color==='none'||!color){ return { fill:'none', stroke:'#94a3b8', text: tc || '#111' }; } return { fill:color, stroke:'#ffffff', text: tc || pickTextColor(color) }; }
+function pillStyle(color, textColor){ color = safeColor(color); const tc = (textColor && textColor !== 'auto') ? safeColor(textColor) : null; if(color==='transparent'||color==='none'||!color){ return { fill:'none', stroke:'#94a3b8', text: tc || '#111' }; } return { fill:color, stroke:'#ffffff', text: tc || pickTextColor(color) }; }
 const TRANSPARENT_BG = 'repeating-conic-gradient(#b9c0cc 0% 25%, #fff 0% 50%) 0 / 10px 10px';
 function colorSwatchRow(colors, current, onpick, opts){
   let h = '';
@@ -2969,7 +2969,7 @@ function xLeaderControlsSVG(b, xi, color, nodesPct, curve, vbW, vbH, toggleX, to
 function renderLoctorqueLeaderSVG(b, vbW, vbH){
   const m = ltMeta(b);
   if ((m.leader||'arrow') === 'none') return '';
-  const c = b.color || ltColor(m.loctite);
+  const c = safeColor(b.color || ltColor(m.loctite));
   const bx = (m.bx==null?b.x_pct:m.bx), by = (m.by==null?b.y_pct:m.by);
   const tipX = b.x_pct, tipY = b.y_pct;
   const nodesPct = [{x:bx,y:by}, ...(m.waypoints||[]), {x:tipX,y:tipY}];
@@ -3229,7 +3229,7 @@ function renderBalloonsSVG() {
   svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
 
   // Build arrowhead defs (one per balloon color used, marker per style)
-  const colors = [...new Set(pageBalloons.map(b => b.color || '#e74c3c'))];
+  const colors = [...new Set(pageBalloons.map(b => safeColor(b.color || '#e74c3c')))];
   let defs = '<defs>';
   colors.forEach(c => {
     const id = 'ah_' + c.replace('#','');
@@ -3250,7 +3250,7 @@ function renderBalloonsSVG() {
     if (bmode === 'loctorque') { html += renderLoctorqueLeaderSVG(b, vbW, vbH); return; }  // §7 leader
 
     const sel = b.id === selectedBalloonId ? ' selected' : '';
-    const color = b.color || '#e74c3c';
+    const color = safeColor(b.color || '#e74c3c');
     const isCable = bmode === 'cable';
     const shape = (MODES[bmode] && MODES[bmode].shape) || (isCable ? 'note' : 'circle');
     const isTag = isCable || shape === 'note' || shape === 'caution';
@@ -3848,7 +3848,7 @@ async function exportAnnotatedPNG() {
     const cy = b.y_pct/100 * canvas.height;
     const tx = b.tip_x_pct/100 * canvas.width;
     const ty = b.tip_y_pct/100 * canvas.height;
-    const color = b.color || '#e74c3c';
+    const color = safeColor(b.color || '#e74c3c');
     const sh = shapeOf(b);
     const isCable = (b.mode||'balloon') === 'cable';
     const isTag = isCable || isTagShape(sh);
@@ -3932,7 +3932,7 @@ async function exportAnnotatedPNG() {
     const tips = extraTips(b); if (!tips.length) return;
     const style = b.arrow_style || 'solid'; if (style === 'none') return;
     const cx = b.x_pct/100 * canvas.width, cy = b.y_pct/100 * canvas.height;
-    const color = b.color || '#e74c3c';
+    const color = safeColor(b.color || '#e74c3c');
     const W = canvas.width, H = canvas.height;
     tips.forEach(xt => {
       const tx = (xt.x||0)/100 * W, ty = (xt.y||0)/100 * H;
@@ -3982,7 +3982,7 @@ async function exportAnnotatedPNG() {
   pageBalloons.forEach(b => {
     const cx = b.x_pct/100 * canvas.width;
     const cy = b.y_pct/100 * canvas.height;
-    const color = b.color || '#e74c3c';
+    const color = safeColor(b.color || '#e74c3c');
     const bmode = b.mode || 'balloon';
     const sh = shapeOf(b);
     const isCable = bmode === 'cable';

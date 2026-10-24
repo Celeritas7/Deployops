@@ -19,8 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Publish only the app. docs/, design/ and migrations/ are reference
+      # material and must not be served from the public site.
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp index.html docx-export.js .nojekyll _site/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'          # serve repo root, same as current branch deploy
+          path: '_site'
       - id: deployment
         uses: actions/deploy-pages@v4
