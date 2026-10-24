@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DeployOps</title>
+<meta name="theme-color" content="#07090f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%2360a5fa%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-size=%2736%27 text-anchor=%27middle%27 font-family=%27sans-serif%27 font-weight=%27700%27 fill=%27%2307090f%27%3EDO%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
@@ -880,7 +882,7 @@ async function saveExtraTips(b, arr){
   if (arr && arr.length) extra.xt = arr; else delete extra.xt;
   b.label = serializeBalloonLabel(meta.text, meta.curve, meta.waypoints, extra);
   renderBalloonsSVG();
-  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id); } catch(e){ console.error(e); }
+  try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id), 'Save'); } catch(e){ console.error(e); }
 }
 async function addExtraLeader(bid){
   const b = balloons.find(x => x.id === bid); if (!b) return;
@@ -921,7 +923,7 @@ function startXTipDrag(e){
   const onUp = async () => {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
-    if (isDragging){ try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); } catch(err){ console.error(err); } await loadBalloons(); paintAnnotations(); }
+    if (isDragging){ try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid), 'Save'); } catch(err){ console.error(err); } await loadBalloons(); paintAnnotations(); }
     setTimeout(() => { isDragging = false; }, 100);
   };
   document.addEventListener('pointermove', onMove);
@@ -999,7 +1001,7 @@ function startXWaypointDrag(e){
   const onUp = async () => {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
-    if (isDragging && g._dirty){ try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); } catch(err){ console.error(err); } }
+    if (isDragging && g._dirty){ try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid), 'Save'); } catch(err){ console.error(err); } }
     setTimeout(()=>{ isDragging=false; }, 100);
   };
   document.addEventListener('pointermove', onMove);
@@ -1039,7 +1041,7 @@ async function runAnnotationSelfTest(){
   } catch(err){ results.push('✗ exception: '+(err.message||err)); }
   // cleanup everything created
   let cleaned=0;
-  for (const id of made){ try { await sb.from('deployops_balloons').delete().eq('id', id); cleaned++; } catch(e){} }
+  for (const id of made){ try { await must(sb.from('deployops_balloons').delete().eq('id', id), 'Delete'); cleaned++; } catch(e){} }
   await loadBalloons(); paintAnnotations();
   const pass=results.every(r=>r[0]==='✓');
   console.log('%cDeployOps annotation self-test — '+(pass?'ALL PASS':'FAILURES')+'\n'+results.join('\n')+'\nCleaned up '+cleaned+' test row(s).', 'font-family:monospace;font-size:12px');
@@ -1091,14 +1093,14 @@ async function persistLeaderRoute(b, curve, waypoints){
   if (b.mode === 'loctorque'){
     const m = ltMeta(b); m.curve = curve; m.waypoints = waypoints; b.label = ltSerialize(m);
     paintAnnotations();
-    try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id); }
+    try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id), 'Save'); }
     catch(e){ console.error(e); toast('Save failed','err'); }
     return;
   }
   const meta = balloonMeta(b);
   b.label = serializeBalloonLabel(meta.text, curve, waypoints, meta._extra);
   renderBalloonsSVG();
-  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id); }
+  try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', b.id), 'Save'); }
   catch(e){ console.error(e); toast('Save failed','err'); }
 }
 async function toggleLeaderCurve(bid){
@@ -1141,7 +1143,7 @@ function startWaypointDrag(e){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     if (isDragging && g._dirty){
-      try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+      try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid), 'Save'); }
       catch(err){ console.error(err); }
     }
     setTimeout(()=>{ isDragging=false; }, 100);
@@ -1419,15 +1421,86 @@ function toast(msg, type = 'info') {
 // ============================================================
 // MODAL
 // ============================================================
+let _modalOpener = null;   // element focused before the modal opened — restored on close
+let _modalOnClose = null;  // confirmAsync/promptAsync resolver, so Escape/overlay = cancel
 function showModal(html) {
+  if (!isModalOpen()) _modalOpener = document.activeElement;
   document.getElementById('modalBox').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
 }
-function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+function isModalOpen() { return document.getElementById('modalOverlay').classList.contains('show'); }
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  const done = _modalOnClose; _modalOnClose = null;
+  if (done) done();
+  const o = _modalOpener; _modalOpener = null;
+  if (o && o.isConnected && typeof o.focus === 'function') { try { o.focus(); } catch(e) {} }
+}
 document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+// Keyboard: Escape closes any modal; Enter in a single-line field submits it
+// (clicks the primary button). Textareas keep Enter for new lines.
+document.addEventListener('keydown', e => {
+  if (!isModalOpen()) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    const t = e.target;
+    if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.tagName === 'A')) return;
+    const box = document.getElementById('modalBox');
+    const btn = box.querySelector('#confirmOkBtn, .modal-actions .btn-primary');
+    if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+  }
+});
 
-// G.1: localized destructive-confirm modal. Scoped to section deletion this
-// phase; deleteModel/deleteModelItem still use browser confirm().
+// Promise-based replacements for window.confirm / window.prompt. Resolve
+// false / null on Cancel, Escape or an overlay click.
+function confirmAsync(msg, opts = {}) {
+  const lang = getUiLang();
+  const okLabel = opts.ok || (lang === 'ja' ? '削除' : 'Delete');
+  const cancelLabel = lang === 'ja' ? 'キャンセル' : 'Cancel';
+  return new Promise(resolve => {
+    showModal(`
+      <h3>${esc(opts.title || (lang === 'ja' ? '確認' : 'Confirm'))}</h3>
+      <p style="margin:12px 0;line-height:1.5;white-space:pre-line">${esc(msg)}</p>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">${esc(cancelLabel)}</button>
+        <button class="btn ${opts.danger === false ? 'btn-primary' : 'btn-danger'}" id="confirmOkBtn">${esc(okLabel)}</button>
+      </div>`);
+    let ok = false;
+    _modalOnClose = () => resolve(ok);
+    const btn = document.getElementById('confirmOkBtn');
+    btn.onclick = () => { ok = true; closeModal(); };
+    setTimeout(() => btn.focus(), 30);
+  });
+}
+function promptAsync(label, opts = {}) {
+  const lang = getUiLang();
+  return new Promise(resolve => {
+    showModal(`
+      <h3>${esc(opts.title || label)}</h3>
+      <label>${esc(label)}</label><input id="promptInput" value="${esc(opts.value || '')}" placeholder="${esc(opts.placeholder || '')}">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">${lang === 'ja' ? 'キャンセル' : 'Cancel'}</button>
+        <button class="btn btn-primary" id="promptOkBtn">${esc(opts.ok || 'OK')}</button>
+      </div>`);
+    let val = null;
+    _modalOnClose = () => resolve(val);
+    const inp = document.getElementById('promptInput');
+    document.getElementById('promptOkBtn').onclick = () => { val = inp.value; closeModal(); };
+    setTimeout(() => inp.focus(), 30);
+  });
+}
+
+// Supabase never throws on a failed query — it resolves { error }. Wrap
+// writes whose result was previously ignored so a failure is reported
+// instead of looking saved.
+async function must(q, what) {
+  const r = await q;
+  if (r && r.error) { console.error(what || 'query', r.error); toast((what || 'Save') + ' failed: ' + (r.error.message || r.error), 'err'); throw r.error; }
+  return r;
+}
+
+// G.1: localized destructive-confirm modal (callback style; see confirmAsync
+// for the promise form used by the other delete paths).
 function showConfirm(msgEn, msgJa, onOk) {
   const lang = getUiLang();
   const title = lang === 'ja' ? '確認' : 'Confirm';
@@ -1450,7 +1523,8 @@ function showConfirm(msgEn, msgJa, onOk) {
 // DRAWINGS
 // ============================================================
 async function loadDrawings() {
-  const { data } = await sb.from('deployops_drawings').select('*').order('created_at', { ascending: false });
+  const { data, error } = await sb.from('deployops_drawings').select('*').order('created_at', { ascending: false });
+  if (error) { console.error(error); toast('Failed to load drawings: ' + error.message, 'err'); }
   drawings = data || [];
   renderDrawingsSelect();
   // Folder grid is the landing view for the Drawings tab — don't auto-open a
@@ -1460,7 +1534,8 @@ async function loadDrawings() {
 // Explicitly-created folders (the deployops_drawing_folders table). These let a
 // folder exist even with zero drawings in it. Loaded alongside loadDrawings.
 async function loadDrawingFolders() {
-  const { data } = await sb.from('deployops_drawing_folders').select('*').order('path', { ascending: true });
+  const { data, error } = await sb.from('deployops_drawing_folders').select('*').order('path', { ascending: true });
+  if (error) { console.error(error); toast('Failed to load folders: ' + error.message, 'err'); }
   drawingFolders = data || [];
 }
 
@@ -1648,7 +1723,7 @@ function backToDrawingFolders() { drawingPath = drawingPath.slice(0, -1); curren
 // (there is no folder table), so a new sub-folder becomes "real" the moment a
 // drawing is uploaded/moved into it — we open it and offer the first upload.
 async function newSubFolder() {
-  const name = (prompt('New sub-folder name:') || '').trim().split(FSEP).join('');
+  const name = ((await promptAsync('New sub-folder name', { title: 'New folder', ok: 'Create' })) || '').trim().split(FSEP).join('');
   if (!name) return;
   drawingPath = [...drawingPath, name];
   currentDrawing = null;
@@ -1669,7 +1744,7 @@ async function newSubFolder() {
 async function deleteDrawingFolder(path) {
   const segs = path.split(FSEP);
   if (drawings.some(d => underPath(folderSegs(d), segs))) { toast('Folder is not empty', 'err'); return; }
-  if (!confirm('Delete empty folder "' + path + '"?')) return;
+  if (!await confirmAsync('Delete empty folder "' + path + '"?')) return;
   try {
     let r = await sb.from('deployops_drawing_folders').delete().eq('path', path);
     if (r.error) throw r.error;
@@ -1714,7 +1789,7 @@ function showEditDrawing(id) {
 async function deleteDrawing(id) {
   const d = drawings.find(x => x.id === id);
   if (!d) return;
-  if (!confirm(`Delete drawing "${d.name || d.drawing_ref}" and ALL its pages, balloons and the source PDF?\n\nThis cannot be undone.`)) return;
+  if (!await confirmAsync(`Delete drawing "${d.name || d.drawing_ref}" and ALL its pages, balloons and the source PDF?\n\nThis cannot be undone.`)) return;
 
   const ref = d.drawing_ref;
   try {
@@ -1846,7 +1921,8 @@ async function confirmPDFUpload() {
     // Store the source PDF so the viewer can re-render pages vector-crisp at any
     // zoom. Non-fatal: if it fails the drawing still works off the PNG pages.
     try {
-      await sb.storage.from('deployops-drawings').upload(`${ref}/source.pdf`, file, { contentType: 'application/pdf', upsert: true });
+      const { error: pdfUpErr } = await sb.storage.from('deployops-drawings').upload(`${ref}/source.pdf`, file, { contentType: 'application/pdf', upsert: true });
+      if (pdfUpErr) throw pdfUpErr;
     } catch (pdfErr) { console.warn('source.pdf upload failed (hi-fi zoom disabled for this drawing):', pdfErr); }
 
     // Convert each page to PNG and upload
@@ -2800,7 +2876,7 @@ async function updateBalloon(bid, isCable) {
   if (_wantTC) patch.text_color = _wantTC; else if (_b && _b.text_color) patch.text_color = null;
   // Removing the leader (style → none) also clears the tip so no orphan coords linger.
   if (arrow_style === 'none') { patch.tip_x_pct = null; patch.tip_y_pct = null; }
-  await sb.from('deployops_balloons').update(patch).eq('id', bid);
+  await must(sb.from('deployops_balloons').update(patch).eq('id', bid), 'Save');
   toast('Updated','ok');
   await loadBalloons();
   renderBalloonsSVG();
@@ -2808,7 +2884,7 @@ async function updateBalloon(bid, isCable) {
 
 async function deleteBalloon(bid) {
   closeModal();
-  await sb.from('deployops_balloons').delete().eq('id', bid);
+  await must(sb.from('deployops_balloons').delete().eq('id', bid), 'Delete');
   toast('Balloon deleted','ok');
   selectedBalloonId = null;
   await loadBalloons();
@@ -2897,14 +2973,14 @@ async function scaleTable(bid, dir) {
   meta.scale = Math.max(0.5, Math.min(3, +(cur + dir*0.2).toFixed(2)));
   b.label = JSON.stringify(meta);
   renderBalloonsSVG();
-  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+  try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid), 'Save'); }
   catch(e) { console.error(e); toast('Resize failed','err'); }
 }
 
 async function deleteTable(bid) {
-  if (!confirm('Remove this reference table from the drawing?')) return;
+  if (!await confirmAsync('Remove this reference table from the drawing?', { ok: 'Remove' })) return;
   try {
-    await sb.from('deployops_balloons').delete().eq('id', bid);
+    await must(sb.from('deployops_balloons').delete().eq('id', bid), 'Delete');
     toast('Table removed','ok');
     await loadBalloons();
     renderBalloonsSVG();
@@ -3074,7 +3150,7 @@ function bindOverlay(ov){
 async function ltUpdate(b, m){
   b.label = ltSerialize(m); b.color = m.color || ltColor(m.loctite);
   paintAnnotations();
-  try { await sb.from('deployops_balloons').update({ label:b.label, color:b.color }).eq('id', b.id); } catch(e){ console.error(e); }
+  try { await must(sb.from('deployops_balloons').update({ label:b.label, color:b.color }).eq('id', b.id), 'Save'); } catch(e){ console.error(e); }
 }
 function ltSetGrade(id, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.loctite=val; delete m.color; ltUpdate(b,m); }
 function ltSetColor(id, c){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=ltMeta(b); m.color=c; ltUpdate(b,m); }
@@ -3096,7 +3172,7 @@ async function dupLT(id){
   } catch(e){ console.error(e); toast('Duplicate failed','err'); }
 }
 function stSerialize(m){ return JSON.stringify({ title:m.title, scale:m.scale, rows:m.rows }); }
-async function stUpdate(b, m){ b.label = stSerialize(m); renderOverlay(); try { await sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id); } catch(e){ console.error(e); } }
+async function stUpdate(b, m){ b.label = stSerialize(m); renderOverlay(); try { await must(sb.from('deployops_balloons').update({ label:b.label }).eq('id', b.id), 'Save'); } catch(e){ console.error(e); } }
 function stCommit(id, ri, val){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); if(!m.rows[ri]||(m.rows[ri].text||'')===val)return; m.rows[ri].text=val; stUpdate(b,m); }
 function stScale(id, d){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); m.scale=Math.max(0.4,Math.min(1.8,+((m.scale||0.9)+d).toFixed(2))); stUpdate(b,m); }
 function stAddRow(id, kind){ const b=balloons.find(x=>x.id===id); if(!b)return; const m=stMeta(b); const steps=m.rows.filter(x=>!x.skip); if(kind==='skip') m.rows.push({skip:true,text:''}); else if(kind==='parallel'){ const lastN = steps.length ? steps[steps.length-1].n : 1; m.rows.push({n:lastN,text:''}); } else { const maxN = steps.length ? Math.max(...steps.map(x=>x.n||0)) : 0; m.rows.push({n:maxN+1,text:''}); } stUpdate(b,m); }
@@ -3109,13 +3185,13 @@ async function scaleCaution(bid, dir) {
   const s = Math.max(0.6, Math.min(3, +(cur + dir*0.2).toFixed(2)));
   b.label = serializeBalloonLabel(m.text, m.curve, m.waypoints, Object.assign({}, m._extra, { s }));
   renderBalloonsSVG();
-  try { await sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid); }
+  try { await must(sb.from('deployops_balloons').update({ label: b.label }).eq('id', bid), 'Save'); }
   catch(e) { console.error(e); toast('Resize failed','err'); }
 }
 
 async function deleteAnnotation(id){
   const b=balloons.find(x=>x.id===id); if(!b)return;
-  try { await sb.from('deployops_balloons').delete().eq('id', id); } catch(e){ console.error(e); toast('Delete failed','err'); return; }
+  try { await must(sb.from('deployops_balloons').delete().eq('id', id), 'Delete'); } catch(e){ console.error(e); toast('Delete failed','err'); return; }
   selectedBalloonId=null; await loadBalloons(); paintAnnotations();
 }
 
@@ -3180,7 +3256,7 @@ function startLTBoxDrag(e){
     renderBalloonsSVG();
   };
   const onUp=async()=>{ document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
-    if(isDragging){ try{ await sb.from('deployops_balloons').update({label:b.label}).eq('id',id); }catch(err){console.error(err);} }
+    if(isDragging){ try{ await must(sb.from('deployops_balloons').update({label:b.label}).eq('id',id), 'Save'); }catch(err){console.error(err);} }
     setTimeout(()=>{isDragging=false;},100);
   };
   document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp);
@@ -3200,7 +3276,7 @@ function startStepTableDrag(e){
     if(el){ el.style.left=b.x_pct+'%'; el.style.top=b.y_pct+'%'; }
   };
   const onUp=async()=>{ document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
-    if(isDragging){ try{ await sb.from('deployops_balloons').update({x_pct:b.x_pct,y_pct:b.y_pct}).eq('id',id); }catch(err){console.error(err);} }
+    if(isDragging){ try{ await must(sb.from('deployops_balloons').update({x_pct:b.x_pct,y_pct:b.y_pct}).eq('id',id), 'Save'); }catch(err){console.error(err);} }
     setTimeout(()=>{isDragging=false;},100);
   };
   document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp);
@@ -3524,7 +3600,7 @@ function startTableDrag(e) {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     if (isDragging) {
-      try { await sb.from('deployops_balloons').update({ x_pct: b.x_pct, y_pct: b.y_pct }).eq('id', bid); }
+      try { await must(sb.from('deployops_balloons').update({ x_pct: b.x_pct, y_pct: b.y_pct }).eq('id', bid), 'Save'); }
       catch(err) { console.error(err); }
     }
     setTimeout(() => { isDragging = false; }, 100);
@@ -3572,7 +3648,7 @@ function startTipDrag(e) {
     document.removeEventListener('pointerup', onUp);
     if (isDragging && pos) {
       const patch = isLoc ? { x_pct: pos.xp, y_pct: pos.yp } : { tip_x_pct: pos.xp, tip_y_pct: pos.yp };
-      try { await sb.from('deployops_balloons').update(patch).eq('id', bid); } catch(err){ console.error(err); }
+      try { await must(sb.from('deployops_balloons').update(patch).eq('id', bid), 'Save'); } catch(err){ console.error(err); }
       await loadBalloons(); paintAnnotations();
     }
     setTimeout(() => { isDragging = false; }, 100);
@@ -3610,7 +3686,7 @@ function startBalloonDrag(e) {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     if (isDragging && g._dragPos) {
-      await sb.from('deployops_balloons').update({ x_pct: g._dragPos.x_pct, y_pct: g._dragPos.y_pct }).eq('id', bid);
+      await must(sb.from('deployops_balloons').update({ x_pct: g._dragPos.x_pct, y_pct: g._dragPos.y_pct }).eq('id', bid), 'Save');
       await loadBalloons();
       renderBalloonsSVG();
     }
@@ -3625,7 +3701,7 @@ function startBalloonDrag(e) {
 // ============================================================
 async function deleteCurrentPage() {
   if (!currentDrawing || currentDrawing.page_count <= 1) return;
-  if (!confirm(`Delete page ${currentPage} permanently? Balloons on this page will be deleted, and pages after it will shift down.`)) return;
+  if (!await confirmAsync(`Delete page ${currentPage} permanently? Balloons on this page will be deleted, and pages after it will shift down.`)) return;
 
   toast(`Deleting page ${currentPage}...`,'info');
   const ref = currentDrawing.drawing_ref;
@@ -3634,11 +3710,11 @@ async function deleteCurrentPage() {
 
   try {
     // 1. Delete balloons on this page
-    await sb.from('deployops_balloons').delete()
-      .eq('drawing_id', currentDrawing.id).eq('page', deletedPage);
+    await must(sb.from('deployops_balloons').delete()
+      .eq('drawing_id', currentDrawing.id).eq('page', deletedPage), 'Delete');
 
     // 2. Delete the storage file for this page
-    await sb.storage.from('deployops-drawings').remove([`${ref}/page_${deletedPage}.png`]);
+    await must(sb.storage.from('deployops-drawings').remove([`${ref}/page_${deletedPage}.png`]), 'Delete');
 
     // 3. Shift later pages: download page_N, upload as page_(N-1), delete page_N
     for (let p = deletedPage + 1; p <= total; p++) {
@@ -3646,15 +3722,15 @@ async function deleteCurrentPage() {
       const newPath = `${ref}/page_${p-1}.png`;
       const { data: blob, error: dlErr } = await sb.storage.from('deployops-drawings').download(oldPath);
       if (dlErr) { console.error(dlErr); continue; }
-      await sb.storage.from('deployops-drawings').upload(newPath, blob, { contentType:'image/png', upsert:true });
-      await sb.storage.from('deployops-drawings').remove([oldPath]);
+      await must(sb.storage.from('deployops-drawings').upload(newPath, blob, { contentType:'image/png', upsert:true }), 'Upload');
+      await must(sb.storage.from('deployops-drawings').remove([oldPath]), 'Delete');
       // Shift balloon page references for this page
-      await sb.from('deployops_balloons').update({ page: p-1 })
-        .eq('drawing_id', currentDrawing.id).eq('page', p);
+      await must(sb.from('deployops_balloons').update({ page: p-1 })
+        .eq('drawing_id', currentDrawing.id).eq('page', p), 'Save');
     }
 
     // 4. Update drawing page_count
-    await sb.from('deployops_drawings').update({ page_count: total - 1 }).eq('id', currentDrawing.id);
+    await must(sb.from('deployops_drawings').update({ page_count: total - 1 }).eq('id', currentDrawing.id), 'Save');
 
     drawingCacheBust[currentDrawing.id] = Date.now();
     invalidateDrawingUrls(ref);
@@ -4468,11 +4544,11 @@ function renderBlankSectionBlock(group, opts = {}) {
 
 // Single section block for Filled mode (DB state + checked_by/at column)
 function renderFilledSectionBlock(group, checks, opts) {
-  const { plain, lang = 'en' } = opts;
+  const { plain, lang = 'en', phaseHead = true, startNo = 1 } = opts;
   const isKit = group.phase === 'pre_deploy';
   let html = '';
 
-  html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(group.phase, plain, lang)} <span style="font-size:11px;color:#555;font-weight:400">(${group.items.length} item${group.items.length===1?'':'s'})</span></h2>`;
+  if (phaseHead) html += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(group.phase, plain, lang)} <span style="font-size:11px;color:#555;font-weight:400">(${group.items.length} item${group.items.length===1?'':'s'})</span></h2>`;
 
   html += `<div class="section"><div class="section-title">${esc(pickSection(group, lang))}</div>`;
 
@@ -4499,7 +4575,7 @@ function renderFilledSectionBlock(group, checks, opts) {
       const by = c ? `${esc(c.checked_by||'')}${c.checked_at?'<br>'+esc(formatDate(c.checked_at)):''}` : '';
       html += `<tr>
         <td><span class="cb ${ck?'done':''}"></span></td>
-        <td>${item.sort_order || i+1}</td>
+        <td>${startNo + i}</td>
         <td>${esc(pickField(item,'label',lang)||'')}</td>
         <td class="meta">${esc(pickField(item,'description',lang)||'')}</td>
         <td class="meta" style="font-size:9px">${by}</td>
@@ -5415,7 +5491,8 @@ function deployProgress(unitId, phase) {
 async function renderDeploy() {
   const el = document.getElementById('deployContent');
 
-  // Pick a default model on first entry
+  // Pick a default model on first entry (or if the selected one was archived/deleted)
+  if (deployModelId && !modelById(deployModelId)) { deployModelId = null; deployUnitId = null; deployLoadedFor = null; }
   if (!deployModelId) {
     if (models.length === 0) {
       el.innerHTML = `<div class="empty"><div class="icon">🤖</div>
@@ -5535,9 +5612,10 @@ async function addDeployUnit() {
 
 async function deleteDeployUnit(id) {
   const u = deployUnits.find(x => x.id === id);
-  if (!u || !confirm(`Delete unit "${u.unit_name||u.name}" and its check data?`)) return;
+  if (!u) return;
+  if (!await confirmAsync(`Delete unit "${u.unit_name||u.name}" and its check data?`)) return;
   try {
-    await sb.from('deployops_unit_checks').delete().eq('unit_id', id);
+    await must(sb.from('deployops_unit_checks').delete().eq('unit_id', id), 'Delete');
     const { error } = await sb.from('deployops_units').delete().eq('id', id);
     if (error) throw error;
     deployUnits = deployUnits.filter(x => x.id !== id);
@@ -6471,7 +6549,21 @@ async function printFilledStatus(opts) {
           <span><strong>${tr(lang,'phase')}:</strong> ${phaseLabelText}</span>
           <span><strong>${tr(lang,'progress')}:</strong> ${done}/${total} ${tr(lang,'complete')}</span>
         </div>
-        ${groups.map(g => renderFilledSectionBlock(g, ck, { plain, lang })).join('')}
+        ${(() => {
+          // One heading per phase (with that phase's item total) and a
+          // running item number across its sections.
+          let out = '', lastPhase = null, no = 1;
+          groups.forEach(g => {
+            if (g.phase !== lastPhase) {
+              lastPhase = g.phase; no = 1;
+              const n = groups.filter(x => x.phase === g.phase).reduce((a, x) => a + x.items.length, 0);
+              out += `<h2 style="font-size:14px;margin:18px 0 8px;border-bottom:2px solid #333;padding-bottom:4px">${phaseLabel(g.phase, plain, lang)} <span style="font-size:11px;color:#555;font-weight:400">(${n} item${n===1?'':'s'})</span></h2>`;
+            }
+            out += renderFilledSectionBlock(g, ck, { plain, lang, phaseHead: false, startNo: no });
+            no += g.items.length;
+          });
+          return out;
+        })()}
       `;
       customHeader = undefined;  // default header from buildPrintHTML
     }
@@ -6922,7 +7014,7 @@ async function renderModelDetail(el) {
       // normal mode it's the active nav phase. Labels via phaseLabel() so
       // chips/badges localize (decision 4 — no short JA exists).
       const activePhase = brushPhase || modelPhase;
-      const pills = ALL_PHASES.filter(p => ph.includes(p)).map(p =>
+      const pills = ALL_PHASES.filter(p => ph.includes(p) && (inBrush || p !== modelPhase)).map(p =>
         `<span class="phase-pill ${p===activePhase?'on':''}" title="${esc(phaseLabel(p, true, lang))}">${esc(phaseLabel(p, true, lang))}</span>`
       ).join('');
       const tierBadge = (it.tier && it.tier !== 'plain')
@@ -7402,7 +7494,7 @@ async function applyBulkAdd() {
 
 // ===== Item edit/delete/move (Model flow) =====
 async function deleteModelItem(id) {
-  if (!confirm('Delete this item?')) return;
+  if (!await confirmAsync('Delete this item?')) return;
   const it = modelItems.find(x => x.id === id);
   try {
     const { error } = await sb.from('deployops_checklist_items').delete().eq('id', id);
@@ -7535,17 +7627,21 @@ async function moveModelItem(id, dir) {
   const secId = it.section_id || null;
   const list = itemsForPhase(modelPhase).filter(x => (x.section_id || null) === secId);
   const idx = list.findIndex(x => x.id === id);
-  const swap = list[idx + dir];
-  if (!swap) return;
-  const aOrder = it.sort_order, bOrder = swap.sort_order;
+  if (idx < 0 || !list[idx + dir]) return;
+  // Swap in the ordered list, then renumber the whole section from the
+  // smallest existing order: items that shared a sort_order (e.g. added from
+  // different phase tabs) would otherwise swap to the same number and not move.
+  list.splice(idx, 1); list.splice(idx + dir, 0, it);
+  const base = Math.min(...list.map(x => x.sort_order || 0), 1);
+  const changes = [];
+  list.forEach((x, i) => { const n = base + i; if (x.sort_order !== n) changes.push({ x, prev: x.sort_order, n }); });
+  changes.forEach(c => { c.x.sort_order = c.n; });
+  renderModels();
   try {
-    await sb.from('deployops_checklist_items').update({ sort_order: bOrder }).eq('id', it.id);
-    await sb.from('deployops_checklist_items').update({ sort_order: aOrder }).eq('id', swap.id);
-    it.sort_order = bOrder; swap.sort_order = aOrder;
-    renderModels();
+    await Promise.all(changes.map(c => must(sb.from('deployops_checklist_items').update({ sort_order: c.n }).eq('id', c.x.id), 'Move')));
   } catch(e) {
-    console.error(e);
-    toast('Move failed', 'err');
+    changes.forEach(c => { c.x.sort_order = c.prev; });
+    renderModels();
   }
 }
 
@@ -7634,8 +7730,21 @@ async function deleteModel(id) {
   const stats = modelItemCount[id] || { pre_install_qc: 0, pre_test_qc: 0, pre_deploy: 0 };
   const iN = stats.pre_install_qc + stats.pre_test_qc + stats.pre_deploy;
   const lang = getUiLang();
-  const msg = `Delete model "${pickField(m, 'name', lang)}"?\n\n• ${iN} checklist item(s) will be deleted.\n• ${uN} unit(s) will be unlinked (kept in DB).`;
-  if (!confirm(msg)) return;
+  if (uN > 0) {
+    // Units carry QC history and become unreachable without a model —
+    // archive (hide) the model instead of deleting it.
+    const ok = await confirmAsync(`"${pickField(m, 'name', lang)}" has ${uN} unit(s) with QC records, so it can't be deleted.\n\nArchive it instead? It disappears from the app but all units, items and ticks are kept.`, { ok: 'Archive', title: 'Archive model' });
+    if (!ok) return;
+    try {
+      const { error } = await sb.from('deployops_models').update({ visible: false }).eq('id', id);
+      if (error) throw error;
+      models = models.filter(x => x.id !== id);
+      closeModal(); modelView = null; toast('Model archived', 'info'); renderModels();
+    } catch(e) { console.error(e); toast('Archive failed: ' + (e.message || e), 'err'); }
+    return;
+  }
+  const msg = `Delete model "${pickField(m, 'name', lang)}"?\n\n• ${iN} checklist item(s) will be deleted.`;
+  if (!await confirmAsync(msg)) return;
   try {
     // Unlink units (set model_id to null) — keeps them in DB for legacy Deploy view
     if (uN > 0) {
