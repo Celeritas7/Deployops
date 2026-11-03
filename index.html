@@ -641,13 +641,15 @@ body.is-fullscreen .topbar,body.is-fullscreen .tabbar{display:none!important}
 <!-- HIDDEN FILE INPUT -->
 <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="handlePDFUpload(event)">
 
+<script src="https://celeritas7.github.io/Akatsuki/js/akatsuki-broadcast.js"></script>
 <script>
 // ============================================================
 // CONFIG
 // ============================================================
 const SUPABASE_URL = 'https://wylxvmkcrexwfpjpbhyy.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bHh2bWtjcmV4d2ZwanBiaHl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzkxMDYsImV4cCI6MjA4NDIxNTEwNn0.6Bxo42hx4jwlJGWnfjiTpiDUsYfc1QLTN3YtrU1efak';
+const SUPABASE_KEY = 'sb_publishable_e3pDOuxIdstaC7s0a680kQ_R10TrAyv';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+if (window.AkatsukiBroadcast) window.AkatsukiBroadcast(sb, 'deployops').start();
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ============================================================
